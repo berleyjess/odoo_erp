@@ -1,0 +1,45 @@
+<odoo>
+    <!-- Acción de Menú (DEBE IR PRIMERO) -->
+    <record id="action_ciclos" model="ir.actions.act_window">
+        <field name="name">ciclos</field>
+        <field name="res_model">ciclo</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crea tu primer ciclo</p>
+        </field>
+    </record>
+
+    <!-- Vista árbol -->
+    <record id="view_ciclo_list" model="ir.ui.view">
+        <field name="name">ciclo.tree</field>
+        <field name="model">ciclo</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="f_inicio"/>
+                <field name="f_final"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista formulario -->
+    <record id="view_ciclo_form" model="ir.ui.view">
+        <field name="name">ciclo.form</field>
+        <field name="model">ciclo</field>
+        <field name="arch" type="xml">
+            <form autosave="False">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="f_inicio"/>
+                        <field name="f_final"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Menús -->
+    <menuitem id="menu_root" name="ciclos" sequence="10"/>
+    <menuitem id="menu_action" name="Catálogo de ciclos" parent="menu_root" action="action_ciclos"/>
+</odoo>

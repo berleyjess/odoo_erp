@@ -1,0 +1,19 @@
+id,code,descripcion,tipo
+0,601,General de Ley Personas Morales,1
+1,603,Personas Morales con Fines no Lucrativos,1
+2,605,Sueldos y Salarios e Ingresos Asimilados a Salarios,0
+3,606,Arrendamiento,0
+4,607,Regimen de Enajenacion o Adquisicion de Bienes,0
+5,608,Demas ingresos,0
+6,610,Residentes en el Extranjero sin Establecimiento Permanente en Mexico,2
+7,611,Ingresos por Dividendos (socios y accionistas),0
+8,612,Personas Fisicas con Actividades Empresariales y Profesionales,0
+9,614,Ingresos por intereses,0
+10,615,Regimen de los ingresos por obtencion de premios,0
+11,616,Sin obligaciones fiscales,0
+12,620,Sociedades Cooperativasi de Produccion que optan por diferir sus ingresos,1
+13,621,Incorporacion Fiscal,0
+14,622,"Actividades Agricolas, Ganaderas, Silvicolas y Pesqueras",1
+15,623,Opcional para Grupos de Sociedades,1
+16,624,Coordinados,1
+17,626,Regimen Simplificado de Confianza,2

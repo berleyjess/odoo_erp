@@ -1,0 +1,69 @@
+<odoo>
+    <!-- Acción de Menú (DEBE IR PRIMERO) -->
+    <record id="action_proveedors" model="ir.actions.act_window">
+        <field name="name">Proveedores</field>
+        <field name="res_model">proveedor</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Agrega proveedores para hacer tu primera compra!</p>
+        </field>
+    </record>
+
+    <!-- Vista árbol -->
+    <record id="view_proveedor_list" model="ir.ui.view">
+        <field name="name">proveedor.tree</field>
+        <field name="model">proveedor</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="codigo"/>
+                <field name="nombre"/>
+                <field name="rfc"/>
+                <field name="descripcion"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista formulario -->
+    <record id="view_proveedor_form" model="ir.ui.view">
+        <field name="name">proveedor.form</field>
+        <field name="model">proveedor</field>
+        <field name="arch" type="xml">
+            <form autosave="False">
+                <xpath expr="//div[contains(@class, 'o_control_panel_main')]" position="replace"/>
+                
+                <!-- Elimina componentes específicos por si acaso -->
+                <xpath expr="//div[contains(@class, 'o_control_panel_breadcrumbs')]" position="replace"/>
+                <xpath expr="//div[contains(@class, 'o_control_panel_actions')]" position="replace"/>
+                <xpath expr="//div[contains(@class, 'o_control_panel_navigation')]" position="replace"/>
+
+                <sheet>
+                    <group>
+                        <field name="nombre"/>
+                        <field name="rfc"/>
+                        <field name="localidad"/>
+                        <field name="codigop"/>
+                        <field name="calle"/>
+                        <field name="numero"/>
+                        <field name="descripcion"/>
+                    </group>
+                    <notebook>
+                        <page string="Contactos">
+                            <field name="contacto">
+                                <list editable="bottom">
+                                    <field name="nombre"/>
+                                    <field name="descripcion"/>
+                                    <field name="telefono"/>
+                                    <field name="email"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Menús -->
+    <menuitem id="menu_root" name="Proveedores" sequence="10"/>
+    <menuitem id="menu_action" name="Catálogo de proveedores" parent="menu_root" action="action_proveedors"/>
+</odoo>

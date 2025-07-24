@@ -1,0 +1,88 @@
+<odoo>
+    <!-- Acción de Menú (DEBE IR PRIMERO) -->
+    <record id="action_ventas" model="ir.actions.act_window">
+        <field name="name">ventas</field>
+        <field name="res_model">venta</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crea tu primer venta</p>
+        </field>
+    </record>
+
+    <!-- Vista árbol -->
+    <record id="view_venta_list" model="ir.ui.view">
+        <field name="name">venta.tree</field>
+        <field name="model">venta</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="fecha"/>
+                <field name="cliente"/>
+                <field name="contrato"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista formulario -->
+    <record id="view_venta_form" model="ir.ui.view">
+        <field name="name">venta.form</field>
+        <field name="model">venta</field>
+        <field name="arch" type="xml">
+            <form autosave="False">
+                <sheet>
+                    <group>
+                        <field name="fecha"/>
+                        <field name="cliente"/>
+                        <field name="metododepago"/>
+                        <field name="formadepago"                             
+                            required="metododepago == 'PUE'"
+                            invisible="metododepago != 'PUE'"
+                        />
+                        <field name="contrato"
+                            required="metododepago != 'PUE'"
+                            invisible="metododepago == 'PUE'"
+                        />
+                        <field name="solicita"/>
+                        <field name="observaciones"/>
+                    </group>
+                    <notebook>
+                        <page string="Detalles de Venta">
+                            <field name="detalle">
+                                <list editable="bottom">
+                                    <field name="producto"/>
+                                    <field name="cantidad"/>
+                                    <field name="precio"/>
+                                    <field name="iva"/>
+                                    <field name="ieps"/>
+                                    <field name="importe"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    <div class="oe_title" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;"/>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="importe" string="Importe: "/>
+                            <field name="importe"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="iva" string="iva: "/>
+                            <field name="iva" string="iva"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="ieps" string="ieps: "/>
+                            <field name="ieps" string="ieps"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="total" string="Total: "/>
+                            <field name="total" string="total"/>
+                        </div>
+                    </div>                        
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Menús -->
+    <menuitem id="menu_root" name="Ventas" sequence="10"/>
+    <menuitem id="menu_action" name="Listado de Ventas" parent="menu_root" action="action_ventas"/>
+</odoo>

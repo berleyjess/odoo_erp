@@ -1,0 +1,72 @@
+<odoo>
+    <!--Acción de Menú-->
+    <record id="action_productos" model="ir.actions.act_window">
+        <field name="name">Productos</field>
+        <field name="res_model">producto</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    
+    <!-- Vista árbol -->
+    <record id="view_productos_tree" model="ir.ui.view">
+        <field name="name">producto.tree</field>
+        <field name="model">producto</field><!-- Nombre del modelo _name -->
+        <field name="arch" type="xml">
+            <list>
+                <field name="codigo"/>
+                <field name="name"/>
+                <field name="unidad"/>
+                <field name="costo"/>
+                <field name="contado"/>
+                <field name="credito"/>
+                <field name="iva"/>
+                <field name="ieps"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista formulario -->
+    <record id="view_productos_form" model="ir.ui.view">
+        <field name="name">producto.form</field>
+        <field name="model">producto</field>
+        <field name="arch" type="xml">
+            <form autosave = "False">
+                <header>
+                    <button name="cancel" string="Descartar" class="btn-secondary"/>
+                    <button name="one" string="Descartar" class="btn-sucess"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="description"/>
+                        <field name="codigosat"
+                        options="{'no_create': True}"
+                        context="{'show_code': True, 'show_description': True}"/>
+                        <field name="linea"/>
+                        <field name="unidad"/>
+                        <field name="costo"/>
+                        <field name="contado"/>
+                        <field name="credito"/>
+                        <field name="iva"/>
+                        <field name="ieps"/>
+                    </group>
+                    <button 
+                        name="action_manual_save" 
+                        string="Guardar" 
+                        type="object" 
+                        class="btn-primary"
+                    />
+                    <button name="save" string="Guardar" class="oe_highlight"/>
+                </sheet>
+                <div class="oe_button_box" style="background: #f8f9fa; padding: 10px; border-top: 1px solid #ddd; text-align: right;">
+                    <button name="two" string="footer" class="btn-danger"/>
+                    <button name="tree" string="footer2" class="btn-link"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- Menús -->
+    <menuitem id="menu_root" name="Productos"/>
+        <menuitem id="menu_action" name="Lista de Productos" parent="menu_root" action="action_productos"/>
+    <!--        <menuitem id="menu_final" name="Productos" parent="menu_action" action="action_productos"/>-->
+</odoo>

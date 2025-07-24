@@ -1,0 +1,56 @@
+<odoo>
+    <!-- Acción menú -->
+    <record id="action_contratos" model="ir.actions.act_window">
+        <field name="name">contratos</field>
+        <field name="res_model">contrato</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crea tu primer contrato</p>
+        </field>
+    </record>
+
+    <!-- Lista -->
+    <record id="view_contratos_tree" model="ir.ui.view">
+        <field name="name">contrato.tree</field>
+        <field name="model">contrato</field><!-- Nombre del modelo _name -->
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="cultivo"/>
+                <field name="ciclo"/>
+                <field name="aporte"/>
+                <field name="f_inicial"/>
+                <field name="f_final"/>
+                <field name="activo"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista formulario -->
+    <record id="view_contratos_form" model="ir.ui.view">
+        <field name="name">contrato.form</field>
+        <field name="model">contrato</field>
+        <field name="arch" type="xml">
+            <form autosave = "False" string="Generar contrato">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="cultivo"/>
+                        <field name="ciclo"/>
+                        <field name="aporte"/>
+                        <field name="f_inicial"/>
+                        <field name="f_final"/>
+                        <field name="auto"/>
+                        <field name="usr_activo" readonly="auto == True"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Menús -->
+    <menuitem id="menu_root" name="contratos"/>
+        <menuitem id="menu_action" name="Lista de contratos" parent="menu_root" action="action_contratos"/>
+    <!--        <menuitem id="menu_final" name="contratos" parent="menu_action" action="action_contratos"/>-->
+</odoo>
+
