@@ -2,7 +2,7 @@ from odoo import fields, models, api
 import csv, os
 
 class regimenfiscal(models.Model):
-    _name = 'c_regimenfiscal'
+    _name = 'clientes.c_regimenfiscal'
     _rec_name = 'descripcion'
 
     code = fields.Char(string = "Código", required = True)
@@ -12,7 +12,7 @@ class regimenfiscal(models.Model):
     @api.model
     def _load_csv_data(self):
         module_path = os.path.dirname(os.path.dirname(__file__))
-        csv_path = os.path.join(module_path, 'data', 'c_regimenfiscal.csv')
+        csv_path = os.path.join(module_path, 'data', 'clientes.c_regimenfiscal.csv')
         
         with open(csv_path, 'r') as csv_file:
             reader = csv.DictReader(csv_file)

@@ -3,7 +3,7 @@ import csv
 import os
 
 class municipio(models.Model):
-    _name = 'municipio'
+    _name = 'localidades.municipio'
     _rec_name = 'nombre'
     
     estado = fields.Selection(
@@ -47,7 +47,7 @@ class municipio(models.Model):
     @api.model
     def _load_csv_data(self):
         module_path = os.path.dirname(os.path.dirname(__file__))
-        csv_path = os.path.join(module_path, 'data', 'municipio.csv')
+        csv_path = os.path.join(module_path, 'data', 'localidades.municipio.csv')
         
         with open(csv_path, 'r') as csv_file:
             reader = csv.DictReader(csv_file)

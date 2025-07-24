@@ -8,7 +8,7 @@
     'data': [
         'views/cliente.xml',
         'data/seq_code.xml',
-        'data/c_regimenfiscal.csv',
+        'data/clientes.c_regimenfiscal.csv',
     ],
     'installable': True,
     'application': True,

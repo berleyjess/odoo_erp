@@ -1,7 +1,7 @@
 from odoo import fields, models, api
 
 class localidad(models.Model):
-    _name = 'localidad'
+    _name = 'localidades.localidad'
     _rec_name = 'display_name'
 
     estado = fields.Selection(
@@ -40,7 +40,7 @@ class localidad(models.Model):
             ("ZAC", "Zacatecas")
         ], string="Estado", required=True
     )
-    municipio = fields.Many2one('municipio', string = "Municipio", required = True,
+    municipio = fields.Many2one('localidades.municipio', string = "Municipio", required = True,
                                 domain="[('estado', '=', estado)]")
     nombre = fields.Char(string = "Ciudad/Localidad", required = True, size = 32)
 
@@ -60,7 +60,9 @@ class localidad(models.Model):
     @api.depends('estado', 'nombre', 'municipio')
     def _compute_display_name(self):
         for record in self:
-            record.display_name = f"{record.nombre}, {record.municipio.nombre}, {record.estado}"
+            
+            estado_label = dict(self._fields['estado'].selection).get(record.estado)
+            record.display_name = f"{record.nombre}, {record.municipio.nombre}, {estado_label}"
 
     def name_get(self):
         return [(record.id, record.display_name) for record in self]

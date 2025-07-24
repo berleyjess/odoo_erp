@@ -1,7 +1,8 @@
 from odoo import fields, models
 
 class contactoext(models.Model):
-    _name = 'cliente.contacto'
-    _inherit = 'contacto'
+    _name = 'clientes.contacto_ext'
+    _inherit = 'contactos.contacto'  # Hereda del modelo de contactos existente
 
-    cliente_id = fields.Many2one('cliente', string = "Cliente", ondelete = 'cascade')
+    # CORREGIDO: Debe apuntar a 'clientes.cliente' no a 'clientes.contacto'
+    cliente_id = fields.Many2one('clientes.cliente', string="Cliente", ondelete='cascade')

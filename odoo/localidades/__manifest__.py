@@ -7,7 +7,7 @@
     'depends': ['base'],
     'data': [
         'views/localidad.xml',
-	    'data/municipio.csv',
+	    'data/localidades.municipio.csv',
     ],
     'installable': True,
     'application': True,
