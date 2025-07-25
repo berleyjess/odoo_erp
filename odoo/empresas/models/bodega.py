@@ -1,7 +1,8 @@
 from odoo import models, fields, api
 
 class bodega(models.Model):
-    _name = 'bodega'
+    _name = 'empresas.bodega'
+    _description = "Modelo de Bodega, almacena el catálogo de bodegas."
 
     empresa = fields.Many2one('empresa', string = "Empresa", ondelete='cascade')
     sucursal = fields.Many2one('sucursal', string = "Sucursal", required = True)

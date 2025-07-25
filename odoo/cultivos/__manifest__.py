@@ -1,7 +1,7 @@
 {
     'name': "Cultivos",
     'summary': "Cultivos Agrícolas",
-    'description': """Mi primera app en Odoo con VS Code""",
+    'description': """Modulo para gestionar los cultivos agrícolas""",
     'author': "jberley",
     'version': '1.0',
     'depends': ['base'],

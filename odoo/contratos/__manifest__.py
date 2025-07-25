@@ -1,7 +1,7 @@
 {
     'name': "Contratos",
     'summary': "Contratos agrícolas",
-    'description': """Mi primera app en Odoo con VS Code""",
+    'description': """Contratos agrícolas a clientes con gestión de ciclos y cultivos.""",
     'author': "jberley",
     'version': '1.0',
     'depends': ['base'],

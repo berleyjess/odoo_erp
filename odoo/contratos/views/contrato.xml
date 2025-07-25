@@ -1,8 +1,8 @@
 <odoo>
     <!-- Acción menú -->
     <record id="action_contratos" model="ir.actions.act_window">
-        <field name="name">contratos</field>
-        <field name="res_model">contrato</field>
+        <field name="name">Contratos</field>
+        <field name="res_model">contratos.contrato</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Crea tu primer contrato</p>
@@ -12,7 +12,7 @@
     <!-- Lista -->
     <record id="view_contratos_tree" model="ir.ui.view">
         <field name="name">contrato.tree</field>
-        <field name="model">contrato</field><!-- Nombre del modelo _name -->
+        <field name="model">contratos.contrato</field><!-- Nombre del modelo _name -->
         <field name="arch" type="xml">
             <list>
                 <field name="name"/>
@@ -29,7 +29,7 @@
     <!-- Vista formulario -->
     <record id="view_contratos_form" model="ir.ui.view">
         <field name="name">contrato.form</field>
-        <field name="model">contrato</field>
+        <field name="model">contratos.contrato</field>
         <field name="arch" type="xml">
             <form autosave = "False" string="Generar contrato">
                 <sheet>

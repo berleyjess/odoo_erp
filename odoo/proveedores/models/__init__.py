@@ -1,1 +1,1 @@
-from . import contacto_ext, proveedores
+from . import contacto_ext, proveedor

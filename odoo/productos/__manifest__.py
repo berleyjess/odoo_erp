@@ -1,7 +1,7 @@
 {
     'name': "Productos",
     'summary': "Catálogo de productos",
-    'description': """Mi primera app en Odoo con VS Code""",
+    'description': """Modulo para la gestión de productos y sus códigos.""",
     'author': "jberley",
     'version': '1.0',
     'depends': ['base'],

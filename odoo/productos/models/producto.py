@@ -2,7 +2,7 @@ from odoo import models, fields, api
 
 class producto(models.Model):
     _name = 'producto'
-    _description = 'Catálogo de productos'
+    _description = 'Catálogo de productos.'
 
     name = fields.Char(string="Nombre", required=True)
     description = fields.Char(string="Descripción", size=30)

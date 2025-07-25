@@ -4,6 +4,7 @@ from datetime import date
 
 class venta(models.Model):
     _name = 'venta'
+    _description = 'Venta de artículos'
     
     codigo = fields.Char(string="Código", required = True)
     cliente = fields.Many2one('cliente', string="Cliente", required = True)

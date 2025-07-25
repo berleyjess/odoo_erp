@@ -1,7 +1,7 @@
 {
     'name': "Clientes",
     'summary': "Catálogo de clientes",
-    'description': """Mi primera app en Odoo con VS Code""",
+    'description': """Módulo para gestionar clientes y sus datos fiscales.""",
     'author': "jberley",
     'version': '1.0',
     'depends': ['base', 'localidades'],

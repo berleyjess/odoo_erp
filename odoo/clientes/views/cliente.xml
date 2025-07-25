@@ -1,7 +1,4 @@
 <odoo>
-    
-
-
     <!-- Vista árbol -->
     <record id="view_cliente_list" model="ir.ui.view">
         <field name="name">cliente.tree</field>

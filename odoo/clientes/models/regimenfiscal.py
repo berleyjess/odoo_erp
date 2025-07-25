@@ -3,6 +3,7 @@ import csv, os
 
 class regimenfiscal(models.Model):
     _name = 'clientes.c_regimenfiscal'
+    _description = 'Catálogo de Régimen Fiscal'
     _rec_name = 'descripcion'
 
     code = fields.Char(string = "Código", required = True)

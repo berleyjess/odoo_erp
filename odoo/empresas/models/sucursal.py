@@ -1,7 +1,7 @@
 from odoo import fields, models
 
 class sucursal(models.Model):
-    _name = 'sucursal'
+    _name = 'empresas.sucursal'
 
     empresa = fields.Many2one('empresa', string = "Empresa", ondelete='cascade')
     nombre = fields.Char(string = "Nombre", required = True, size = 30)

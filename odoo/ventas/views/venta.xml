@@ -1,8 +1,8 @@
 <odoo>
     <!-- Acción de Menú (DEBE IR PRIMERO) -->
     <record id="action_ventas" model="ir.actions.act_window">
-        <field name="name">ventas</field>
-        <field name="res_model">venta</field>
+        <field name="name">Ventas</field>
+        <field name="res_model">ventas.venta</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Crea tu primer venta</p>

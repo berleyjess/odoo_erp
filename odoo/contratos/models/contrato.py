@@ -2,7 +2,7 @@ from odoo import models, fields, api
 from datetime import date
 
 class contrato(models.Model):
-    _name='contrato'
+    _name='Contrato'
     _description='Contratos agrícolas a clientes'
 
     name = fields.Char(string="Nombre", required=True)

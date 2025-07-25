@@ -2,7 +2,7 @@
     <!-- Acción de Menú (DEBE IR PRIMERO) -->
     <record id="action_proveedors" model="ir.actions.act_window">
         <field name="name">Proveedores</field>
-        <field name="res_model">proveedor</field>
+        <field name="res_model">proveedores.proveedor</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Agrega proveedores para hacer tu primera compra!</p>
@@ -12,7 +12,7 @@
     <!-- Vista árbol -->
     <record id="view_proveedor_list" model="ir.ui.view">
         <field name="name">proveedor.tree</field>
-        <field name="model">proveedor</field>
+        <field name="model">proveedores.proveedor</field>
         <field name="arch" type="xml">
             <list>
                 <field name="codigo"/>
@@ -26,7 +26,7 @@
     <!-- Vista formulario -->
     <record id="view_proveedor_form" model="ir.ui.view">
         <field name="name">proveedor.form</field>
-        <field name="model">proveedor</field>
+        <field name="model">proveedores.proveedor</field>
         <field name="arch" type="xml">
             <form autosave="False">
                 <xpath expr="//div[contains(@class, 'o_control_panel_main')]" position="replace"/>

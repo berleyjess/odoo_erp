@@ -2,6 +2,7 @@ from odoo import models, fields, api
 
 class ventadetalle(models.Model):
     _name='ventadetalle'
+    _description = 'Detalle de la Venta de los artículos'
 
     ventaf = fields.Many2one('venta', string = "Venta", ondelete='cascade')
     producto = fields.Many2one('producto', string="Artículo", required = True)

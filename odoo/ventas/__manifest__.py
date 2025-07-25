@@ -1,7 +1,7 @@
 {
     'name': "Ventas",
     'summary': "Ventas",
-    'description': """Mi primera app en Odoo con VS Code""",
+    'description': """Módulo para gestionar ventas de artículos""",
     'author': "jberley",
     'version': '1.0',
     'depends': ['base', 'clientes', 'contratos'],

@@ -2,6 +2,7 @@ from odoo import fields, models
 
 class contactoext(models.Model):
     _name = 'clientes.contacto_ext'
+    _description = 'Extensión del modelo de Contactos'
     _inherit = 'contactos.contacto'  # Hereda del modelo de contactos existente
 
     # CORREGIDO: Debe apuntar a 'clientes.cliente' no a 'clientes.contacto'
