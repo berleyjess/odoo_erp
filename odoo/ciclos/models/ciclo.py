@@ -1,4 +1,5 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError  
 
 class ciclo(models.Model):
     _name = 'ciclos.ciclo'
@@ -26,6 +27,17 @@ class ciclo(models.Model):
             else:
                 record.label = ''
 
+    @api.constrains('finicio', 'ffinal')
+    def _check_dates(self):
+        for rec in self:
+            # Permite igualdad; cambia < por <= si quieres obligar que sea estrictamente mayor
+            if rec.finicio and rec.ffinal and rec.ffinal < rec.finicio:
+                raise ValidationError(
+                    #El "_" sirve para traducir el mensaje, simplemente se puede poner la cadena sin el "_" si no se quiere traducir.
+                    _("La Fecha Final (%s) no puede ser menor que la Fecha de Inicio (%s).") %
+                    (rec.ffinal, rec.finicio)
+                )
+            
     _sql_constraints = [
         ('unique_label', 'unique(label)', 'Ya existe un ciclo con ese periodo y rango de años.')
     ]
