@@ -9,8 +9,9 @@ relacionados. Implementa lógica para:
 - Ajustar dinámicamente el dominio del régimen fiscal según el tipo de cliente.
 - Limpiar el nombre del cónyuge cuando el estado civil no lo requiere.
 """
-
-from odoo import models, fields, api
+import re
+from odoo.exceptions import ValidationError
+from odoo import models, fields, api, _
 
 class cliente(models.Model):
     """
@@ -26,6 +27,8 @@ class cliente(models.Model):
     _name='clientes.cliente'  #Modelo.Cliente ("nombre del modulo"."nombre del modelo")
     _description='Cartera de clientes'
     
+
+    
     codigo = fields.Char( #Código interno del Cliente
         string='Código',
         size=10,
@@ -38,7 +41,26 @@ class cliente(models.Model):
 
     nombre = fields.Char(string="Nombre/Razón social", required=True,help="Nombre completo o razón social del cliente.")
 
-    rfc = fields.Char(string="RFC",size=13, required=True, help="Registro Federal de Contribuyentes")
+    rfc = fields.Char(string="RFC",size=13, required=True, index=True, help="Registro Federal de Contribuyentes")
+
+    # Constantes de validación de RFC
+    # RFC_GENERICOS contiene RFCs genéricos que no deben ser validados estrictamente
+    RFC_GENERICOS = ('XAXX010101000', 'XEXX010101000')
+    # RFC_REGEX es una expresión regular que valida el formato estándar del RFC
+    RFC_REGEX = re.compile(r'^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$')  # Formato estándar SAT
+    # Expresiones regulares para CURP e INE
+    # CURP_REGEX valida el formato de la CURP según las reglas del SAT
+    CURP_REGEX = re.compile(
+    r'^[A-ZÑ][AEIOU][A-ZÑ]{2}'   # 4 letras iniciales
+    r'\d{6}'                     # fecha: YYMMDD
+    r'[HM]'                      # sexo
+    r'[A-ZÑ]{2}'                 # entidad federativa
+    r'[B-DF-HJ-NP-TV-ZÑ]{3}'     # consonantes internas
+    r'[A-Z\d]\d$'                # homoclave y dígito verificador
+    )
+
+    INE_REGEX = re.compile(r'^[A-ZÑ]{6}\d{8}[A-ZÑ]\d{3}$')  # 18 caracteres
+    CP_REGEX       = re.compile(r'^\d{5}$')
 
     tipo = fields.Selection(
         selection = [
@@ -73,7 +95,7 @@ class cliente(models.Model):
     localidad = fields.Many2one('localidades.localidad', string = "Ciudad/Localidad",help="Ciudad o localidad del domicilio del cliente")
     colonia = fields.Char(string = "Colonia", size = 32)
     calle = fields.Char(string = "Calle", size = 32)
-    numero = fields.Char(string = "Número", size = 4)
+    numero = fields.Char(string = "Número", help="Número exterior del domicilio del cliente")
 
     #Relación con contactos
 
@@ -199,6 +221,78 @@ class cliente(models.Model):
             'view_mode': 'list,form',
             'target': 'current',
         }
+    
+    @api.constrains('rfc')
+    def _check_unique_rfc(self):
+        for rec in self:
+            rfc = (rec.rfc or '').strip().upper()
+        if rfc:
+            es_generico = rfc in self.RFC_GENERICOS
+
+            if not es_generico and not self.RFC_REGEX.fullmatch(rfc):
+                raise ValidationError(("El RFC '%s' no cumple con el formato válido.") % rfc)
+
+            if not es_generico and rec.search_count([('rfc', '=', rfc), ('id', '!=', rec.id)]):
+                raise ValidationError(("El RFC '%s' ya está registrado en otro cliente.") % rfc)
+
+
+    # ---------- CONSTRAINS ---------------------------------
+
+    @api.constrains('rfc', 'tipo')
+    def _check_rfc(self):
+        for rec in self:
+            rfc = (rec.rfc or '').strip().upper()
+            if not rfc:
+                raise ValidationError(_("El campo RFC es obligatorio."))
+
+        # 1) Longitud según tipo
+            if rec.tipo == '0' and len(rfc) != 13:
+                raise ValidationError(_("Persona Física: el RFC debe tener 13 caracteres."))
+            if rec.tipo == '1' and len(rfc) != 12:
+                raise ValidationError(_("Persona Moral: el RFC debe tener 12 caracteres."))
+
+        # 2) Formato y unicidad (salvo genéricos)
+            es_generico = rfc in self.RFC_GENERICOS
+            if not es_generico and not self.RFC_REGEX.fullmatch(rfc):
+                raise ValidationError(_("El RFC '%s' no tiene un formato válido.") % rfc)
+
+            if not es_generico and rec.search_count([('rfc', '=', rfc), ('id', '!=', rec.id)]):
+                raise ValidationError(_("El RFC '%s' ya está registrado en otro cliente.") % rfc)
+
+
+    #@api.constrains('curp')
+    #def _check_curp(self):
+    #    for rec in self:
+    #        curp = (rec.curp or '').strip().upper()
+    #        if curp and not self.CURP_REGEX.fullmatch(curp):
+    #            raise ValidationError(_("La CURP '%s' no es válida.") % curp)
+
+
+    #@api.constrains('ine')
+    #def _check_ine(self):
+    #    for rec in self:
+    #        ine = (rec.ine or '').strip().upper()
+    #        if ine and not self.INE_REGEX.fullmatch(ine):
+    #            raise ValidationError(
+    #                _("La clave de elector INE '%s' no es válida.") % ine
+    #            )
+
+
+    @api.constrains('codigop')
+    def _check_cp(self):
+        for rec in self:
+            cp = (rec.codigop or '').strip()
+            if cp and not self.CP_REGEX.fullmatch(cp):
+                raise ValidationError(_("El Código Postal '%s' debe ser de 5 dígitos.") % cp)
+
+
+    @api.constrains('numero')
+    def _check_numero(self):
+        for rec in self:
+            if isinstance(rec.numero, str):                 # solo si lo dejas como Char
+                if rec.numero and not rec.numero.isdigit():
+                    raise ValidationError(_("El número de calle solo puede contener dígitos."))
+
     
     def action_cancel(self):
         """
