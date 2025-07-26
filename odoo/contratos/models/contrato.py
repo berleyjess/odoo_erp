@@ -44,6 +44,6 @@ class contrato(models.Model):
     @api.depends('ciclo', 'cultivo')
     def _compute_display_name(self):
         for record in self:
-            tipocredito_label = dict(self._fields['estado'].selection).get(record.estado)
+            tipocredito_label = dict(self._fields['tipocredito'].selection).get(record.tipocredito)
             record.display_name = f"{tipocredito_label} {record.ciclo} {record.cultivo}"
 

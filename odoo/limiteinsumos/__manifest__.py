@@ -8,7 +8,7 @@
     """,
     'depends': ['base', 'productos'],
     'data': [
-        'views\limiteinsumos.xml',
+        'views/limiteinsumos.xml',
     ],
     'installable': True,
     'application': False,

@@ -41,7 +41,7 @@
                             <field name="limiteinsumos">
                                 <list editable="bottom">
                                     <field name="producto"/>
-                                    <field name="cantidad"/>
+                                    <field name="limite"/>
                                 </list>
                             </field>
                         </page>
