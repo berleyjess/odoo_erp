@@ -15,13 +15,10 @@
         <field name="model">contratos.contrato</field><!-- Nombre del modelo _name -->
         <field name="arch" type="xml">
             <list>
-                <field name="name"/>
+                <field name="display_name"/>
                 <field name="cultivo"/>
                 <field name="ciclo"/>
                 <field name="aporte"/>
-                <field name="f_inicial"/>
-                <field name="f_final"/>
-                <field name="activo"/>
             </list>
         </field>
     </record>
@@ -34,15 +31,21 @@
             <form autosave = "False" string="Generar contrato">
                 <sheet>
                     <group>
-                        <field name="name"/>
+                        <field name="tipocredito"/>
                         <field name="cultivo"/>
                         <field name="ciclo"/>
                         <field name="aporte"/>
-                        <field name="f_inicial"/>
-                        <field name="f_final"/>
-                        <field name="auto"/>
-                        <field name="usr_activo" readonly="auto == True"/>
                     </group>
+                    <notebook>
+                        <page string="Límite de Insumos por Hectárea">
+                            <field name="limiteinsumos">
+                                <list editable="bottom">
+                                    <field name="producto"/>
+                                    <field name="cantidad"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>

@@ -1,34 +1,49 @@
 from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 from datetime import date
 
 class contrato(models.Model):
-    _name='Contrato'
+    _name='contratos.contrato'
     _description='Contratos agrícolas a clientes'
+    _rec_name = 'display_name'
 
-    name = fields.Char(string="Nombre", required=True)
-    ciclo = fields.Many2one('ciclo', string="Ciclo", required=True)    
-    cultivo = fields.Many2one('cultivo', string="Cultivo")
-    aporte = fields.Integer(string="Aporte",required=True)
-    f_inicial = fields.Date(string="Fecha de Inicio", required=True)
-    f_final = fields.Date(string="Fecha Final", required=True)
-    auto = fields.Boolean(string="Cierre automático", required=True, default=True)
-    usr_activo = fields.Boolean(string="Ciclo Activo", required=True, default=True)
-    activo = fields.Boolean(compute='_ch_activo', stored=False)
+    tipocredito = fields.Selection(
+        selection = [
+            ("0", "AVIO"),
+            ("1", "Comercial"),
+            ("2", "A días")
+        ], string = "Tipo de crédito", default = "0", required = True
+    )
+    ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)    
+    cultivo = fields.Many2one('cultivos.cultivo', string="Cultivo")
+    aporte = fields.Integer(string="Aporte por Hectárea", required=True)
+
+    limiteinsumos = fields.One2many(
+        'contratos.limiteinsumo_ext', 'contrato_id', string="Límites de Insumos")
     
-    @api.depends('f_inicial', 'f_final', 'usr_activo')
-    def _ch_activo(self):
-        hoy = date.today()
-        for record in self:
-            if record.f_inicial and record.f_final:
-                en_rango = record.f_inicial <= hoy <= record.f_final
+    @api.model
+    def fields_get(self, allfields=None, attributes=None):
+        res = super(contrato, self).fields_get(allfields=allfields, attributes=attributes)
+        context = self.env.context
+        tipocredito = context.get('default_tipocredito') or context.get('tipocredito')
+        if 'aporte' in res:
+            if tipocredito == "2":
+                res['aporte']['string'] = "Aporte Total"
             else:
-                en_rango = False
-            record.activo = en_rango or record.usr_activo
+                res['aporte']['string'] = "Aporte por Hectárea"
+        return res
 
-
-    @api.onchange('ciclo')
-    def _onchange_ciclo(self):
+    @api.constrains('tipocredito', 'cultivo')
+    def _check_cultivo_required(self):
         for record in self:
-            if record.ciclo:
-                record.f_inicial = record.ciclo.f_inicio
-                record.f_final = record.ciclo.f_final
+            if record.tipocredito != "2" and not record.cultivo:
+                raise ValidationError("El campo 'Cultivo' es obligatorio.")
+
+    display_name = fields.Char(compute='_compute_display_name', store=True)
+
+    @api.depends('ciclo', 'cultivo')
+    def _compute_display_name(self):
+        for record in self:
+            tipocredito_label = dict(self._fields['estado'].selection).get(record.estado)
+            record.display_name = f"{tipocredito_label} {record.ciclo} {record.cultivo}"
+

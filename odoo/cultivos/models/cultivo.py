@@ -1,26 +1,25 @@
 from odoo import fields, models, api
+import csv
+import os
 
 class cultivo(models.Model):
-    _name='cultivo'
+    _name='cultivos.cultivo'
 
-    name=fields.Char(string="Nombre del cultivo", required=True)
-    description = fields.Char(string="Descripción")
+    nombre=fields.Char(string="Nombre del cultivo", required=True)
 
     @api.model
-    def create(self, vals):
-        # Convertir a mayúsculas antes de crear
-        if 'nombre' in vals:
-            vals['name'] = vals['name'].upper() if vals['name'] else False
-        if 'description' in vals:
-            vals['description'] = vals['description'].upper() if vals['description'] else False
-        return super(ccultivo, self).create(vals)
-
-    def write(self, vals):
-        # Convertir a mayúsculas antes de actualizar
-        if 'name' in vals:
-            vals['name'] = vals['name'].upper() if vals['name'] else False
-        if 'description' in vals:
-            vals['description'] = vals['description'].upper() if vals['description'] else False
-        return super(ccultivo, self).write(vals)
+    def _load_csv_data(self):
+        module_path = os.path.dirname(os.path.dirname(__file__))
+        csv_path = os.path.join(module_path, 'data', 'cultivos.cultivo.csv')
+        
+        with open(csv_path, 'r') as csv_file:
+            reader = csv.DictReader(csv_file)
+            for row in reader:
+                if not row['id'].isdigit():  # Asume que id debe ser numérico
+                    continue
+                
+                self.create({
+                    'nombre': row['nombre']
+                })
 
 

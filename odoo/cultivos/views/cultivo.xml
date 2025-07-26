@@ -5,7 +5,7 @@
         <field name="res_model">cultivos.cultivo</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Crea tu primer cultivo</p>
+            <p class="o_view_nocontent_smiling_face">Listado de Cultivos</p>
         </field>
     </record>
 
@@ -15,8 +15,7 @@
         <field name="model">cultivos.cultivo</field>
         <field name="arch" type="xml">
             <list>
-                <field name="name"/>
-                <field name="description"/>
+                <field name="nombre"/>
             </list>
         </field>
     </record>
@@ -29,8 +28,7 @@
             <form autosave="False">
                 <sheet>
                     <group>
-                        <field name="name"/>
-                        <field name="description"/>
+                        <field name="nombre"/>
                     </group>
                 </sheet>
             </form>

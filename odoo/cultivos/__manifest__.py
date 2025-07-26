@@ -7,6 +7,7 @@
     'depends': ['base'],
     'data': [
         'views/cultivo.xml',
+        'data/cultivos.cultivo.csv'
     ],
     'installable': True,
     'application': True,

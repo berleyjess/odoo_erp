@@ -2,7 +2,7 @@ from odoo import models, fields, api
 import csv, os
 
 class codigoproductosat(models.Model):
-    _name = 'codigoproductosat'
+    _name = 'productos.codigoproductosat'
     _rec_name = 'display_name'
     _rec_names_search = ['code', 'descripcion']
     

@@ -9,7 +9,7 @@
         'views/productos.xml',
         'views/codigoproducto.xml',
         'data/seq_code.xml',
-        'data/codigoproductosat.csv',
+        'data/productos.codigoproductosat.csv',
     ],
     'installable': True,
     'application': True,

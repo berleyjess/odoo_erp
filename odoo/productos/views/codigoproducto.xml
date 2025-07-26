@@ -1,7 +1,7 @@
 <odoo>
     <record id="view_codigoproducto_tree" model="ir.ui.view">
         <field name="name">codigoproducto.tree</field>
-        <field name="model">producto.codigoproductosat</field>
+        <field name="model">productos.codigoproductosat</field>
         <field name="arch" type="xml">
             <list>
                 <field name="code"/>

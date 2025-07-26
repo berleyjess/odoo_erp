@@ -1,0 +1,37 @@
+<odoo>
+    <record id="action_limiteinsumos" model="ir.actions.act_window">
+        <field name="name">Límites de Insumos</field>
+        <field name="res_model">limiteinsumos.limiteinsumo</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Listado de Límites de Insumos por Contrato</p>
+        </field>
+    </record>
+
+    <record id="view_limiteinsumo_list" model="ir.ui.view">
+        <field name="name">limiteinsumo.tree</field>
+        <field name="model">limiteinsumos.limiteinsumo</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="producto"/>
+                <field name="limite"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_limiteinsumo_form" model="ir.ui.view">
+        <field name="name">limiteinsumo.form</field>
+        <field name="model">limiteinsumos.limiteinsumo</field>
+        <field name="arch" type="xml">
+            <form autosave="False">
+                <sheet>
+                    <group>
+                        <field name="producto"/>
+                        <field name="limite"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <menuitem id="menu_root_limiteinsumos" name="Límites de Insumos" sequence="20"/>
+    <menuitem id="menu_action_limiteinsumos" name="Catálogo de Límites de Insumos" parent="menu_root_limiteinsumos" action="action_limiteinsumos"/>
+</odoo>

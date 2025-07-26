@@ -1,7 +1,7 @@
 from odoo import models, fields, api
 
 class producto(models.Model):
-    _name = 'producto'
+    _name = 'productos.producto'
     _description = 'Catálogo de productos.'
 
     name = fields.Char(string="Nombre", required=True)
@@ -44,7 +44,7 @@ class producto(models.Model):
         #help="Código único autogenerado con formato COD-000001"
     )
 
-    codigosat = fields.Many2one('codigoproductosat', string="Código SAT")
+    codigosat = fields.Many2one('productos.codigoproductosat', string="Código SAT")
 
     cuenta = fields.Char(string = "Cuenta contable")
 
