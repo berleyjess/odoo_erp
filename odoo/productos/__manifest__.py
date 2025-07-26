@@ -2,7 +2,7 @@
     'name': "Productos",
     'summary': "Catálogo de productos",
     'description': """Modulo para la gestión de productos y sus códigos.""",
-    'author': "jberley",
+    'author': "Grupo Safinsa",
     'version': '1.0',
     'depends': ['base'],
     'data': [

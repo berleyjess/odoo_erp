@@ -1,4 +1,4 @@
-from odoo import fields, models, api
+from odoo import fields, models, api, _
 
 class localidad(models.Model):
     _name = 'localidades.localidad'
@@ -79,3 +79,13 @@ class localidad(models.Model):
         if 'nombre' in vals:
             vals['nombre'] = vals['nombre'].capitalize() if vals['nombre'] else False
         return super().write(vals)
+    
+    def action_back_to_list(self):
+        """Regresa al listado de localidades."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Localidades'),
+            'res_model': 'localidades.localidad',
+            'view_mode': 'list,form',
+            'target': 'current',
+        }

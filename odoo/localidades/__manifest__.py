@@ -1,8 +1,8 @@
 {
     'name': "Localidades",
     'summary': "Localidades y Ciudades",
-    'description': """Mi primera app en Odoo con VS Code""",
-    'author': "jberley",
+    'description': """Modulo para gestionar localidades y ciudades.""",
+    'author': "Grupo Safinsa",
     'version': '1.0',
     'depends': ['base'],
     'data': [

@@ -1,8 +1,8 @@
 {
     'name': "Contactos",
     'summary': "Contactos de Clientes Y proveedores",
-    'description': """Mi primera app en Odoo con VS Code""",
-    'author': "jberley",
+    'description': """Modulo para gestionar los contactos de clientes""",
+    'author': "Grupo Safinsa",
     'version': '1.0',
     'depends': ['base'],
     'data': [

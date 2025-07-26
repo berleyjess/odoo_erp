@@ -2,7 +2,7 @@
     'name': "Clientes",
     'summary': "Catálogo de clientes",
     'description': """Módulo para gestionar clientes y sus datos fiscales.""",
-    'author': "jberley",
+    'author': "Grupo Safinsa",
     'version': '1.0',
     'depends': ['base', 'localidades'],
     'data': [

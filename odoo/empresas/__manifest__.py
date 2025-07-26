@@ -2,7 +2,7 @@
     'name': "Empresas",
     'summary': "Empresas",
     'description': """Modulo para gestionar empresas y sus datos.""",
-    'author': "jberley",
+    'author': "Grupo Safinsa",
     'version': '1.0',
     'depends': ['base'],
     'data': [

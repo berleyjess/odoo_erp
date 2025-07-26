@@ -10,7 +10,7 @@ Incluye:
 - Relación One2many inversa desde `localidades.localidad`.
 """
 
-from odoo import models, fields, api
+from odoo import models, fields, api, _
 
 class Ejido(models.Model):
 
@@ -173,6 +173,15 @@ class Ejido(models.Model):
             else:
                 rec.display_name = rec.nombre or ""
 
+    def action_back_to_list(self):
+        """Regresa al listado de ejidos."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Ejidos'),
+            'res_model': 'ejidos.ejido',
+            'view_mode': 'list,form',
+            'target': 'current',
+        }
 
 # Extensión del modelo de Localidad para ver los ejidos desde ahí.
 class Localidad(models.Model):
@@ -186,3 +195,5 @@ class Localidad(models.Model):
         "localidad_id",
         string="Ejidos"
     )
+
+    

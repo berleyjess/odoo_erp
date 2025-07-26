@@ -2,7 +2,7 @@
     'name': "Cultivos",
     'summary': "Cultivos Agrícolas",
     'description': """Modulo para gestionar los cultivos agrícolas""",
-    'author': "jberley",
+    'author': "Grupo Safinsa",
     'version': '1.0',
     'depends': ['base'],
     'data': [

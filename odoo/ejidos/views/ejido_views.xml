@@ -22,6 +22,10 @@
         <field name="type">form</field>
         <field name="arch" type="xml">
             <form string="Ejido">
+                <header>
+                    <button name="action_back_to_list" string="Volver"
+                        type="object" class="btn btn-secondary" icon="fa-arrow-left"/>
+                </header>
                 <sheet>
                     <group>
                         <field name="nombre"/>

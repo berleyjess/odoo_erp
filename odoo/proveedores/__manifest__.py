@@ -2,7 +2,7 @@
     'name': "Proveedores",
     'summary': "Cartera de Proveedores",
     'description': """Listado de general de Proveedores y datos de contacto.""",
-    'author': "jberley",
+    'author': "Grupo Safinsa",
     'version': '1.0',
     'depends': ['base'],
     'data': [
