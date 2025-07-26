@@ -12,6 +12,7 @@ relacionados. Implementa lógica para:
 import re
 from odoo.exceptions import ValidationError
 from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 
 class cliente(models.Model):
     """
@@ -193,6 +194,11 @@ class cliente(models.Model):
         Returns:
             bool: True si la operación fue exitosa.
         """
+
+        blocked_keys = {'localidad', 'localidad_id', 'regimen', 'regimen_id'}
+        if blocked_keys.intersection(vals):
+            raise UserError(_('No se permite modificar la Localidad ni el Régimen Fiscal.'))
+
         # Convertir a mayúsculas antes de actualizar
         if 'nombre' in vals:
             vals['nombre'] = vals['nombre'].upper() if vals['nombre'] else False
@@ -307,3 +313,61 @@ class cliente(models.Model):
             'view_mode': 'list,form',
             'target': 'current',
         }
+    
+    def action_open_edit(self):
+        """
+        Abre el cliente en el formulario editable.
+        """
+        self.ensure_one()
+        
+        view = self.env.ref('clientes.view_cliente_form')
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Editar Cliente'),
+            'res_model': 'clientes.cliente',
+            'view_mode': 'form',
+            'views': [(view.id, 'form')],
+            'view_id': view.id,            
+            'target': 'current',
+            'res_id': self.id,
+            'flags': {'form': {'initial_mode': 'edit'}},
+        }
+    
+    def action_open_readonly(self):
+        """
+        Abre el cliente en vista de solo lectura (detalles).
+        """
+        self.ensure_one()
+    
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Detalles del Cliente'),
+            'res_model': 'clientes.cliente',
+            'view_mode': 'form',
+            'views': [(self.env.ref('clientes.view_cliente_detail').id, 'form')],
+            'target': 'current',
+            'res_id': self.id,
+            'flags': {'form': {'initial_mode': 'readonly'}},
+        }
+
+    # Método adicional si quieres un botón "Guardar y Volver" en la vista editable
+    def action_save_and_return(self):
+        """
+        Guarda los cambios y regresa a la vista de detalle.
+        """
+        self.ensure_one()
+    
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Detalles del Cliente'),
+            'res_model': 'clientes.cliente',
+            'view_mode': 'form',
+            'views': [(self.env.ref('clientes.view_cliente_detail').id, 'form')],
+            'target': 'current',
+            'res_id': self.id,
+        }
+    
+    def action_back_to_list(self):
+        """Regresa al listado de clientes."""
+        self.ensure_one()
+        return self.env.ref('clientes.action_clientes').read()[0]

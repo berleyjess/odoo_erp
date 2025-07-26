@@ -1,3 +1,4 @@
+# contactos.models.contacto.py
 from odoo import models, fields
 
 class contacto(models.Model):

@@ -1,3 +1,4 @@
+# contactos/views/contacto.xml
 <odoo>
     <!-- Acción de Menú (DEBE IR PRIMERO) -->
     <record id="action_contactos" model="ir.actions.act_window">

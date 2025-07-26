@@ -16,101 +16,83 @@
         </field>
     </record>
 
-    <!-- Vista formulario -->
-    <record id="view_cliente_form" model="ir.ui.view">
-        <field name="name">cliente.form</field>
-        <field name="model">clientes.cliente</field>
-        <field name="arch" type="xml">
-            <form autosave="False">
-                <xpath expr="//div[contains(@class, 'o_control_panel_main')]" position="replace"/>
-                
-                <!-- Elimina componentes específicos por si acaso -->
-                <xpath expr="//div[contains(@class, 'o_control_panel_breadcrumbs')]" position="replace"/>
-                <xpath expr="//div[contains(@class, 'o_control_panel_actions')]" position="replace"/>
-                <xpath expr="//div[contains(@class, 'o_control_panel_navigation')]" position="replace"/>
-
-                <header>
-                    <button name="%(action_clientes)d" string="Volver a Lista" type="action" 
-                            class="btn btn-secondary" icon="fa-arrow-left"/>
-                    <button name="action_save" string="Guardar y Volver" type="object" 
-                            class="btn btn-primary" icon="fa-save"/>
-                </header>
-
-                <sheet>
-                    <group>
-                        <group string="Información General">
-                            <field name="tipo" widget="radio" options="{'horizontal': true}"/>
-                            <field name="nombre"/>
-                            <field name="regimen"
-                            options="{'no_open': True,'no_create': True}"/>
-                            <field name="rfc"/>
-                        </group>
-                        <group string="Información Personal">
-                            <field name="ine"/>
-                            <field name="curp"/>
-                            <field name="estado_civil"/>
-                            <field name="conyugue" 
-                                   invisible="estado_civil not in ['casado', 'union_libre']"
-                                   required="estado_civil in ['casado', 'union_libre']"
-                                   placeholder="Nombre completo del cónyuge"/>
-                        </group>
-                    </group>
-                    
-                    <group string="Dirección">
-                        <group>
-                            <field name="localidad"/>
-                            <field name="codigop"/>
-                        </group>
-                        <group>
-                            <field name="colonia"/>
-                            <field name="calle"/>
-                            <field name="numero"/>
-                        </group>
-                    </group>
-                    
-                    <notebook>
-                        <page string="Contactos">
-                            <field name="contacto">
-                                <list editable="bottom">
-                                    <field name="nombre"/>
-                                    <field name="descripcion"/>
-                                    <field name="telefono"/>
-                                    <field name="email"/>
-                                </list>
-                            </field>
-                        </page>
-                    </notebook>
-                </sheet>
-            </form>
-        </field>
-    </record>
-
-     <record id="view_cliente_detail" model="ir.ui.view">
+    <!-- Vista SOLO LECTURA (detail) - LA QUE SE ABRE POR DEFECTO -->
+    <record id="view_cliente_detail" model="ir.ui.view">
         <field name="name">cliente.detail</field>
         <field name="model">clientes.cliente</field>
         <field name="arch" type="xml">
             <form create="0" edit="0" delete="0" copy="0">
-                <xpath expr="//div[contains(@class, 'o_control_panel_main')]" position="replace"/>
-                
-                <!-- Elimina componentes específicos por si acaso -->
-                <xpath expr="//div[contains(@class, 'o_control_panel_breadcrumbs')]" position="replace"/>
-                <xpath expr="//div[contains(@class, 'o_control_panel_actions')]" position="replace"/>
-                <xpath expr="//div[contains(@class, 'o_control_panel_navigation')]" position="replace"/>
-
                 <header>
-                    <button name="%(action_clientes)d" string="Volver a Lista" type="action" 
-                            class="btn btn-secondary" icon="fa-arrow-left"/>
-                    <button name="action_save" string="Guardar y Volver" type="object" 
-                            class="btn btn-primary" icon="fa-save"/>
+                    <button name="action_open_edit" string="Editar"
+                            type="object" class="btn btn-primary"
+                            icon="fa-pencil"/>
+                    <button name="action_back_to_list" string="Volver"
+                        type="object" class="btn btn-secondary" icon="fa-arrow-left"/>
+
                 </header>
 
                 <sheet>
                     <group>
                         <group string="Información General">
+                            <field name="tipo" widget="radio" options="{'horizontal': true}" readonly="1"/>
+                            <field name="nombre" readonly="1"/>
+                            <field name="regimen" readonly="1" options="{'no_open': True,'no_create': True}"/>
+                            <field name="rfc" readonly="1"/>
+                        </group>
+                        <group string="Información Personal">
+                            <field name="ine" readonly="1"/>
+                            <field name="curp" readonly="1"/>
+                            <field name="estado_civil" readonly="1"/>
+                            <field name="conyugue" readonly="1"
+                                   invisible="estado_civil not in ['casado', 'union_libre']"/>
+                        </group>
+                    </group>
+                    
+                    <group string="Dirección">
+                        <group>
+                            <field name="localidad" readonly="1" options="{'no_open': True, 'no_create': True}"/>
+                            <field name="codigop" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="colonia" readonly="1"/>
+                            <field name="calle" readonly="1"/>
+                            <field name="numero" readonly="1"/>
+                        </group>
+                    </group>
+                    
+                    <notebook>
+                        <page string="Contactos">
+                            <field name="contacto" readonly="1">
+                                <list>
+                                    <field name="nombre"/>
+                                    <field name="descripcion"/>
+                                    <field name="telefono"/>
+                                    <field name="email"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vista formulario EDITABLE -->
+    <record id="view_cliente_form" model="ir.ui.view">
+        <field name="name">cliente.form</field>
+        <field name="model">clientes.cliente</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_save_and_return" string="Guardar y Volver" 
+                        type="object" class="btn btn-primary" icon="fa-save"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Información General">
                             <field name="tipo" widget="radio" options="{'horizontal': true}"/>
                             <field name="nombre"/>
-                            <field name="regimen"
-                            options="{'no_open': True,'no_create': True}"/>
+                            <field name="regimen" options="{'no_open': True,'no_create': True}"/>
                             <field name="rfc"/>
                         </group>
                         <group string="Información Personal">
@@ -153,19 +135,34 @@
         </field>
     </record>
 
-    <!-- Acción de Menú (DEBE IR PRIMERO) -->
+    
+
+    <!-- Acción PRINCIPAL - Ahora abre DETAIL por defecto -->
     <record id="action_clientes" model="ir.actions.act_window">
-    <field name="name">Clientes</field>
-    <field name="res_model">clientes.cliente</field>
-    <field name="view_mode">list,form</field>
-    <field name="help" type="html">
-        <p class="o_view_nocontent_smiling_face">Crea tu primer cliente</p>
-    </field>
-    <field name="views" eval="[
-        (ref('view_cliente_list'), 'list'),
-        (ref('view_cliente_detail'), 'form'),
-        (ref('view_cliente_form'), 'form')
-    ]"/>
+        <field name="name">Clientes</field>
+        <field name="res_model">clientes.cliente</field>
+        <field name="view_mode">list,form</field>
+        
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crea tu primer cliente</p>
+        </field>
+
+        <!-- CAMBIO CLAVE: view_cliente_detail va PRIMERO -->
+        <field name="views" eval="[
+            (ref('view_cliente_list'), 'list'),
+            (ref('view_cliente_detail'), 'form')
+            
+        ]"/>
+        <field name="context">{'form_view_ref': 'tu_modulo.view_cliente_form'}</field>
+    </record>
+
+    <!-- Acción específica para EDITAR -->
+    <record id="action_cliente_edit" model="ir.actions.act_window">
+        <field name="name">Editar Cliente</field>
+        <field name="res_model">clientes.cliente</field>
+        <field name="view_mode">form</field>
+        <field name="views" eval="[(ref('view_cliente_form'), 'form')]"/>
+        <field name="target">current</field>
     </record>
 
     <!-- Menús -->
