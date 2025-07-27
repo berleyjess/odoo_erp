@@ -1,18 +1,18 @@
 <odoo>
     <!-- Acción de Menú (DEBE IR PRIMERO) -->
-    <record id="action_ventadetalles" model="ir.actions.act_window">
-        <field name="name">VentaDetalles</field>
-        <field name="res_model">ventas.ventadetalle</field>
+    <record id="action_detalleventas" model="ir.actions.act_window">
+        <field name="name">DetalleVentas</field>
+        <field name="res_model">detalleventas.detalleventa</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Crea tu primer ventadetalle</p>
+            <p class="o_view_nocontent_smiling_face">Crea tu primer detalle de venta</p>
         </field>
     </record>
 
     <!-- Vista árbol -->
-    <record id="view_ventadetalle_list" model="ir.ui.view">
-        <field name="name">ventadetalle.tree</field>
-        <field name="model">ventadetalle</field>
+    <record id="view_detalleventa_list" model="ir.ui.view">
+        <field name="name">detalleventa.tree</field>
+        <field name="model">detalleventas.detalleventa</field>
         <field name="arch" type="xml">
             <list>
                 <field name="producto"/>
@@ -26,9 +26,9 @@
     </record>
 
     <!-- Vista formulario -->
-    <record id="view_ventadetalle_form" model="ir.ui.view">
-        <field name="name">ventadetalle.form</field>
-        <field name="model">ventadetalle</field>
+    <record id="view_detalleventa_form" model="ir.ui.view">
+        <field name="name">detalleventa.form</field>
+        <field name="model">detalleventas.detalleventa</field>
         <field name="arch" type="xml">
             <form autosave="False">
                 <sheet>
@@ -43,6 +43,6 @@
     </record>
 
     <!-- Menús -->
-    <menuitem id="menu_root" name="ventadetalles" sequence="10"/>
-    <menuitem id="menu_action" name="Catálogo de ventadetalles" parent="menu_root" action="action_ventadetalles"/>
+    <menuitem id="menu_root" name="Detalle de Ventas" sequence="10"/>
+    <menuitem id="menu_action" name="Catálogo de Detalle de Ventas" parent="menu_root" action="action_detalleventas"/>
 </odoo>

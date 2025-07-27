@@ -1,1 +1,1 @@
-from . import venta, ventadetalle
+from . import detalleventa_ext, venta

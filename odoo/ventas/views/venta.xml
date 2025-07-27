@@ -12,7 +12,7 @@
     <!-- Vista árbol -->
     <record id="view_venta_list" model="ir.ui.view">
         <field name="name">venta.tree</field>
-        <field name="model">venta</field>
+        <field name="model">ventas.venta</field>
         <field name="arch" type="xml">
             <list>
                 <field name="fecha"/>
@@ -25,14 +25,14 @@
     <!-- Vista formulario -->
     <record id="view_venta_form" model="ir.ui.view">
         <field name="name">venta.form</field>
-        <field name="model">venta</field>
+        <field name="model">ventas.venta</field>
         <field name="arch" type="xml">
             <form autosave="False">
                 <sheet>
                     <group>
                         <field name="fecha"/>
                         <field name="cliente"/>
-                        <field name="metododepago"/>
+                        <field name="metododepago" widget="radio" options="{'horizontal': true}"/>
                         <field name="formadepago"                             
                             required="metododepago == 'PUE'"
                             invisible="metododepago != 'PUE'"

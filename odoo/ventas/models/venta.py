@@ -3,15 +3,15 @@ from odoo.exceptions import ValidationError
 from datetime import date
 
 class venta(models.Model):
-    _name = 'venta'
+    _name = 'ventas.venta'
     _description = 'Venta de artículos'
     
     codigo = fields.Char(string="Código", required = True)
-    cliente = fields.Many2one('cliente', string="Cliente", required = True)
-    contrato = fields.Many2one('contrato', string="Contrato")
+    cliente = fields.Many2one('clientes.cliente', string="Cliente", required = True)
+    contrato = fields.Many2one('contratos.contrato', string="Contrato")
     observaciones = fields.Char(string = "Observaciones", size=32)
     fecha = fields.Date(string="Fecha", default=lambda self: date.today())
-    detalle = fields.One2many('ventadetalle', 'ventaf', string="Ventas")
+    detalle = fields.One2many('ventas.detalleventa_ext', 'venta_id', string="Ventas")
     #vendedor = fields.Many2one('vendedor', string="Vendedor", required = True)
     #sucursal = fields.Many2one('sucursal', string="Sucursal", required = True)
     #empresa = fields.Many2one('empresa', string="Empresa", readonly = True)

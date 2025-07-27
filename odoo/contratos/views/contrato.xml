@@ -16,8 +16,8 @@
         <field name="arch" type="xml">
             <list>
                 <field name="display_name"/>
-                <field name="cultivo"/>
                 <field name="ciclo"/>
+                <field name="cultivo"/>
                 <field name="aporte"/>
             </list>
         </field>
@@ -31,13 +31,17 @@
             <form autosave = "False" string="Generar contrato">
                 <sheet>
                     <group>
-                        <field name="tipocredito"/>
-                        <field name="cultivo"/>
+                        <field name="tipocredito" widget="radio" options="{'horizontal': true}"/>
                         <field name="ciclo"/>
-                        <field name="aporte"/>
+                        <field name="cultivo"
+                            required="tipocredito != '2'"
+                            invisible="tipocredito == '2'"/>
+                        <field name="aporte"
+                            required="tipocredito != '2'"
+                            invisible="tipocredito == '2'"/>
                     </group>
                     <notebook>
-                        <page string="Límite de Insumos por Hectárea">
+                        <page string="Límite de Insumos por Hectárea" invisible="tipocredito == '2'">
                             <field name="limiteinsumos">
                                 <list editable="bottom">
                                     <field name="producto"/>

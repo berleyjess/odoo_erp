@@ -1,7 +1,7 @@
 from odoo import models, fields, api
 
 class proveedores(models.Model):
-    _name = 'proveedor'
+    _name = 'proveedores.proveedor'
 
     nombre = fields.Char(string = "Razón Social", required = True)
     rfc = fields.Char(string = "RFC", required = True)
@@ -11,7 +11,7 @@ class proveedores(models.Model):
     codigop = fields.Char(string = "Código Postal", size = 5)
     descripcion = fields.Char(string = "Descripción")
 
-    contacto = fields.One2many('proveedor.contacto', 'proveedor_id', string = "Contactos")
+    contacto = fields.One2many('proveedor.contacto_ext', 'proveedor_id', string = "Contactos")
 
     codigo = fields.Char( #Código interno del Cliente
         string='Código',

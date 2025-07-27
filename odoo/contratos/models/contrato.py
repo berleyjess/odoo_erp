@@ -11,39 +11,28 @@ class contrato(models.Model):
         selection = [
             ("0", "AVIO"),
             ("1", "Comercial"),
-            ("2", "A días")
+            ("2", "Especial")
         ], string = "Tipo de crédito", default = "0", required = True
     )
     ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)    
     cultivo = fields.Many2one('cultivos.cultivo', string="Cultivo")
-    aporte = fields.Integer(string="Aporte por Hectárea", required=True)
+    aporte = fields.Integer(string="Aporte por Hectárea")
 
     limiteinsumos = fields.One2many(
         'contratos.limiteinsumo_ext', 'contrato_id', string="Límites de Insumos")
     
-    @api.model
-    def fields_get(self, allfields=None, attributes=None):
-        res = super(contrato, self).fields_get(allfields=allfields, attributes=attributes)
-        context = self.env.context
-        tipocredito = context.get('default_tipocredito') or context.get('tipocredito')
-        if 'aporte' in res:
-            if tipocredito == "2":
-                res['aporte']['string'] = "Aporte Total"
-            else:
-                res['aporte']['string'] = "Aporte por Hectárea"
-        return res
+    display_name = fields.Char(compute='_compute_display_name', store=True, string="Contrato")
 
-    @api.constrains('tipocredito', 'cultivo')
-    def _check_cultivo_required(self):
-        for record in self:
-            if record.tipocredito != "2" and not record.cultivo:
-                raise ValidationError("El campo 'Cultivo' es obligatorio.")
-
-    display_name = fields.Char(compute='_compute_display_name', store=True)
-
-    @api.depends('ciclo', 'cultivo')
+    @api.depends('ciclo', 'cultivo', 'tipocredito')
     def _compute_display_name(self):
         for record in self:
-            tipocredito_label = dict(self._fields['tipocredito'].selection).get(record.tipocredito)
-            record.display_name = f"{tipocredito_label} {record.ciclo} {record.cultivo}"
+            tipocredito_label = dict(self._fields['tipocredito'].selection).get(record.tipocredito) or ""
+            label_cultivo = record.cultivo.nombre or ""
+            label_ciclo = record.ciclo.label or ""
+
+            record.display_name = f"{tipocredito_label} {label_ciclo} {label_cultivo}"
+
+    _sql_constraints = [
+        ('unique_display_name', 'unique(display_name)', 'Ya existe un Contrato con el mismo <<Tipo de Crédito>> y el mismo <<Ciclo>>.')
+    ]
 
