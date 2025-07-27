@@ -1,0 +1,57 @@
+<odoo>
+    <record id="action_predio" model="ir.actions.act_window">
+        <field name="name">Predios</field>
+        <field name="res_model">predios.predio</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Crea tu primer predio
+            </p>
+            <p>
+                Puedes crear y gestionar los predios desde aquí.
+            </p>
+        </field>
+    </record>
+
+    <record id="view_predio_tree" model="ir.ui.view">
+        <field name="name">predio.tree</field>
+        <field name="model">predios.predio</field>
+        <field name="arch" type="xml">
+            <list string="Predios">
+                <field name="localidad"/>
+                <field name="titular"/>
+                <field name="nocertificado"/>
+                <field name="superficie"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_predio_form" model="ir.ui.view">
+        <field name="name">predio.form</field>
+        <field name="model">predios.predio</field>
+        <field name="arch" type="xml">
+            <form string="Predio">
+                <sheet>
+                    <group>
+                        <field name="localidad"/>
+                        <field name="titular"/>
+                        <field name="superficie"/>
+                        <field name="nocertificado"/>
+                        <field name="colnorte"/>
+                        <field name="colsur"/>
+                        <field name="coleste"/>
+                        <field name="coloeste"/>
+                    </group>
+                    <notebook>
+                        <page string="Georeferencias">
+                            <field name="georeferencias" widget="one2many_list"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <!-- Menús -->
+    <menuitem id="menu_root" name="Predios" sequence="10"/>
+    <menuitem id="menu_action" name="Predios" parent="menu_root" action="action_predio"/>
+</odoo>
