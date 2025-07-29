@@ -1,3 +1,4 @@
+<!-- productos-data-seq_code.xml -->
 <odoo>
     <data noupdate="1">
         <record id="seq_producto_code" model="ir.sequence">

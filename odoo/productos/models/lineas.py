@@ -1,3 +1,4 @@
+#producto-models-lineas.py
 from odoo import models, fields, api
 
 class lineas(models.Model):

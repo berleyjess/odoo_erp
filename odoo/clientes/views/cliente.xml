@@ -20,14 +20,12 @@
     <record id="view_cliente_detail" model="ir.ui.view">
         <field name="name">cliente.detail</field>
         <field name="model">clientes.cliente</field>
+        <field name="priority" eval="1"/>
         <field name="arch" type="xml">
             <form create="0" edit="0" delete="0" copy="0">
                 <header>
-                    <button name="action_open_edit" string="Editar"
-                            type="object" class="btn btn-primary"
-                            icon="fa-pencil" confirm="¿Estás seguro de que quieres editar este cliente?"/>
-                    <button name="action_back_to_list" string="Volver"
-                        type="object" class="btn btn-secondary" icon="fa-arrow-left"/>
+                    <button name="action_open_edit" string="Editar" type="object" class="btn btn-primary" icon="fa-pencil" confirm="¿Estás seguro de que quieres editar este cliente?"/>
+                    <button name="action_back_to_list" string="Volver" type="object" class="btn btn-secondary" icon="fa-arrow-left"/>
 
                 </header>
 
@@ -43,11 +41,10 @@
                             <field name="ine" readonly="1"/>
                             <field name="curp" readonly="1"/>
                             <field name="estado_civil" readonly="1"/>
-                            <field name="conyugue" readonly="1"
-                                   invisible="estado_civil not in ['casado', 'union_libre']"/>
+                            <field name="conyugue" readonly="1" invisible="estado_civil not in ['casado', 'union_libre']"/>
                         </group>
                     </group>
-                    
+
                     <group string="Dirección">
                         <group>
                             <field name="localidad" readonly="1" options="{'no_open': True, 'no_create': True}"/>
@@ -59,7 +56,7 @@
                             <field name="numero" readonly="1"/>
                         </group>
                     </group>
-                    
+
                     <notebook>
                         <page string="Contactos">
                             <field name="contacto" readonly="1">
@@ -81,11 +78,11 @@
     <record id="view_cliente_form" model="ir.ui.view">
         <field name="name">cliente.form</field>
         <field name="model">clientes.cliente</field>
+        <field name="priority" eval="5"/>
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <button name="action_save_and_return" string="Guardar y Volver" 
-                        type="object" class="btn btn-primary" icon="fa-save"/>
+                    <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
                 </header>
                 <sheet>
                     <group>
@@ -99,13 +96,10 @@
                             <field name="ine"/>
                             <field name="curp"/>
                             <field name="estado_civil"/>
-                            <field name="conyugue" 
-                                   invisible="estado_civil not in ['casado', 'union_libre']"
-                                   required="estado_civil in ['casado', 'union_libre']"
-                                   placeholder="Nombre completo del cónyuge"/>
+                            <field name="conyugue" invisible="estado_civil not in ['casado', 'union_libre']" required="estado_civil in ['casado', 'union_libre']" placeholder="Nombre completo del cónyuge"/>
                         </group>
                     </group>
-                    
+
                     <group string="Dirección">
                         <group>
                             <field name="localidad"/>
@@ -117,7 +111,7 @@
                             <field name="numero"/>
                         </group>
                     </group>
-                    
+
                     <notebook>
                         <page string="Contactos">
                             <field name="contacto">
@@ -135,24 +129,25 @@
         </field>
     </record>
 
-    
+
 
     <!-- Acción PRINCIPAL - Ahora abre DETAIL por defecto -->
     <record id="action_clientes" model="ir.actions.act_window">
         <field name="name">Clientes</field>
         <field name="res_model">clientes.cliente</field>
         <field name="view_mode">list,form</field>
-        
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Crea tu primer cliente</p>
-        </field>
+
+
 
         <field name="views" eval="[
             (ref('view_cliente_list'), 'list'),
             (ref('view_cliente_detail'), 'form')
             
         ]"/>
-        <field name="context">{'form_view_ref': 'tu_modulo.view_cliente_form'}</field>
+        <!-- <field name="context">{'form_view_ref': 'clientes.view_cliente_form'}</field> -->
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crea tu primer cliente</p>
+        </field>
     </record>
 
     <!-- Acción específica para EDITAR -->

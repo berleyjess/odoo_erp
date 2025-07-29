@@ -1,4 +1,6 @@
-from odoo import models, fields, api
+#producto-models-producto.py
+from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError
 
 class producto(models.Model):
     _name = 'productos.producto'
@@ -6,8 +8,8 @@ class producto(models.Model):
 
     name = fields.Char(string="Nombre", required=True)
     description = fields.Char(string="Descripción", size=30)
-
-    unidad = fields.Selection(
+    
+    unidad = fields.Selection(   # Unidades de medida disponibles para los productos
         selection = [
             ("KGM", "Kilogramo"),
             ("TON", "Tonelada"),
@@ -16,16 +18,40 @@ class producto(models.Model):
             ("E48", "Servicio")
         ], string="Unidad de medida", required=True
     )
+    costo = fields.Float(string="Costo", digits=(14, 2), default=0.0)
+    contado = fields.Float(string="Precio de contado", digits=(14, 2), default=0.0)
+    credito = fields.Float(string="Precio de crédito", digits=(14, 2), default=0.0)
 
-    costo = fields.Float(string="Costo", digits=(12,4))
-    contado = fields.Float(string="Precio de contado", digits=(12,4))
-    credito = fields.Float(string="Precio de crédito", digits=(12,4))
-    iva = fields.Float(string="iva", digits=(4,2))
-    ieps = fields.Float(string="ieps", digits=(4,2))
+    # Iva: Solo 8 y 16
+    iva = fields.Selection(
+        selection=[('8', "8"), ('16', "16")],
+        string="IVA",
+        required=True,
+        default='16'
+    )
+
+    # Tipo de Producto: Insumos, Ferretería, Granos
+    # Se usa para categorizar los productos y aplicar reglas específicas
+    tipoProducto = fields.Selection(
+        selection=[("0", "Insumos"), ("1", "Granos"),("2", "Ferretería")],
+        string="Categoría del Producto",
+        required=True,
+        default='0'
+    )
+
+    # IEPS: entre 0 y 100 (entero)
+    ieps = fields.Integer(string="IEPS", default=0)
 
     #Clase del Producto
-    linea = fields.Many2one('lineasdeproducto', string="Linea de Producto", required=True, ondelete='restrict')
+    linea = fields.Many2one(
+        'lineasdeproducto',
+        string="Linea de Producto",
+        required=True,
+        ondelete='restrict'
+    )
     
+  
+    #----
     #Propiedades del Producto
     ferreteria = fields.Boolean(string="Producto de Ferretería", default = False)
     venta = fields.Boolean(string="Producto para venta", default = True)
@@ -33,7 +59,7 @@ class producto(models.Model):
     compra = fields.Boolean(string="Producto para compra", default = False)
     materiaprima = fields.Boolean(string="Producto para Materia Prima", default = False)
     consumible = fields.Boolean(string="Producto consumible (Envases, etiquetas, etc)", default = False)
-
+    #----
     codigo = fields.Char( #Código interno del producto
         string='Código',
         size=10,
@@ -48,6 +74,41 @@ class producto(models.Model):
 
     cuenta = fields.Char(string = "Cuenta contable")
 
+    
+    @api.constrains('ieps')
+    def _check_ieps_range(self):
+        for rec in self:
+            if not (0 <= rec.ieps <= 100):
+                raise ValidationError("El IEPS debe estar entre 0 y 100.")
+
+    @api.constrains('costo', 'contado', 'credito')
+    def _check_price_format(self):
+        for rec in self:
+            for fname in ['costo', 'contado', 'credito']:
+                value = getattr(rec, fname)
+                if value < 0:
+                    raise ValidationError("Ningún precio puede ser negativo.")
+                # Máximo 12 dígitos antes del punto
+                s = str(int(value))
+                if len(s) > 12:
+                    raise ValidationError("El valor de '%s' es muy grande. Máximo 12 dígitos antes del punto decimal." % fname)
+
+    state = fields.Selection([
+    ('draft', 'Borrador'),
+    ('confirmed', 'Confirmado')
+    ], string="Estado", default='draft')
+
+    def action_back_to_list(self):
+        """Regresa al listado de productos."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Productos'),
+            'res_model': 'productos.producto',
+            'view_mode': 'list,form',
+            'target': 'current',
+        }
+
+
     def action_manual_save(self):
         self.write({'state': 'confirmed'})  # Guarda solo al llamar esta función
 
@@ -55,6 +116,8 @@ class producto(models.Model):
         sequence = self.env['ir.sequence'].next_by_code('seq_prod_code') or '/'
         number = sequence.split('/')[-1]
         return f"{number.zfill(6)}"
+    
+    
     
     @api.model
     def create(self, vals):

@@ -1,3 +1,4 @@
+<!-- productos-views-productos.xml -->
 <odoo>
     <!--Acción de Menú-->
     <record id="action_productos" model="ir.actions.act_window">
@@ -18,6 +19,7 @@
                 <field name="costo"/>
                 <field name="contado"/>
                 <field name="credito"/>
+                <field name="tipoProducto"/>
                 <field name="iva"/>
                 <field name="ieps"/>
             </list>
@@ -31,8 +33,8 @@
         <field name="arch" type="xml">
             <form autosave = "False">
                 <header>
-                    <button name="cancel" string="Descartar" class="btn-secondary"/>
-                    <button name="one" string="Descartar" class="btn-sucess"/>
+                    <button name="action_back_to_list" string="Volver"
+                        type="object" class="btn btn-secondary" icon="fa-arrow-left"/>
                 </header>
                 <sheet>
                     <group>
@@ -43,24 +45,18 @@
                         context="{'show_code': True, 'show_description': True}"/>
                         <field name="linea"/>
                         <field name="unidad"/>
-                        <field name="costo"/>
-                        <field name="contado"/>
-                        <field name="credito"/>
+                        <field name="costo" options="{'force_input': True}" placeholder="0.00"/>
+                        <field name="contado" options="{'force_input': True}" placeholder="0.00"/>
+                        <field name="credito" options="{'force_input': True}" placeholder="0.00"/>
+                        <field name="tipoProducto"/>
                         <field name="iva"/>
                         <field name="ieps"/>
                     </group>
-                    <button 
-                        name="action_manual_save" 
-                        string="Guardar" 
-                        type="object" 
-                        class="btn-primary"
-                    />
-                    <button name="save" string="Guardar" class="oe_highlight"/>
+                    
+                    <button string="Guardar" type="object" name="action_manual_save" class="btn-primary"/>
+                        <span style="margin-left:12px;"/>
+                
                 </sheet>
-                <div class="oe_button_box" style="background: #f8f9fa; padding: 10px; border-top: 1px solid #ddd; text-align: right;">
-                    <button name="two" string="footer" class="btn-danger"/>
-                    <button name="tree" string="footer2" class="btn-link"/>
-                </div>
             </form>
         </field>
     </record>

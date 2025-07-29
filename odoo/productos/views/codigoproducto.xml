@@ -1,3 +1,4 @@
+<!-- productos-views-codigoproducto.xml -->
 <odoo>
     <record id="view_codigoproducto_tree" model="ir.ui.view">
         <field name="name">codigoproducto.tree</field>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Vista Árbol -->
+    <record id="view_garantia_list" model="ir.ui.view">
+        <field name="name">garantia.tree</field>
+        <field name="model">garantias.garantia</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="tipo"/>
+                <field name="valor"/>
+                <field name="fecha_entrega"/>
+                <field name="persona_entrega"/>
+                <field name="persona_recibe"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista Formulario -->
+    <record id="view_garantia_form" model="ir.ui.view">
+        <field name="name">garantia.form</field>
+        <field name="model">garantias.garantia</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="tipo"/>
+                    <field name="descripcion"/>
+                    <field name="valor"/>
+                    <field name="fecha_entrega"/>
+                </group>
+                <group>
+                    <field name="persona_entrega"/>
+                    <field name="persona_recibe"/>
+                </group>
+            </form>
+        </field>
+    </record>
+
+    <!-- Acción -->
+    <record id="action_garantias" model="ir.actions.act_window">
+        <field name="name">Garantias</field>
+        <field name="res_model">garantias.garantia</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p>Registra y consulta garantías de clientes.</p>
+        </field>
+    </record>
+
+    <!-- Menú -->
+    <menuitem id="menu_garantias_root" name="Garantías"/>
+    <menuitem id="menu_garantias" name="Garantías" parent="menu_garantias_root" action="action_garantias"/>
+</odoo>
