@@ -10,7 +10,7 @@ class contrato(models.Model):
     tipocredito = fields.Selection(
         selection = [
             ("0", "AVIO"),
-            ("1", "Comercial"),
+            ("1", "Parcial"),
             ("2", "Especial")
         ], string = "Tipo de crédito", default = "0", required = True
     )
