@@ -1,1 +1,1 @@
-from . import solcredito, predios_ext
+from . import solcredito, predios_ext, garantia_ext
