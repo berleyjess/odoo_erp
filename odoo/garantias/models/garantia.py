@@ -26,6 +26,11 @@ class Garantia(models.Model):
         required=True,
     )
 
+    titular = fields.Char(
+        string="Titular de la garantía",
+        help="Nombre del titular de la garantía."
+    )
+
     descripcion = fields.Text(
         string="Descripción",
         help="Descripción detallada del bien entregado como garantía."

@@ -6,6 +6,8 @@
         <field name="model">garantias.garantia</field>
         <field name="arch" type="xml">
             <list>
+                <field name="titular"/>
+                <field name="descripcion"/>
                 <field name="tipo"/>
                 <field name="valor"/>
                 <field name="fecha_entrega"/>
@@ -22,6 +24,7 @@
         <field name="arch" type="xml">
             <form>
                 <group>
+                    <field name="titular"/>
                     <field name="tipo"/>
                     <field name="descripcion"/>
                     <field name="valor"/>

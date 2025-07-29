@@ -1,3 +1,4 @@
+# solcreditos/models/solcredito.py
 from odoo import models, fields, api
 
 class solcredito(models.Model):
@@ -7,7 +8,7 @@ class solcredito(models.Model):
     cliente = fields.Many2one('clientes.cliente', string="Nombre", required=True)
     ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)
     contrato = fields.Many2one('contratos.contrato', string="Contrato", required=True)
-    titular = fields.Selection(
+    titularr = fields.Selection(
         selection=[
             ("0", "Sí"),
             ("1", "No")
@@ -15,12 +16,13 @@ class solcredito(models.Model):
     )
 
     predios = fields.One2many('solcreditos.predio_ext', 'solcredito_id', string = "Predios")
-    #garantias = fields.One2many('solcreditos.garantia_ext', 'solcredito_id', string = "Garantías")
-
+    garantias = fields.One2many('solcreditos.garantia_ext', 'solcredito_id', string = "Garantías")
+    #titularr = fields.Char(string="Titular de la garantía", required=True)
     # Datos variables dependiendo del tipo de crédito
     # monto y vencimiento son manuales si el tipodecredito es "Especial", si es "Parcial" o "AVIO" se toman del contrato
     # superficie es manual si es "Parcial". Si es "AVIO" se calcula en base a los predios. Si es "Especial" no se usa.
-    monto = fields.Float(string="Monto solicitado", digits=(12, 4), required=True)
+    monto = fields.Float(string="Monto solicitado", digits=(12, 4), 
+                         compute="_compute_monto", store=True, required=True)
     vencimiento = fields.Date(string="Fecha de vencimiento", required=True)
     superficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), required=True)
 

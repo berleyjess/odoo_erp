@@ -32,17 +32,15 @@
                         <field name="cliente"/>
                         <field name="ciclo"/>
                         <field name="contrato"/>
-                        <field name="titular" widget="radio" options="{'horizontal': true}"/>
+                        <field name="titularr" widget="radio" options="{'horizontal': true}"/>
                         <field name="monto"
                         readonly = "contrato.tipocredito != '2'"/>
-                        <field name="vencimiento"
-                        readonly="contrato.tipocredito != '2'"/>
-                        <field name="superficie" 
-                        readonly="contrato.tipocredito == '0'"
+                        <field name="vencimiento" readonly="contrato.tipocredito != '2'"/>
+                        <field name="superficie" readonly="contrato.tipocredito == '0'"
                         invisible = "contrato.tipocredito == '2'"/>
                     </group>
                     <group name="datos_obligado" string="Obligado Solidario">
-                        <field name="obligado"/> 
+                        <field name="obligado"/>
                         <field name="obligadodomicilio"/>
                         <field name="obligadoRFC"/>
                     </group>
@@ -51,6 +49,21 @@
                         invisible = "contrato.tipocredito != '0'"/>
                     </group>
 
+                    <group name="garantias" invisible="contrato.tipocredito == '0'">
+                        <field name="garantias">
+                            <list>
+                                <field name="tipo"/>
+                                <field name="valor"/>
+                                <field name="descripcion"/>
+                                <field name="fecha_entrega"/>
+                                <field name="persona_entrega"/>
+                                <field name="persona_recibe"/>
+                                <field name="titular"/>
+                            </list>
+                        </field>
+                    </group>
+
+\
                 </sheet>
             </form>
         </field>
