@@ -1,165 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Vista árbol -->
-    <record id="view_cliente_list" model="ir.ui.view">
-        <field name="name">cliente.tree</field>
-        <field name="model">clientes.cliente</field>
-        <field name="arch" type="xml">
-            <list>
-                <field name="tipo" string="Tipo de Cliente"/>
-                <field name="nombre" string="Nombre"/>
-                <field name="regimen"/>
-                <field name="rfc" string="RFC"/>
-                <field name="curp" string="CURP"/>
-                <field name="estado_civil" string="Estado Civil"/>
-                <field name="codigop" string="Código Postal"/>
-            </list>
-        </field>
-    </record>
+    <data>
+        <!-- Vista de lista (existente) -->
+        <record id="view_clientes_tree" model="ir.ui.view">
+            <field name="name">clientes.tree</field>
+            <field name="model">clientes.cliente</field>
+            <field name="arch" type="xml">
+                <list action="action_clientes_detail">
+                    <field name="tipo" string="Tipo de Cliente"/>
+                    <field name="nombre" string="Nombre"/>
+                    <field name="regimen"/>
+                    <field name="rfc" string="RFC"/>
+                    <field name="curp" string="CURP"/>
+                    <field name="estado_civil" string="Estado Civil"/>
+                    <field name="codigop" string="Código Postal"/>
+                </list>
+            </field>
+        </record>
 
-    <!-- Vista SOLO LECTURA (detail) - LA QUE SE ABRE POR DEFECTO -->
-    <record id="view_cliente_detail" model="ir.ui.view">
-        <field name="name">cliente.detail</field>
-        <field name="model">clientes.cliente</field>
-        <field name="priority" eval="1"/>
-        <field name="arch" type="xml">
-            <form create="0" edit="0" delete="0" copy="0">
-                <header>
-                    <button name="action_open_edit" string="Editar" type="object" class="btn btn-primary" icon="fa-pencil" confirm="¿Estás seguro de que quieres editar este cliente?"/>
-                    <button name="action_back_to_list" string="Volver" type="object" class="btn btn-secondary" icon="fa-arrow-left"/>
+        <!-- Vista de detalle (solo lectura) -->
+        <record id="view_clientes_detail" model="ir.ui.view">
+            <field name="name">clientes.detail</field>
+            <field name="model">clientes.cliente</field>
+            <field name="arch" type="xml">
+                <form create="false" edit="false" delete="false">
+                    <header>
+                        <button name="action_open_edit" string="Editar" type="object" class="btn btn-primary" icon="fa-pencil" confirm="¿Estás seguro de que quieres editar este cliente?"/>
+                        <button name="action_back_to_list" string="Volver" type="object" class="btn btn-secondary" icon="fa-arrow-left"/>
 
-                </header>
+                    </header>
 
-                <sheet>
-                    <group>
-                        <group string="Información General">
-                            <field name="tipo" widget="radio" options="{'horizontal': true}" readonly="1"/>
-                            <field name="nombre" readonly="1"/>
-                            <field name="regimen" readonly="1" options="{'no_open': True,'no_create': True}"/>
-                            <field name="rfc" readonly="1"/>
-                        </group>
-                        <group string="Información Personal">
-                            <field name="ine" readonly="1"/>
-                            <field name="curp" readonly="1"/>
-                            <field name="estado_civil" readonly="1"/>
-                            <field name="conyugue" readonly="1" invisible="estado_civil not in ['casado', 'union_libre']"/>
-                        </group>
-                    </group>
-
-                    <group string="Dirección">
+                    <sheet>
                         <group>
-                            <field name="localidad" readonly="1" options="{'no_open': True, 'no_create': True}"/>
-                            <field name="codigop" readonly="1"/>
+                            <group string="Información General">
+                                <field name="tipo" widget="radio" options="{'horizontal': true}" readonly="1"/>
+                                <field name="nombre" readonly="1"/>
+                                <field name="regimen" readonly="1" options="{'no_open': True,'no_create': True}"/>
+                                <field name="rfc" readonly="1"/>
+                            </group>
+                            <group string="Información Personal">
+                                <field name="ine" readonly="1"/>
+                                <field name="curp" readonly="1"/>
+                                <field name="estado_civil" readonly="1"/>
+                                <field name="conyugue" readonly="1" invisible="estado_civil not in ['casado', 'union_libre']"/>
+                            </group>
                         </group>
+
+                        <group string="Dirección">
+                            <group>
+                                <field name="localidad" readonly="1" options="{'no_open': True, 'no_create': True}"/>
+                                <field name="codigop" readonly="1"/>
+                            </group>
+                            <group>
+                                <field name="colonia" readonly="1"/>
+                                <field name="calle" readonly="1"/>
+                                <field name="numero" readonly="1"/>
+                            </group>
+                        </group>
+
+                        <notebook>
+                            <page string="Contactos">
+                                <field name="contacto" readonly="1">
+                                    <list>
+                                        <field name="nombre"/>
+                                        <field name="descripcion"/>
+                                        <field name="telefono"/>
+                                        <field name="email"/>
+                                    </list>
+                                </field>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Vista de formulario para edición -->
+        <record id="view_clientes_form_edit" model="ir.ui.view">
+            <field name="name">clientes.form.edit</field>
+            <field name="model">clientes.cliente</field>
+            <field name="arch" type="xml">
+                <form>
+                    <header>
+                        <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
+                    </header>
+                    <sheet>
                         <group>
-                            <field name="colonia" readonly="1"/>
-                            <field name="calle" readonly="1"/>
-                            <field name="numero" readonly="1"/>
+                            <group string="Información General">
+                                <field name="tipo" widget="radio" options="{'horizontal': true}"/>
+                                <field name="nombre"/>
+                                <field name="regimen" options="{'no_open': True,'no_create': True}"/>
+                                <field name="rfc"/>
+                            </group>
+                            <group string="Información Personal">
+                                <field name="ine"/>
+                                <field name="curp"/>
+                                <field name="estado_civil"/>
+                                <field name="conyugue" invisible="estado_civil not in ['casado', 'union_libre']" required="estado_civil in ['casado', 'union_libre']" placeholder="Nombre completo del cónyuge"/>
+                            </group>
                         </group>
-                    </group>
 
-                    <notebook>
-                        <page string="Contactos">
-                            <field name="contacto" readonly="1">
-                                <list>
-                                    <field name="nombre"/>
-                                    <field name="descripcion"/>
-                                    <field name="telefono"/>
-                                    <field name="email"/>
-                                </list>
-                            </field>
-                        </page>
-                    </notebook>
-                </sheet>
-            </form>
-        </field>
-    </record>
-
-    <!-- Vista formulario EDITABLE -->
-    <record id="view_cliente_form" model="ir.ui.view">
-        <field name="name">cliente.form</field>
-        <field name="model">clientes.cliente</field>
-        <field name="priority" eval="5"/>
-        <field name="arch" type="xml">
-            <form>
-                <header>
-                    <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
-                </header>
-                <sheet>
-                    <group>
-                        <group string="Información General">
-                            <field name="tipo" widget="radio" options="{'horizontal': true}"/>
-                            <field name="nombre"/>
-                            <field name="regimen" options="{'no_open': True,'no_create': True}"/>
-                            <field name="rfc"/>
+                        <group string="Dirección">
+                            <group>
+                                <field name="localidad"/>
+                                <field name="codigop"/>
+                            </group>
+                            <group>
+                                <field name="colonia"/>
+                                <field name="calle"/>
+                                <field name="numero"/>
+                            </group>
                         </group>
-                        <group string="Información Personal">
-                            <field name="ine"/>
-                            <field name="curp"/>
-                            <field name="estado_civil"/>
-                            <field name="conyugue" invisible="estado_civil not in ['casado', 'union_libre']" required="estado_civil in ['casado', 'union_libre']" placeholder="Nombre completo del cónyuge"/>
-                        </group>
-                    </group>
 
-                    <group string="Dirección">
-                        <group>
-                            <field name="localidad"/>
-                            <field name="codigop"/>
-                        </group>
-                        <group>
-                            <field name="colonia"/>
-                            <field name="calle"/>
-                            <field name="numero"/>
-                        </group>
-                    </group>
+                        <notebook>
+                            <page string="Contactos">
+                                <field name="contacto">
+                                    <list editable="bottom">
+                                        <field name="nombre"/>
+                                        <field name="descripcion"/>
+                                        <field name="telefono"/>
+                                        <field name="email"/>
+                                    </list>
+                                </field>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
 
-                    <notebook>
-                        <page string="Contactos">
-                            <field name="contacto">
-                                <list editable="bottom">
-                                    <field name="nombre"/>
-                                    <field name="descripcion"/>
-                                    <field name="telefono"/>
-                                    <field name="email"/>
-                                </list>
-                            </field>
-                        </page>
-                    </notebook>
-                </sheet>
-            </form>
-        </field>
-    </record>
+        <!-- Acción para mostrar la vista de detalle -->
+        <record id="action_clientes_detail" model="ir.actions.act_window">
+            <field name="name">Detalle Cliente</field>
+            <field name="res_model">clientes.cliente</field>
+            <field name="view_mode">form</field>
+            <field name="view_id" ref="view_clientes_detail"/>
+            <field name="target">current</field>
+        </record>
 
+        <!-- Acción para editar el cliente -->
+        <record id="action_clientes_edit" model="ir.actions.act_window">
+            <field name="name">Editar Cliente</field>
+            <field name="res_model">clientes.cliente</field>
+            <field name="view_mode">form</field>
+            <field name="view_id" ref="view_clientes_form_edit"/>
+            <field name="target">current</field>
+        </record>
 
+        <!-- Acción principal para la vista lista -->
+        <record id="action_clientes_main" model="ir.actions.act_window">
+            <field name="name">Clientes</field>
+            <field name="res_model">clientes.cliente</field>
+            <field name="view_mode">list</field>
+            <field name="view_id" ref="view_clientes_tree"/>
+        </record>
 
-    <!-- Acción PRINCIPAL - Ahora abre DETAIL por defecto -->
-    <record id="action_clientes" model="ir.actions.act_window">
-        <field name="name">Clientes</field>
-        <field name="res_model">clientes.cliente</field>
-        <field name="view_mode">list,form</field>
+        <!-- Acción principal mejorada que maneja tanto creación como visualización -->
+        <record id="action_clientes_main" model="ir.actions.act_window">
+            <field name="name">Clientes</field>
+            <field name="res_model">clientes.cliente</field>
+            <field name="view_mode">list,form</field>
+            <field name="view_id" ref="view_clientes_tree"/>
+        </record>
 
+        <!-- Vista específica para la acción principal -->
+        <record id="action_clientes_main_view_tree" model="ir.actions.act_window.view">
+            <field name="sequence" eval="1"/>
+            <field name="view_mode">list</field>
+            <field name="view_id" ref="view_clientes_tree"/>
+            <field name="act_window_id" ref="action_clientes_main"/>
+        </record>
 
+        <record id="action_clientes_main_view_form" model="ir.actions.act_window.view">
+            <field name="sequence" eval="2"/>
+            <field name="view_mode">form</field>
+            <field name="view_id" ref="view_clientes_form_edit"/>
+            <field name="act_window_id" ref="action_clientes_main"/>
+        </record>
 
-        <field name="views" eval="[
-            (ref('view_cliente_list'), 'list'),
-            (ref('view_cliente_detail'), 'form')
-            
-        ]"/>
-        <!-- <field name="context">{'form_view_ref': 'clientes.view_cliente_form'}</field> -->
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Crea tu primer cliente</p>
-        </field>
-    </record>
-
-    <!-- Acción específica para EDITAR -->
-    <record id="action_cliente_edit" model="ir.actions.act_window">
-        <field name="name">Editar Cliente</field>
-        <field name="res_model">clientes.cliente</field>
-        <field name="view_mode">form</field>
-        <field name="views" eval="[(ref('view_cliente_form'), 'form')]"/>
-        <field name="target">current</field>
-    </record>
-
-    <!-- Menús -->
-    <menuitem id="menu_root" name="Clientes" sequence="10"/>
-    <menuitem id="menu_action" name="Catálogo de clientes" parent="menu_root" action="action_clientes"/>
+        <menuitem id="menu_root" name="Clientes" sequence="10"/>
+        <menuitem id="menu_action" name="Catálogo de clientes" parent="menu_root" action="action_clientes_main"/>
+    </data>
 </odoo>

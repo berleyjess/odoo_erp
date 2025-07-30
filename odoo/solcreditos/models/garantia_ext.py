@@ -1,4 +1,4 @@
-from odoo import fileds, models
+from odoo import fields, models
 
 class gaantia_ext(models.Model):
 

@@ -312,7 +312,41 @@ class cliente(models.Model):
             'res_model': 'clientes.cliente', 
             'view_mode': 'list,form',
             'target': 'current',
+           }
+    
+    def action_edit_cliente(self):
+        """
+        Método para abrir la vista de edición del cliente
+        """
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Editar Cliente',
+            'res_model': 'clientes.cliente',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref('clientes.view_clientes_form_edit').id,
+            'target': 'current',
+            'flags': {'mode': 'edit'},
         }
+
+    def get_formview_action(self, access_uid=None):
+        """
+        Sobrescribe el método para mostrar vista de detalle cuando se selecciona un registro existente
+        """
+        # Si el registro ya existe (tiene ID), mostrar vista de detalle
+        if self.id:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'Detalle Cliente',
+                'res_model': 'clientes.cliente',
+                'res_id': self.id,
+                'view_mode': 'form',
+                'view_id': self.env.ref('clientes.view_clientes_detail').id,
+                'target': 'current',
+            }
+        # Si es un registro nuevo (sin ID), usar el comportamiento por defecto
+        else:
+            return super().get_formview_action(access_uid=access_uid)
     
     def action_open_edit(self):
         """
@@ -338,6 +372,8 @@ class cliente(models.Model):
         Abre el cliente en vista de solo lectura (detalles).
         """
         self.ensure_one()
+
+        
     
         return {
             'type': 'ir.actions.act_window',
