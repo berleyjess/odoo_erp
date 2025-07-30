@@ -19,18 +19,28 @@ class solcredito(models.Model):
         ], required = True, string="El cliente es responsable del crédito?", default="0"
     )
 
+
+    tipocredito_val = fields.Char(compute="_compute_tipocredito_val", store=False)
+
+    @api.depends('contrato')
+    def _compute_tipocredito_val(self):
+        for rec in self:
+            rec.tipocredito_val = rec.contrato.tipocredito or ''
+
+
+
     predios = fields.One2many('solcreditos.predio_ext', 'solcredito_id', string = "Predios")
     garantias = fields.One2many('solcreditos.garantia_ext', 'solcredito_id', string = "Garantías")
     
     # Datos variables dependiendo del tipo de crédito
     monto = fields.Float(string="Monto solicitado", digits=(12, 4), required=True)
     vencimiento = fields.Date(string="Fecha de vencimiento", required=True, default=fields.Date.today)
-    superficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), required=True)
+    superficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), compute="_compute_superficie", store=True, )
 
-    obligado = fields.Char(string="Titular del crédito", size=100, required=True)
+    obligado = fields.Char(string="Nombre", size=100, required=True)
     obligadodomicilio = fields.Many2one('localidades.localidad', string="Domicilio", required=True)
     obligadoRFC = fields.Char(string = "RFC", required=True)
-    
+
     # Campo computed para validación de garantías
     total_garantias = fields.Float(string="Total Garantías", compute="_compute_total_garantias", store=False)
 
@@ -102,6 +112,16 @@ class solcredito(models.Model):
             #if hasattr(self.cliente, 'rfc') and self.cliente.rfc:
              #   self.obligadoRFC = self.cliente.rfc
 
+    @api.depends('predios', 'contrato')
+    def _depends_predios_superficie(self):
+        # Si es tipo 1 permite edición manual
+        if self.contrato and self.contrato.tipocredito == "1":
+            return  # No actualiza automáticamente, el usuario puede escribir el valor
+        # En cualquier otro tipo, actualiza automáticamente
+        total_superficie = sum(predio.superficiecultivable or 0.0 for predio in self.predios)
+        self.superficie = total_superficie
+
+
     @api.onchange('ciclo')
     def _onchange_ciclo(self):
         """Maneja cambios en el ciclo"""
@@ -164,3 +184,32 @@ class solcredito(models.Model):
                         f"al monto del crédito (${record.monto:,.2f}).\n"
                         f"Faltan ${record.monto - total_garantias:,.2f} en garantías."
                     )
+                
+    @api.constrains('superficie', 'contrato', 'predios')
+    def _check_superficie_required(self):
+        for record in self:
+            if record.contrato:
+                if record.contrato.tipocredito == '1':
+                    # Editable, el usuario debe capturar
+                    if not record.superficie or record.superficie <= 0:
+                        raise ValidationError("Debes capturar la Superficie (Hectáreas) para este tipo de crédito.")
+                else:
+                    # Se espera que sea suma de predios
+                    total = sum(p.superficiecultivable or 0.0 for p in record.predios)
+                    if not total or total <= 0:
+                        raise ValidationError("Debes agregar al menos un predio con superficie cultivable mayor a 0.")
+                    #if abs((record.superficie or 0) - total) > 0.0001:
+                    #    raise ValidationError("La superficie total debe ser igual a la suma de las superficies cultivables de los predios.")
+                    
+    @api.constrains('titular')
+    def _check_titular(self):
+        for record in self:
+            if not record.titular or not record.titular.strip():
+                raise ValidationError("El campo Titular es obligatorio para el predio.")
+
+    @api.depends('predios.superficiecultivable', 'contrato')
+    def _compute_superficie(self):
+        for record in self:
+            if record.contrato and record.contrato.tipocredito != "1":
+                record.superficie = sum(p.superficiecultivable or 0.0 for p in record.predios)
+            # Si es tipo 1, se respeta el valor manual (no se calcula aquí)    

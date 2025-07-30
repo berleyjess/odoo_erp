@@ -8,6 +8,16 @@ class garantia_ext(models.Model):
     _name = 'solcreditos.garantia_ext'
     _description = 'Extensión del modelo de Garantías'
     _inherit = 'garantias.garantia'  # Hereda del modelo de garantías existente
+
+    #nombres de atributos de la clase padre garantías.garantia para referenciarlos correctamente.
+    #tipo=selection
+    #titular=char
+    #descripcion=text
+    #valor=float
+    #fecha_entrega=date
+    #persona_entrega=char
+    #persona_recibe=char
+    #es_dueno_garantia=selection
     
     solcredito_id = fields.Many2one('solcreditos.solcredito', string="Solicitud")
     
