@@ -1,11 +1,29 @@
-#garantia_ext.py
-from odoo import fields, models
+# garantia_ext.py
+from odoo import fields, models, api
 
 class garantia_ext(models.Model):
 
     _name = 'solcreditos.garantia_ext'
     _description = 'Extensión del modelo de Garantías'
     _inherit = 'garantias.garantia'  # Hereda del modelo de garantías existente
-    #garantia_id = fields.Many2one('garantias.garantia', string="Garantía", ondelete='cascade')
+    
     solcredito_id = fields.Many2one('solcreditos.solcredito', string="Solicitud")
-    #titularr = fields.Char(string="Titular de la garantía", required=True)
+    
+    # Campo para seleccionar si es dueño de la garantía
+    es_dueno_garantia = fields.Selection(
+        selection=[
+            ("si", "Sí"),
+            ("no", "No")
+        ], 
+        string="¿Es dueño de la garantía?", 
+        required=True,
+        default="si"
+    )
+    
+    @api.onchange('es_dueno_garantia', 'solcredito_id')
+    def _onchange_es_dueno_garantia(self):
+        """Auto-rellena el titular si es dueño de la garantía"""
+        if self.es_dueno_garantia == 'si' and self.solcredito_id and self.solcredito_id.cliente:
+            self.titular = self.solcredito_id.cliente.nombre
+        elif self.es_dueno_garantia == 'no':
+            self.titular = ''

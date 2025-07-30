@@ -1,3 +1,4 @@
+<!-- solcreditos-views-solcredito.xml -->
 <odoo>
     <!-- Acción de Menú (DEBE IR PRIMERO) -->
     <record id="action_asignaciones" model="ir.actions.act_window">
@@ -30,40 +31,57 @@
                 <sheet>
                     <group>
                         <field name="cliente"/>
+                        <field name="cliente_nombre" readonly="1"/>
                         <field name="ciclo"/>
                         <field name="contrato"/>
-                        <field name="titularr" widget="radio" options="{'horizontal': true}"/>
-                        <field name="monto"
-                        readonly = "contrato.tipocredito != '2'"/>
-                        <field name="vencimiento" readonly="contrato.tipocredito != '2'"/>
-                        <field name="superficie" readonly="contrato.tipocredito == '0'"
+                        <field name="titularr" widget="radio" options="{'horizontal': true}" readonly="not cliente or not contrato"/>
+                        <field name="monto" readonly="not cliente or not contrato"/>
+                        <div class="text-muted" invisible="not contrato">
+                            <span invisible="contrato.tipocredito == '2'">
+                                Cálculo automático: Aporte × Superficie
+                            </span>
+                            <span invisible="contrato.tipocredito != '2'">
+                                Monto manual (Crédito Especial)
+                            </span>
+                        </div>
+                        <field name="vencimiento" readonly="not cliente or not contrato"/>
+                        <field name="superficie" readonly="contrato.tipocredito == '0' or not cliente or not contrato"
                         invisible = "contrato.tipocredito == '2'"/>
                     </group>
                     <group name="datos_obligado" string="Obligado Solidario">
-                        <field name="obligado"/>
-                        <field name="obligadodomicilio"/>
-                        <field name="obligadoRFC"/>
+                        <div class="o_row" invisible="not cliente">
+                            <field name="cliente_estado_civil" readonly="1"/>
+                            <field name="cliente_conyugue" readonly="1" invisible="cliente_estado_civil not in ['casado', 'union_libre']"/>
+                        </div>
+                        <field name="obligado" readonly="not cliente or not contrato"/>
+                        <field name="obligadodomicilio" readonly="not cliente or not contrato"/>
+                        <field name="obligadoRFC" readonly="not cliente or not contrato"/>
                     </group>
                     <group>
                         <field name="predios" widget="one2many_list" context="{'default_solcredito_id': id}"
-                        invisible = "contrato.tipocredito != '0'"/>
+                        invisible = "contrato.tipocredito != '0'" readonly="not cliente or not contrato"/>
                     </group>
 
-                    <group name="garantias" invisible="contrato.tipocredito == '0'">
-                        <field name="garantias">
-                            <list>
-                                <field name="tipo"/>
-                                <field name="valor"/>
-                                <field name="descripcion"/>
-                                <field name="fecha_entrega"/>
-                                <field name="persona_entrega"/>
-                                <field name="persona_recibe"/>
-                                <field name="titular"/>
+                    <group name="garantias" string="Garantías" invisible="contrato.tipocredito == '0'">
+                        <div class="o_row">
+                            <span>Total garantías: </span>
+                            <field name="total_garantias" readonly="1" widget="monetary"/>
+                            <span> / Monto crédito: </span>
+                            <field name="monto" readonly="1" widget="monetary" nolabel="1"/>
+                        </div>
+                        <field name="garantias" readonly="not cliente or not contrato">
+                            <list editable="bottom">
+                                <field name="es_dueno_garantia" string="¿Es dueño?" width="90px"/>
+                                <field name="tipo" width="120px"/>
+                                <field name="titular" width="150px" readonly="es_dueno_garantia == 'si'"/>
+                                <field name="valor" string="Valor" width="100px"/>
+                                <field name="descripcion" width="200px"/>
+                                <field name="fecha_entrega" string="F. Entrega" width="100px"/>
+                                <field name="persona_entrega" string="Entrega" width="120px"/>
+                                <field name="persona_recibe" string="Recibe" width="120px"/>
                             </list>
                         </field>
                     </group>
-
-\
                 </sheet>
             </form>
         </field>
