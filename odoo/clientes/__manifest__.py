@@ -6,9 +6,9 @@
     'version': '1.0',
     'depends': ['base', 'localidades'],
     'data': [
-        'views/cliente.xml',
         'data/seq_code.xml',
         'data/clientes.c_regimenfiscal.csv',
+        'views/cliente.xml'
     ],
     'installable': True,
     'application': True,

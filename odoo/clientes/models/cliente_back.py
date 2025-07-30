@@ -211,6 +211,22 @@ class cliente(models.Model):
         if 'conyugue' in vals:
             vals['conyugue'] = vals['conyugue'].upper() if vals['conyugue'] else False
         return super().write(vals)
+
+    def action_save(self):
+        """
+        Acción para guardar y volver a la vista de lista.
+        Útil si pones un botón 'Guardar' manual en la vista.
+        """
+        self.ensure_one()
+        
+        # Retornar a la vista lista
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Clientes',
+            'res_model': 'clientes.cliente',
+            'view_mode': 'list,form',
+            'target': 'current',
+        }
     
     @api.constrains('rfc')
     def _check_unique_rfc(self):
@@ -283,24 +299,25 @@ class cliente(models.Model):
                 if rec.numero and not rec.numero.isdigit():
                     raise ValidationError(_("El número de calle solo puede contener dígitos."))
 
-    def action_save(self):
+    
+    def action_cancel(self):
         """
-        Acción para guardar y volver a la vista de lista.
-        Útil si pones un botón 'Guardar' manual en la vista.
+        Acción para cancelar y regresar a la vista lista sin guardar cambios (la
+        cancelación real depende de si el registro estaba en edición o no).
         """
-        self.ensure_one()
-        
-        # Retornar a la vista lista
+        # Retornar a la vista lista sin guardar
         return {
             'type': 'ir.actions.act_window',
             'name': 'Clientes',
-            'res_model': 'clientes.cliente',
+            'res_model': 'clientes.cliente', 
             'view_mode': 'list,form',
             'target': 'current',
-        }
+           }
     
-    def action_editar(self):
-        """Método que retorna la acción para abrir el registro en modo edición"""
+    def action_edit_cliente(self):
+        """
+        Método para abrir la vista de edición del cliente
+        """
         return {
             'type': 'ir.actions.act_window',
             'name': 'Editar Cliente',
@@ -309,4 +326,84 @@ class cliente(models.Model):
             'view_mode': 'form',
             'view_id': self.env.ref('clientes.view_clientes_form_edit').id,
             'target': 'current',
+            'flags': {'mode': 'edit'},
         }
+
+    def get_formview_action(self, access_uid=None):
+        """
+        Sobrescribe el método para mostrar vista de detalle cuando se selecciona un registro existente
+        """
+        # Si el registro ya existe (tiene ID), mostrar vista de detalle
+        if self.id:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'Detalle Cliente',
+                'res_model': 'clientes.cliente',
+                'res_id': self.id,
+                'view_mode': 'form',
+                'view_id': self.env.ref('clientes.view_clientes_detail').id,
+                'target': 'current',
+            }
+        # Si es un registro nuevo (sin ID), usar el comportamiento por defecto
+        else:
+            return super().get_formview_action(access_uid=access_uid)
+    
+    def action_open_edit(self):
+        """
+        Abre el cliente en el formulario editable.
+        """
+        self.ensure_one()
+        
+        view = self.env.ref('clientes.view_cliente_form')
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Editar Cliente'),
+            'res_model': 'clientes.cliente',
+            'view_mode': 'form',
+            'views': [(view.id, 'form')],
+            'view_id': view.id,            
+            'target': 'current',
+            'res_id': self.id,
+            'flags': {'form': {'initial_mode': 'edit'}},
+        }
+    
+    def action_open_readonly(self):
+        """
+        Abre el cliente en vista de solo lectura (detalles).
+        """
+        self.ensure_one()
+
+        
+    
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Detalles del Cliente'),
+            'res_model': 'clientes.cliente',
+            'view_mode': 'form',
+            'views': [(self.env.ref('clientes.view_cliente_detail').id, 'form')],
+            'target': 'current',
+            'res_id': self.id,
+            'flags': {'form': {'initial_mode': 'readonly'}},
+        }
+
+    # Método adicional si quieres un botón "Guardar y Volver" en la vista editable
+    def action_save_and_return(self):
+        """
+        Guarda los cambios y regresa a la vista de detalle.
+        """
+        self.ensure_one()
+    
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Detalles del Cliente'),
+            'res_model': 'clientes.cliente',
+            'view_mode': 'form',
+            'views': [(self.env.ref('clientes.view_cliente_detail').id, 'form')],
+            'target': 'current',
+            'res_id': self.id,
+        }
+    
+    def action_back_to_list(self):
+        """Regresa al listado de clientes."""
+        self.ensure_one()
+        return self.env.ref('clientes.action_clientes').read()[0]
