@@ -45,8 +45,7 @@
                             </span>
                         </div>
                         <field name="vencimiento" readonly="not cliente or not contrato"/>
-                        <field name="superficie" readonly="contrato.tipocredito == '0' or not cliente or not contrato"
-                        invisible = "contrato.tipocredito == '2'"/>
+                        <field name="superficie" readonly="contrato.tipocredito != '1'" invisible="contrato.tipocredito == '2'" />
                     </group>
                     <group name="datos_obligado" string="Obligado Solidario">
                         <div class="o_row" invisible="not cliente">
@@ -62,23 +61,44 @@
                         invisible = "contrato.tipocredito != '0'" readonly="not cliente or not contrato"/>
                     </group>
 
-                    <group name="garantias" string="Garantías" invisible="contrato.tipocredito == '0'">
+                    <group>
+                        <span>Total garantías: </span>
+                        <field name="total_garantias" readonly="1" widget="monetary"/>
+                        <span> / Monto crédito: </span>
+                        <field name="monto" readonly="1" widget="monetary" nolabel="1"/>
+                    </group>
+
+                    <group name="garantias" string="Garantías" invisible="tipocredito_val != '0'">
                         <div class="o_row">
-                            <span>Total garantías: </span>
-                            <field name="total_garantias" readonly="1" widget="monetary"/>
-                            <span> / Monto crédito: </span>
-                            <field name="monto" readonly="1" widget="monetary" nolabel="1"/>
+                            <field name="garantias" readonly="not cliente or not contrato">
+                                <list editable="bottom">
+                                    <field name="es_dueno_garantia" string="¿Es dueño?" width="90px"/>
+                                    <field name="tipo" width="120px"/>
+                                    <field name="titular" width="150px" readonly="es_dueno_garantia == 'si'"/>
+                                    <field name="valor" string="Valor" width="100px"/>
+                                    <field name="descripcion" width="200px"/>
+                                    <field name="fecha_entrega" string="F. Entrega" width="100px"/>
+                                    <field name="persona_entrega" string="Entrega" width="120px"/>
+                                    <field name="persona_recibe" string="Recibe" width="120px"/>
+                                </list>
+                            </field>
                         </div>
-                        <field name="garantias" readonly="not cliente or not contrato">
+                    </group>
+
+                    <group name="predios" string="Predios" invisible="tipocredito_val != '0'">
+                        <field name="predios" readonly="not cliente or not contrato">
                             <list editable="bottom">
-                                <field name="es_dueno_garantia" string="¿Es dueño?" width="90px"/>
-                                <field name="tipo" width="120px"/>
-                                <field name="titular" width="150px" readonly="es_dueno_garantia == 'si'"/>
-                                <field name="valor" string="Valor" width="100px"/>
-                                <field name="descripcion" width="200px"/>
-                                <field name="fecha_entrega" string="F. Entrega" width="100px"/>
-                                <field name="persona_entrega" string="Entrega" width="120px"/>
-                                <field name="persona_recibe" string="Recibe" width="120px"/>
+                                <field name="es_dueno_predio" string="¿Es dueño?" width="80px"/>
+                                <field name="titular" width="150px" placeholder="Nombre del titular (si no es dueño)" readonly="es_dueno_predio == 'si'"/>
+                                <field name="localidad" width="120px"/>
+                                <field name="superficie" string="Superficie Total" width="100px"/>
+                                <field name="superficiecultivable" string="Cultivable" width="90px"/>
+                                <field name="nocertificado" width="120px"/>
+                                <field name="colnorte" width="90px"/>
+                                <field name="colsur" width="90px"/>
+                                <field name="coleste" width="90px"/>
+                                <field name="coloeste" width="90px"/>
+                                <!-- Aquí podrías agregar georeferencias como smart button o vista aparte -->
                             </list>
                         </field>
                     </group>

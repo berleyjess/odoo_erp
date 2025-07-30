@@ -4,7 +4,7 @@ class predios(models.Model):
     _name = 'predios.predio'
 
     localidad = fields.Many2one('localidades.localidad', string = "Localidad", required = True)
-    titular = fields.Char(string = "Titular", required = True)
+    titular = fields.Char(string = "Titular")
     superficie = fields.Float(string = "Superficie", required = True)
     nocertificado = fields.Char(string = "No. de Certificado", required = True)
     colnorte = fields.Char(string = "Colindancia Norte")
