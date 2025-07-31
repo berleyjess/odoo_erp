@@ -1,30 +1,21 @@
 <odoo>
 
     <!-- Acción para editar un cliente -->
-    <record id="action_cliente_edit" model="ir.actions.act_window">
+    <!--record id="action_cliente_edit" model="ir.actions.act_window">
         <field name="name">Editar Cliente</field>
         <field name="res_model">clientes.cliente</field>
         <field name="view_mode">form</field>
         <field name="target">current</field>
-        <!--field name="flags">{'initial_mode': 'edit'}</field-->
-        <!--field name="context">{'form_view_initial_mode': 'edit'}</field-->
         <field name="context">{'form_view_initial_mode': 'edit', 'active_id': active_id}</field>
-    </record>
+    </record-->
 
-    <record id="action_clientes_model_edit" model="ir.actions.act_window">
+    <!--record id="action_clientes_model_edit" model="ir.actions.act_window">
         <field name="name">Editar Registro</field>
         <field name="res_model">clientes.cliente</field>
         <field name="view_mode">form</field>
         <field name="view_id" ref="view_clientes_form_simple"/>
-        <!--field name="context">
-            {
-                'default_nombre': object.nombre,
-                'default_rfc': object.rfc,
-                'default_tipo': object.tipo
-            }
-        </field-->
         <field name="target">new</field>
-    </record>
+    </record-->
 
     <record id="view_clientes_list" model="ir.ui.view">
         <field name="name">clientes.cliente.list</field>
@@ -42,6 +33,7 @@
     <record id="view_clientes_form" model="ir.ui.view">
         <field name="name">clientes.cliente.form</field>
         <field name="model">clientes.cliente</field>
+        <field name="priority" eval="16"/>  
         <field name="arch" type="xml">
             <form edit = "0" create = "0">
                 <header>
@@ -64,6 +56,7 @@
     <record id="view_clientes_form_simple" model="ir.ui.view">
         <field name="name">clientes.cliente.form.simple</field>
         <field name="model">clientes.cliente</field>
+        <field name="priority" eval="10"/>
         <field name="arch" type="xml">
             <form>
                 <sheet>
@@ -109,22 +102,22 @@
     </record>
 
     <!-- Acción para el formulario de detalle -->
-    <record id="action_clientes_model_detail" model="ir.actions.act_window">
+    <!--record id="action_clientes_model_detail" model="ir.actions.act_window">
         <field name="name">Detalle</field>
         <field name="res_model">clientes.cliente</field>
         <field name="view_mode">form</field>
         <field name="view_id" ref="view_clientes_form"/>
         <field name="target">new</field>
-    </record>
+    </record-->
 
     <!-- Acción para el formulario simple de creación -->
-    <record id="action_clientes_model_new" model="ir.actions.act_window">
+    <!--record id="action_clientes_model_new" model="ir.actions.act_window">
         <field name="name">Nuevo Registro</field>
         <field name="res_model">clientes.cliente</field>
         <field name="view_mode">form</field>
         <field name="view_id" ref="view_clientes_form_simple"/>
         <field name="target">new</field>
-    </record>
+    </record-->
 
     <menuitem id="menu_clientes_root" name="Clientes" sequence="10"/>
     <menuitem id="menu_clientes" name="Registros" parent="menu_clientes_root" action="action_clientes_model"/>

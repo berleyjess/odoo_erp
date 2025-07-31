@@ -310,3 +310,15 @@ class cliente(models.Model):
             'view_id': self.env.ref('clientes.view_clientes_form_edit').id,
             'target': 'current',
         }
+
+    def open_record(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Detalle',
+            'res_model': 'clientes.cliente',
+            'view_mode': 'form',
+            'view_id': self.env.ref('clientes.view_clientes_form').id,
+            'target': 'new',
+            'res_id': self.id,
+        }
