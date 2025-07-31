@@ -33,13 +33,15 @@
     <record id="view_clientes_form" model="ir.ui.view">
         <field name="name">clientes.cliente.form</field>
         <field name="model">clientes.cliente</field>
-        <field name="priority" eval="16"/>  
+        <field name="priority" eval="10"/>  
         <field name="arch" type="xml">
             <form edit = "0" create = "0">
                 <header>
                     <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
                     <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
-                    <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
+                    <group invisible="id == False">
+                        <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
+                    </group>
                 </header>
                 <sheet>
                     <!-- Campos del formulario detalle -->
@@ -56,7 +58,7 @@
     <record id="view_clientes_form_simple" model="ir.ui.view">
         <field name="name">clientes.cliente.form.simple</field>
         <field name="model">clientes.cliente</field>
-        <field name="priority" eval="10"/>
+        <field name="priority" eval="16"/>
         <field name="arch" type="xml">
             <form>
                 <sheet>

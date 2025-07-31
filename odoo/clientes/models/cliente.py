@@ -13,6 +13,8 @@ import re
 from odoo.exceptions import ValidationError
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+import logging
+_logger = logging.getLogger(__name__)
 
 class cliente(models.Model):
     """
@@ -27,8 +29,8 @@ class cliente(models.Model):
     
     _name='clientes.cliente'  #Modelo.Cliente ("nombre del modulo"."nombre del modelo")
     _description='Cartera de clientes'
-    
-
+    _rec_name='nombre'  #Nombre del campo que se mostrará en las vistas de lista y búsqueda
+    _order = 'codigo'  #Orden por defecto en las vistas de lista
     
     codigo = fields.Char( #Código interno del Cliente
         string='Código',
@@ -322,3 +324,27 @@ class cliente(models.Model):
             'target': 'new',
             'res_id': self.id,
         }
+    
+    """@api.model
+    def get_formview_action(self, access_activity=False):
+        # Obtener la acción original
+        action = super(cliente, self).get_formview_action(access_activity=access_activity)
+        _logger.info("# - # - # - # - # - # - # - # - # - # - # - # - # - # Accediendo a la función! - # - # - # - # - # - # - # - # - # - # - # - # - # - #")
+        # Verificar si el contexto indica que viene de una vista lista y es una creación
+        if self._context.get('from_list_view') and not self.id:
+            # Cambiar la vista formulario por la que deseas usar
+            action['views'] = [(self.env.ref('clientes.cview_clientes_form').id, 'form')]
+        
+        return action
+    
+    @api.model
+    def _get_act_window_create_data(self):
+        _logger.info("# - # - # - # - # - # - # - # - # - # - # - # - # - # Accediendo a la función! - # - # - # - # - # - # - # - # - # - # - # - # - # - #")
+        result = super()._get_act_window_create_data()
+        
+        # Verificar si viene de una vista lista (contexto típico)
+        if self._context.get('default_move_type') or self._context.get('from_list_view'):
+            # Reemplazar con el ID XML de tu vista formulario personalizada
+            result['views'] = [(self.env.ref('clientes.cview_clientes_form').id, 'form')]
+        
+        return result"""
