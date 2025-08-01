@@ -1,0 +1,57 @@
+<odoo>
+    <record id="view_compras_list" model="ir.ui.view">
+        <field name="name">compra.list</field>
+        <field name="model">compras.compra</field>
+        <field name="arch" type="xml">
+            <list string="Compras">
+                <field name="codigo"/>
+                <field name="fecha"/>
+                <field name="proveedor"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_compras_form" model="ir.ui.view">
+        <field name="name">compras.form</field>
+        <field name="model">compras.compra</field>
+        <field name="arch" type="xml">
+            <form string="Compras">
+                <sheet>
+                    <group>
+                        <field name="fecha"/>
+                        <field name="proveedor"/>
+                        <field name = "detalle" widget="one2many_list" context="{'default_compra_id': id}">
+                            <list editable="bottom">
+                                <field name="producto"/>
+                                <field name="cantidad"/>
+                                <field name="precio_unitario"/>
+                                <field name="iva"/>
+                                <field name="ieps"/>
+                                <field name="total"/>
+                            </list>
+                        </field>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_compras" model="ir.actions.act_window">
+        <field name="name">Compras</field>
+        <field name="res_model">compras.compra</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_compras_list"/>
+
+        <field name="help" type="html">
+            <p class="o_view_nocontent_create">
+                Click to create a new detalle compra.
+            </p>
+            <p>
+                Use this view to manage the details of purchases, including products, quantities, and prices.
+            </p>    
+        </field>
+    </record>
+
+    <menuitem id="menu_root" name="Compras"/>
+    <menuitem id="menu_action" name="Compras" parent="menu_root" action="action_compras"/>
+</odoo>

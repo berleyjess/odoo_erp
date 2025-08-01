@@ -1,0 +1,53 @@
+<odoo>
+    <record id="view_detallecompra_list" model="ir.ui.view">
+        <field name="name">detallecompra.list</field>
+        <field name="model">detallecompras.detallecompra</field>
+        <field name="arch" type="xml">
+            <list string="Detalle Compras">
+                <field name = "producto"/>
+                <field name = "cantidad"/>
+                <field name = "precio_unitario"/>
+                <field name = "iva"/>
+                <field name = "ieps"/>
+                <field name = "total"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_detallecompra_form" model="ir.ui.view">
+        <field name="name">detallecompra.form</field>
+        <field name="model">detallecompras.detallecompra</field>
+        <field name="arch" type="xml">
+            <form string="Detalle Compras">
+                <sheet>
+                    <group>
+                        <field name = "producto"/>
+                        <field name = "cantidad"/>
+                        <field name = "precio_unitario"/>
+                        <field name = "iva"/>
+                        <field name = "ieps"/>
+                        <field name = "total"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_detallecompra" model="ir.actions.act_window">
+        <field name="name">Detalle Compras</field>
+        <field name="res_model">detallecompras.detallecompra</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_detallecompra_list"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_create">
+                Click to create a new detalle compra.
+            </p>
+            <p>
+                Use this view to manage the details of purchases, including products, quantities, and prices.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_root" name="Detalle de Compras"/>
+    <menuitem id="menu_action" name="Detalles" parent="menu_root" action="action_detallecompra"/>
+</odoo>

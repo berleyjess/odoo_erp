@@ -1,0 +1,12 @@
+<odoo>
+    <data noupdate="1">
+        <record id="seq_proveedor_code" model="ir.sequence">
+            <field name="name">Secuencia de códigos para Proveedores</field>
+            <field name="code">seq_prov_code</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="implementation">standard</field>
+        </record>
+    </data>
+</odoo>

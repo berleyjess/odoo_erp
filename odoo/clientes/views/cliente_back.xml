@@ -5,13 +5,10 @@
         <field name="model">clientes.cliente</field>
         <field name="arch" type="xml">
             <list action="action_clientes_detail">
-                <field name="tipo" string="Tipo de Cliente"/>
+                <field name="codigo"/>
                 <field name="nombre" string="Nombre"/>
-                <field name="regimen"/>
                 <field name="rfc" string="RFC"/>
                 <field name="curp" string="CURP"/>
-                <field name="estado_civil" string="Estado Civil"/>
-                <field name="codigop" string="Código Postal"/>
             </list>
         </field>
     </record>

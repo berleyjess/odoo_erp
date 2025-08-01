@@ -5,7 +5,7 @@ class proveedores(models.Model):
 
     nombre = fields.Char(string = "Razón Social", required = True)
     rfc = fields.Char(string = "RFC", required = True)
-    localidad = fields.Many2one('localidad', string = "Ciudad")
+    localidad = fields.Many2one('localidades.localidad', string = "Ciudad")
     calle = fields.Char(string = "Calle")
     numero = fields.Char(string = "Número")
     codigop = fields.Char(string = "Código Postal", size = 5)
@@ -24,7 +24,7 @@ class proveedores(models.Model):
     )
 
     def _generate_code(self):
-        sequence = self.env['ir.sequence'].next_by_code('seq_proov_code') or '/'
+        sequence = self.env['ir.sequence'].next_by_code('seq_prov_code') or '/'
         number = sequence.split('/')[-1]
         return f"{number.zfill(6)}"
 

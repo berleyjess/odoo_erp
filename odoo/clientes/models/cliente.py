@@ -13,6 +13,8 @@ import re
 from odoo.exceptions import ValidationError
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+import logging
+_logger = logging.getLogger(__name__)
 
 class cliente(models.Model):
     """
@@ -27,8 +29,8 @@ class cliente(models.Model):
     
     _name='clientes.cliente'  #Modelo.Cliente ("nombre del modulo"."nombre del modelo")
     _description='Cartera de clientes'
-    
-
+    _rec_name='nombre'  #Nombre del campo que se mostrará en las vistas de lista y búsqueda
+    _order = 'codigo'  #Orden por defecto en las vistas de lista
     
     codigo = fields.Char( #Código interno del Cliente
         string='Código',
@@ -320,5 +322,21 @@ class cliente(models.Model):
             'view_mode': 'form',
             'view_id': self.env.ref('clientes.view_clientes_form').id,
             'target': 'new',
+            'res_id': self.id,
+        }
+    
+    def action_save_and_return(self):
+        """
+        Guarda los cambios y regresa a la vista de detalle.
+        """
+        self.ensure_one()
+    
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Detalles del Cliente'),
+            'res_model': 'clientes.cliente',
+            'view_mode': 'form',
+            'views': [(self.env.ref('clientes.view_cliente_form').id, 'form')],
+            'target': 'current',
             'res_id': self.id,
         }

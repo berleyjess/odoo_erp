@@ -1,31 +1,18 @@
 <odoo>
 
-    <!-- Acción para editar un cliente -->
-    <!--record id="action_cliente_edit" model="ir.actions.act_window">
-        <field name="name">Editar Cliente</field>
-        <field name="res_model">clientes.cliente</field>
-        <field name="view_mode">form</field>
-        <field name="target">current</field>
-        <field name="context">{'form_view_initial_mode': 'edit', 'active_id': active_id}</field>
-    </record-->
-
-    <!--record id="action_clientes_model_edit" model="ir.actions.act_window">
-        <field name="name">Editar Registro</field>
-        <field name="res_model">clientes.cliente</field>
-        <field name="view_mode">form</field>
-        <field name="view_id" ref="view_clientes_form_simple"/>
-        <field name="target">new</field>
-    </record-->
-
     <record id="view_clientes_list" model="ir.ui.view">
         <field name="name">clientes.cliente.list</field>
         <field name="model">clientes.cliente</field>
         <field name="arch" type="xml">
             <list>
                 <!-- Campos que quieres mostrar en la vista tabla -->
-                <field name="nombre"/>
-                <field name="rfc"/>
-                <field name="tipo"/>
+                <field name="tipo" string="Tipo de Cliente"/>
+                <field name="nombre" string="Nombre"/>
+                <field name="regimen"/>
+                <field name="rfc" string="RFC"/>
+                <field name="curp" string="CURP"/>
+                <field name="estado_civil" string="Estado Civil"/>
+                <field name="codigop" string="Código Postal"/>
             </list>
         </field>
     </record>
@@ -33,21 +20,60 @@
     <record id="view_clientes_form" model="ir.ui.view">
         <field name="name">clientes.cliente.form</field>
         <field name="model">clientes.cliente</field>
-        <field name="priority" eval="16"/>  
+        <field name="priority" eval="10"/>  
         <field name="arch" type="xml">
             <form edit = "0" create = "0">
                 <header>
                     <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
                     <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
-                    <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
+                    <group invisible="id == False">
+                        <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
+                    </group>
+
+                    <group invisible="id != False">
+                        <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
+                    </group>
                 </header>
                 <sheet>
-                    <!-- Campos del formulario detalle -->
                     <group>
-                        <field name="nombre"/>
-                        <field name="rfc"/>
-                        <field name="tipo"/>
+                        <group string="Información General">
+                            <field name="tipo" widget="radio" options="{'horizontal': true}"/>
+                            <field name="nombre"/>
+                            <field name="regimen"/>
+                            <field name="rfc"/>
+                        </group>
+                        <group string="Información Personal">
+                            <field name="ine"/>
+                            <field name="curp"/>
+                            <field name="estado_civil"/>
+                            <field name="conyugue"/>
+                        </group>
                     </group>
+
+                    <group string="Dirección">
+                        <group>
+                            <field name="localidad"/>
+                            <field name="codigop"/>
+                        </group>
+                        <group>
+                            <field name="colonia"/>
+                            <field name="calle"/>
+                            <field name="numero"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Contactos">
+                            <field name="contacto">
+                                <list editable="bottom">
+                                    <field name="nombre"/>
+                                    <field name="descripcion"/>
+                                    <field name="telefono"/>
+                                    <field name="email"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>
@@ -56,16 +82,56 @@
     <record id="view_clientes_form_simple" model="ir.ui.view">
         <field name="name">clientes.cliente.form.simple</field>
         <field name="model">clientes.cliente</field>
-        <field name="priority" eval="10"/>
+        <field name="priority" eval="16"/>
         <field name="arch" type="xml">
             <form>
-                <sheet>
-                    <!-- Campos del formulario simple para creación -->
-                    <group>
-                        <field name="nombre"/>
-                        <field name="rfc"/>
-                        <field name="tipo"/>
+                <header>
+                    <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
+                    <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
+                    <group invisible="id != False">
+                        <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
                     </group>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Información General">
+                            <field name="tipo" widget="radio" options="{'horizontal': true}"/>
+                            <field name="nombre"/>
+                            <field name="regimen" options="{'no_open': True,'no_create': True}"/>
+                            <field name="rfc"/>
+                        </group>
+                        <group string="Información Personal">
+                            <field name="ine"/>
+                            <field name="curp"/>
+                            <field name="estado_civil"/>
+                            <field name="conyugue" invisible="estado_civil not in ['casado', 'union_libre']" required="estado_civil in ['casado', 'union_libre']" placeholder="Nombre completo del cónyuge"/>
+                        </group>
+                    </group>
+
+                    <group string="Dirección">
+                        <group>
+                            <field name="localidad"/>
+                            <field name="codigop"/>
+                        </group>
+                        <group>
+                            <field name="colonia"/>
+                            <field name="calle"/>
+                            <field name="numero"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Contactos">
+                            <field name="contacto">
+                                <list editable="bottom">
+                                    <field name="nombre"/>
+                                    <field name="descripcion"/>
+                                    <field name="telefono"/>
+                                    <field name="email"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>
@@ -76,22 +142,57 @@
         <field name="model">clientes.cliente</field>
         <field name="arch" type="xml">
             <form>
+                 <header>
+                    <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
+                    <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
+                    <group invisible="id != False">
+                        <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
+                    </group>
+                </header>
                 <sheet>
                     <group>
-                        <field name="nombre"/>
-                        <field name="rfc"/>
-                        <field name="tipo"/>
+                        <group string="Información General">
+                            <field name="tipo" widget="radio" options="{'horizontal': true}"/>
+                            <field name="nombre"/>
+                            <field name="regimen"/>
+                            <field name="rfc"/>
+                        </group>
+                        <group string="Información Personal">
+                            <field name="ine"/>
+                            <field name="curp"/>
+                            <field name="estado_civil"/>
+                            <field name="conyugue"/>
+                        </group>
                     </group>
+
+                    <group string="Dirección">
+                        <group>
+                            <field name="localidad"/>
+                            <field name="codigop"/>
+                        </group>
+                        <group>
+                            <field name="colonia"/>
+                            <field name="calle"/>
+                            <field name="numero"/>
+                        </group>
+                    </group>
+
                     <notebook>
                         <page string="Contactos">
-                            <field name="contacto"/>
+                            <field name="contacto">
+                                <list editable="bottom">
+                                    <field name="nombre"/>
+                                    <field name="descripcion"/>
+                                    <field name="telefono"/>
+                                    <field name="email"/>
+                                </list>
+                            </field>
                         </page>
                     </notebook>
                 </sheet>
             </form>
         </field>
     </record>
-
 
     <!-- Acción principal que muestra la vista tabla -->
     <record id="action_clientes_model" model="ir.actions.act_window">
@@ -100,24 +201,6 @@
         <field name="view_mode">list,form</field>
         <field name="view_id" ref="view_clientes_list"/>
     </record>
-
-    <!-- Acción para el formulario de detalle -->
-    <!--record id="action_clientes_model_detail" model="ir.actions.act_window">
-        <field name="name">Detalle</field>
-        <field name="res_model">clientes.cliente</field>
-        <field name="view_mode">form</field>
-        <field name="view_id" ref="view_clientes_form"/>
-        <field name="target">new</field>
-    </record-->
-
-    <!-- Acción para el formulario simple de creación -->
-    <!--record id="action_clientes_model_new" model="ir.actions.act_window">
-        <field name="name">Nuevo Registro</field>
-        <field name="res_model">clientes.cliente</field>
-        <field name="view_mode">form</field>
-        <field name="view_id" ref="view_clientes_form_simple"/>
-        <field name="target">new</field>
-    </record-->
 
     <menuitem id="menu_clientes_root" name="Clientes" sequence="10"/>
     <menuitem id="menu_clientes" name="Registros" parent="menu_clientes_root" action="action_clientes_model"/>
