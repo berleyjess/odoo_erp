@@ -325,26 +325,18 @@ class cliente(models.Model):
             'res_id': self.id,
         }
     
-    """@api.model
-    def get_formview_action(self, access_activity=False):
-        # Obtener la acción original
-        action = super(cliente, self).get_formview_action(access_activity=access_activity)
-        _logger.info("# - # - # - # - # - # - # - # - # - # - # - # - # - # Accediendo a la función! - # - # - # - # - # - # - # - # - # - # - # - # - # - #")
-        # Verificar si el contexto indica que viene de una vista lista y es una creación
-        if self._context.get('from_list_view') and not self.id:
-            # Cambiar la vista formulario por la que deseas usar
-            action['views'] = [(self.env.ref('clientes.cview_clientes_form').id, 'form')]
-        
-        return action
+    def action_save_and_return(self):
+        """
+        Guarda los cambios y regresa a la vista de detalle.
+        """
+        self.ensure_one()
     
-    @api.model
-    def _get_act_window_create_data(self):
-        _logger.info("# - # - # - # - # - # - # - # - # - # - # - # - # - # Accediendo a la función! - # - # - # - # - # - # - # - # - # - # - # - # - # - #")
-        result = super()._get_act_window_create_data()
-        
-        # Verificar si viene de una vista lista (contexto típico)
-        if self._context.get('default_move_type') or self._context.get('from_list_view'):
-            # Reemplazar con el ID XML de tu vista formulario personalizada
-            result['views'] = [(self.env.ref('clientes.cview_clientes_form').id, 'form')]
-        
-        return result"""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Detalles del Cliente'),
+            'res_model': 'clientes.cliente',
+            'view_mode': 'form',
+            'views': [(self.env.ref('clientes.view_cliente_form').id, 'form')],
+            'target': 'current',
+            'res_id': self.id,
+        }
