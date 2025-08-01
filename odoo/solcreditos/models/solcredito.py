@@ -264,3 +264,42 @@ class solcredito(models.Model):
             if record.contrato and record.contrato.tipocredito == "0":  # Solo para AVIO
                 record.superficie = sum(p.superficiecultivable or 0.0 for p in record.predios)
             # Si es tipo 1 o 2, se respeta el valor manual (no se calcula aquí)
+    
+    #BOTONES "Editar", "Guardar y Volver" y "Cancelar y volver a la lista"
+
+    def action_editar(self):
+        """Muestra un wizard de confirmación antes de abrir el registro en modo edición."""
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'solcreditos.confirmar.edicion.wizard',  # <-- nombre del modelo transitorio
+            'view_mode': 'form',
+            'target': 'new',  # 'new' lo muestra como popup/modal
+            'context': {'active_id': self.id},
+        }
+
+    
+    def action_save_and_return(self):
+        """
+        Guarda los cambios y regresa a la vista de detalle.
+        """
+        self.ensure_one()
+    
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Detalles de la solicitud de crédito'),
+            'res_model': 'solcreditos.solcredito',
+            'view_mode': 'form',
+            'views': [(self.env.ref('solcreditos.view_solcredito_detail').id, 'form')],
+            'target': 'current',
+            'res_id': self.id,
+        }
+    
+    def action_cancelar_y_volver(self):
+    # Redirige a la lista de solicitudes de crédito (sin guardar cambios)
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Solicitudes de Créditos',
+            'res_model': 'solcreditos.solcredito',
+            'view_mode': 'list,form',
+            'target': 'current',
+        }

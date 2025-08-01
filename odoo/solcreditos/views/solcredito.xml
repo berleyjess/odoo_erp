@@ -23,12 +23,22 @@
         </field>
     </record>
 
-    <!-- Vista formulario -->
-    <record id="view_asignacion_form" model="ir.ui.view">
+    <!-- Vista DETALLE -->
+    <record id="view_solcredito_detail" model="ir.ui.view">
         <field name="name">asignacion.form</field>
         <field name="model">solcreditos.solcredito</field>
+        <field name="priority" eval="10"/>
         <field name="arch" type="xml">
-            <form autosave="False">
+            <form autosave="False" edit = "0" create = "0">
+                <header>
+                    <group invisible="id == False">
+                        <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
+                    </group>
+
+                    <group invisible="id != False">
+                        <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
+                    </group>
+                </header>
                 <sheet>
                     <group>
                         <field name="cliente"/>
@@ -116,6 +126,227 @@
             </form>
         </field>
     </record>
+
+    <!-- Vista para EDITAR -->
+    <record id="view_asignacion_edit" model="ir.ui.view">
+        <field name="name">asignacion.form</field>
+        <field name="model">solcreditos.solcredito</field>
+        <field name="arch" type="xml">
+            <form autosave="False">
+                <header>
+                    <group invisible="id == False">
+                        <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
+                        <button name="action_cancelar_y_volver" string="Cancelar y Volver a la Lista" type="object" class="btn-secondary" icon="fa-times"/>
+                    </group>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="cliente"/>
+                        <field name="cliente_nombre" readonly="1"/>
+                        <field name="ciclo"/>
+                        <field name="contrato"/>
+                        <field name="titularr" widget="radio" options="{'horizontal': true}" readonly="not cliente or not contrato"/>
+                        <field name="monto" readonly="not cliente or not contrato"/>
+                        <div class="text-muted" invisible="not contrato">
+                            <span invisible="tipocredito_val == '2'">
+                                Cálculo automático: Aporte × Superficie
+                            </span>
+                            <span invisible="tipocredito_val != '2'">
+                                Monto manual (Crédito Especial)
+                            </span>
+                        </div>
+                        <field name="vencimiento" readonly="not cliente or not contrato"/>
+                        <!-- CORREGIDO: Hacer editable solo para tipo "1" -->
+                        <field name="superficie" readonly="not cliente or not contrato or tipocredito_val == '0'" invisible="tipocredito_val == '2'" />
+                        <field name="folio" readonly="1"/>
+                    </group>
+                    <group name="datos_obligado" string="Obligado Solidario">
+                        <div class="o_row" invisible="not cliente">
+                            <field name="cliente_estado_civil" readonly="1"/>
+                            <field name="cliente_conyugue" readonly="1" invisible="cliente_estado_civil not in ['casado', 'union_libre']"/>
+                        </div>
+                        <field name="obligado" readonly="not cliente or not contrato"/>
+                        <field name="obligadodomicilio" readonly="not cliente or not contrato"/>
+                        <field name="obligadoRFC" readonly="not cliente or not contrato"/>
+
+                    </group>
+
+                    <!-- CORREGIDO: Agregar campo tipocredito_val oculto para que funcione la condición -->
+                    <field name="tipocredito_val" invisible="1"/>
+
+                    <!-- CORREGIDO: Mostrar predios solo para tipo AVIO (tipocredito == '0') -->
+                    <group name="predios" string="Predios" invisible="tipocredito_val != '0'">
+                        <field name="predios" readonly="not cliente or not contrato">
+                            <list editable="bottom">
+                                <field name="solcredito_id" column_invisible="1"/>
+                                <field name="es_dueno_predio" string="¿Es dueño?" width="80px"/>
+                                <field name="titular" width="150px" placeholder="Nombre del titular (si no es dueño)" readonly="es_dueno_predio == 'si'"/>
+                                <field name="RFC" string="RFC" width="120px"/>
+                                <field name="localidad" width="120px"/>
+                                <field name="superficie" string="Superficie Total" width="100px"/>
+                                <field name="superficiecultivable" string="Cultivable" width="90px"/>
+                                <field name="nocertificado" width="120px"/>
+                                <field name="colnorte" width="90px"/>
+                                <field name="colsur" width="90px"/>
+                                <field name="coleste" width="90px"/>
+                                <field name="coloeste" width="90px"/>
+                                <!-- Aquí podrías agregar georeferencias como smart button o vista aparte -->
+                            </list>
+                        </field>
+                    </group>
+
+                    <!-- CORREGIDO: Mostrar garantías solo para tipo AVIO (tipocredito == '0') -->
+                    <group name="garantias" string="Garantías" invisible="tipocredito_val != '0'">
+                        <div class="o_row">
+                            <field name="garantias" readonly="not cliente or not contrato">
+                                <list editable="bottom">
+                                    <field name="solcredito_id" column_invisible="1"/>
+                                    <field name="es_dueno_garantia" string="¿Es dueño?" width="90px"/>
+                                    <field name="tipo" width="120px"/>
+                                    <field name="titular" width="150px" readonly="es_dueno_garantia == 'si'"/>
+                                    <field name="RFC" string="RFC" width="120px"/>
+                                    <field name="localidad" width="120px"/>
+                                    <field name="valor" string="Valor" width="100px"/>
+                                    <field name="descripcion" width="200px"/>
+                                    <field name="fecha_entrega" string="F. Entrega" width="100px"/>
+                                    <field name="persona_entrega" string="Entrega" width="120px"/>
+                                    <field name="persona_recibe" string="Recibe" width="120px"/>
+                                </list>
+                            </field>
+                        </div>
+                    </group>
+                    <group invisible="tipocredito_val != '0'">
+                        <span>Total garantías: </span>
+                        <field name="total_garantias" readonly="1" widget="monetary"/>
+                        <span> / Monto crédito: </span>
+                        <field name="monto" readonly="1" widget="monetary" nolabel="1"/>
+                    </group>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vista formulario CREAR -->
+    <record id="view_asignacion_form" model="ir.ui.view">
+        <field name="name">asignacion.form</field>
+        <field name="model">solcreditos.solcredito</field>
+        <field name="priority" eval="16"/>
+        <field name="arch" type="xml">
+            <form autosave="False">
+                <header>
+                    <group invisible="id == False">
+                        <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
+                        <button name="action_cancelar_y_volver" string="Cancelar y Volver a la Lista" type="object" class="btn-secondary" icon="fa-times"/>
+                    </group>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="cliente"/>
+                        <field name="cliente_nombre" readonly="1"/>
+                        <field name="ciclo"/>
+                        <field name="contrato"/>
+                        <field name="titularr" widget="radio" options="{'horizontal': true}" readonly="not cliente or not contrato"/>
+                        <field name="monto" readonly="not cliente or not contrato"/>
+                        <div class="text-muted" invisible="not contrato">
+                            <span invisible="tipocredito_val == '2'">
+                                Cálculo automático: Aporte × Superficie
+                            </span>
+                            <span invisible="tipocredito_val != '2'">
+                                Monto manual (Crédito Especial)
+                            </span>
+                        </div>
+                        <field name="vencimiento" readonly="not cliente or not contrato"/>
+                        <!-- CORREGIDO: Hacer editable solo para tipo "1" -->
+                        <field name="superficie" readonly="not cliente or not contrato or tipocredito_val == '0'" invisible="tipocredito_val == '2'" />
+                        <field name="folio" readonly="1"/>
+                    </group>
+                    <group name="datos_obligado" string="Obligado Solidario">
+                        <div class="o_row" invisible="not cliente">
+                            <field name="cliente_estado_civil" readonly="1"/>
+                            <field name="cliente_conyugue" readonly="1" invisible="cliente_estado_civil not in ['casado', 'union_libre']"/>
+                        </div>
+                        <field name="obligado" readonly="not cliente or not contrato"/>
+                        <field name="obligadodomicilio" readonly="not cliente or not contrato"/>
+                        <field name="obligadoRFC" readonly="not cliente or not contrato"/>
+
+                    </group>
+
+                    <!-- CORREGIDO: Agregar campo tipocredito_val oculto para que funcione la condición -->
+                    <field name="tipocredito_val" invisible="1"/>
+
+                    <!-- CORREGIDO: Mostrar predios solo para tipo AVIO (tipocredito == '0') -->
+                    <group name="predios" string="Predios" invisible="tipocredito_val != '0'">
+                        <field name="predios" readonly="not cliente or not contrato">
+                            <list editable="bottom">
+                                <field name="solcredito_id" column_invisible="1"/>
+                                <field name="es_dueno_predio" string="¿Es dueño?" width="80px"/>
+                                <field name="titular" width="150px" placeholder="Nombre del titular (si no es dueño)" readonly="es_dueno_predio == 'si'"/>
+                                <field name="RFC" string="RFC" width="120px"/>
+                                <field name="localidad" width="120px"/>
+                                <field name="superficie" string="Superficie Total" width="100px"/>
+                                <field name="superficiecultivable" string="Cultivable" width="90px"/>
+                                <field name="nocertificado" width="120px"/>
+                                <field name="colnorte" width="90px"/>
+                                <field name="colsur" width="90px"/>
+                                <field name="coleste" width="90px"/>
+                                <field name="coloeste" width="90px"/>
+                                <!-- Aquí podrías agregar georeferencias como smart button o vista aparte -->
+                            </list>
+                        </field>
+                    </group>
+
+                    <!-- CORREGIDO: Mostrar garantías solo para tipo AVIO (tipocredito == '0') -->
+                    <group name="garantias" string="Garantías" invisible="tipocredito_val != '0'">
+                        <div class="o_row">
+                            <field name="garantias" readonly="not cliente or not contrato">
+                                <list editable="bottom">
+                                    <field name="solcredito_id" column_invisible="1"/>
+                                    <field name="es_dueno_garantia" string="¿Es dueño?" width="90px"/>
+                                    <field name="tipo" width="120px"/>
+                                    <field name="titular" width="150px" readonly="es_dueno_garantia == 'si'"/>
+                                    <field name="RFC" string="RFC" width="120px"/>
+                                    <field name="localidad" width="120px"/>
+                                    <field name="valor" string="Valor" width="100px"/>
+                                    <field name="descripcion" width="200px"/>
+                                    <field name="fecha_entrega" string="F. Entrega" width="100px"/>
+                                    <field name="persona_entrega" string="Entrega" width="120px"/>
+                                    <field name="persona_recibe" string="Recibe" width="120px"/>
+                                </list>
+                            </field>
+                        </div>
+                    </group>
+                    <group invisible="tipocredito_val != '0'">
+                        <span>Total garantías: </span>
+                        <field name="total_garantias" readonly="1" widget="monetary"/>
+                        <span> / Monto crédito: </span>
+                        <field name="monto" readonly="1" widget="monetary" nolabel="1"/>
+                    </group>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_confirmar_edicion_wizard_form" model="ir.ui.view">
+        <field name="name">solcreditos.confirmar.edicion.wizard.form</field>
+        <field name="model">solcreditos.confirmar.edicion.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Advertencia">
+                <group>
+                    <div>
+                        <span style="font-size:22px">⚠️</span>
+                        <b>¿Estás seguro de que quieres editar esta solicitud?</b>
+                    </div>
+                </group>
+                <footer>
+                    <button name="action_confirmar" string="Confirmar" type="object" class="btn-primary"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
 
     <!-- Menús -->
     <menuitem id="menu_root" name="Solicitudes de Créditos" sequence="10"/>

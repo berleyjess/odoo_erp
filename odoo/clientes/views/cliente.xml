@@ -17,10 +17,11 @@
         </field>
     </record>
 
+    <!-- Vista NO EDITABLE -->
     <record id="view_clientes_form" model="ir.ui.view">
         <field name="name">clientes.cliente.form</field>
         <field name="model">clientes.cliente</field>
-        <field name="priority" eval="10"/>  
+        <field name="priority" eval="10"/>
         <field name="arch" type="xml">
             <form edit = "0" create = "0">
                 <header>
@@ -79,6 +80,7 @@
         </field>
     </record>
 
+    <!-- Vista CREAR clientes -->
     <record id="view_clientes_form_simple" model="ir.ui.view">
         <field name="name">clientes.cliente.form.simple</field>
         <field name="model">clientes.cliente</field>
@@ -137,12 +139,13 @@
         </field>
     </record>
 
+    <!-- Vista de formulario para editar clientes -->
     <record id="view_clientes_form_edit" model="ir.ui.view">
         <field name="name">clientes.cliente.form.edit</field>
         <field name="model">clientes.cliente</field>
         <field name="arch" type="xml">
             <form>
-                 <header>
+                <header>
                     <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
                     <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
                     <group invisible="id != False">
@@ -200,6 +203,7 @@
         <field name="res_model">clientes.cliente</field>
         <field name="view_mode">list,form</field>
         <field name="view_id" ref="view_clientes_list"/>
+        <!-- Aquí se fuerza que la primera vista sea la de lista -->
     </record>
 
     <menuitem id="menu_clientes_root" name="Clientes" sequence="10"/>
