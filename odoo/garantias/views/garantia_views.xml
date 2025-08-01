@@ -1,4 +1,3 @@
-<!-- garantias-views-gantias_views -->
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <!-- Vista Árbol -->
@@ -8,6 +7,8 @@
         <field name="arch" type="xml">
             <list>
                 <field name="titular"/>
+                <field name="RFC"/>
+                <field name="localidad"/>
                 <field name="descripcion"/>
                 <field name="tipo"/>
                 <field name="valor"/>
@@ -26,6 +27,8 @@
             <form>
                 <group>
                     <field name="titular"/>
+                    <field name="RFC"/>
+                    <field name="localidad"/>
                     <field name="tipo"/>
                     <field name="descripcion"/>
                     <field name="valor"/>

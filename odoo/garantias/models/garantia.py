@@ -57,6 +57,17 @@ class Garantia(models.Model):
         help="Nombre de la persona que recibe la garantía."
     )
 
+    RFC = fields.Char(
+        string="RFC del titular",
+        help="Registro Federal de Contribuyentes del titular de la garantía."
+    )
+
+    localidad = fields.Many2one(
+        comodel_name="localidades.localidad",
+        string="Localidad",
+        help="Localidad donde se encuentra la garantía."
+    )
+
     # === VALIDACIONES ===
     @api.constrains("valor")
     def _check_valor(self):

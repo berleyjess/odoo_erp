@@ -7,6 +7,7 @@
     'depends': ['base', 'clientes', 'contratos', 'predios'],
     'data': [
         'views/solcredito.xml',
+        'data/seq_code.xml'
     ],
     'installable': True,
     'application': True,    

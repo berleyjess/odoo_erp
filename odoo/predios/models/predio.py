@@ -5,6 +5,7 @@ class predios(models.Model):
 
     localidad = fields.Many2one('localidades.localidad', string = "Localidad", required = True)
     titular = fields.Char(string = "Titular")
+    RFC = fields.Char(string = "RFC del titular")
     superficie = fields.Float(string = "Superficie", required = True)
     nocertificado = fields.Char(string = "No. de Certificado", required = True)
     colnorte = fields.Char(string = "Colindancia Norte")

@@ -20,6 +20,7 @@
             <list string="Predios">
                 <field name="localidad"/>
                 <field name="titular"/>
+                <field name="RFC"/>
                 <field name="nocertificado"/>
                 <field name="superficie"/>
             </list>
@@ -35,6 +36,7 @@
                     <group>
                         <field name="localidad"/>
                         <field name="titular"/>
+                        <field name="RFC"/>
                         <field name="superficie"/>
                         <field name="nocertificado"/>
                         <field name="colnorte"/>

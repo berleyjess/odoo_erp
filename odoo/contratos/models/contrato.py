@@ -17,7 +17,7 @@ class contrato(models.Model):
     ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)    
     cultivo = fields.Many2one('cultivos.cultivo', string="Cultivo")
     aporte = fields.Integer(string="Aporte por Hectárea")
-
+    
     limiteinsumos = fields.One2many(
         'contratos.limiteinsumo_ext', 'contrato_id', string="Límites de Insumos")
     

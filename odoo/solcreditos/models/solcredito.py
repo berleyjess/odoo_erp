@@ -1,5 +1,5 @@
 # solcreditos/models/solcredito.py
-from odoo import models, fields, api
+from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 
 class solcredito(models.Model):
@@ -19,6 +19,14 @@ class solcredito(models.Model):
         ], required = True, string="El cliente es responsable del crédito?", default="0"
     )
 
+    FIELDS_TO_UPPER = ['obligado', 'obligadoRFC']
+
+    @staticmethod
+    def _fields_to_upper(vals, fields):
+        for fname in fields:
+            if fname in vals and isinstance(vals[fname], str):
+                vals[fname] = vals[fname].upper()
+        return vals
 
     tipocredito_val = fields.Char(compute="_compute_tipocredito_val", store=False)
 
@@ -26,8 +34,6 @@ class solcredito(models.Model):
     def _compute_tipocredito_val(self):
         for rec in self:
             rec.tipocredito_val = rec.contrato.tipocredito or ''
-
-
 
     predios = fields.One2many('solcreditos.predio_ext', 'solcredito_id', string = "Predios")
     garantias = fields.One2many('solcreditos.garantia_ext', 'solcredito_id', string = "Garantías")
@@ -44,9 +50,27 @@ class solcredito(models.Model):
     # Campo computed para validación de garantías
     total_garantias = fields.Float(string="Total Garantías", compute="_compute_total_garantias", store=False)
 
+    
+    folio = fields.Char(
+        string='Folio',
+        required=True,
+        readonly=True,
+        copy=False,
+        default=lambda self: _('Nuevo'),
+        help="Código único autogenerado con formato COD-000001"
+    )
+
+
+    #def _generate_code(self):
+    #    sequence = self.env['ir.sequence'].next_by_code('seq_solcredito_folio') or '/'
+    #    number = sequence.split('/')[-1]
+    #    return f"{number.zfill(6)}"
+    
     @api.model
     def create(self, vals):
         """Asegura que siempre haya fecha de vencimiento y monto al crear"""
+        if vals.get('folio', _('Nuevo')) == _('Nuevo'):
+            vals['folio'] = self.env['ir.sequence'].next_by_code('solcreditos.folio') or _('Nuevo')
         # Manejo de fecha de vencimiento
         if not vals.get('vencimiento'):
             if vals.get('ciclo'):
@@ -66,6 +90,8 @@ class solcredito(models.Model):
             elif not vals.get('monto'):
                 vals['monto'] = 0.0
                 
+        # --- FORZAR MAYÚSCULAS ---
+        vals = self._fields_to_upper(vals, self.FIELDS_TO_UPPER)
         return super(solcredito, self).create(vals)
 
     @api.depends('cliente')
@@ -102,15 +128,34 @@ class solcredito(models.Model):
             if (self.cliente.estado_civil in ['casado', 'union_libre'] and 
                 self.cliente.conyugue):
                 self.obligado = self.cliente.conyugue
-            else:
+            #else:
                 # Si no está casado o no tiene cónyuge, usa el nombre del cliente
-                self.obligado = self.cliente.conyugue
+            #    self.obligado = self.cliente.nombre  # CORREGIDO: era self.cliente.conyugue
             
             # Auto-rellena otros campos del cliente si existen
             #if hasattr(self.cliente, 'domicilio') and self.cliente.domicilio:
-             #   self.obligadodomicilio = self.cliente.domicilio
+            #    self.obligadodomicilio = self.cliente.domicilio
             #if hasattr(self.cliente, 'rfc') and self.cliente.rfc:
-             #   self.obligadoRFC = self.cliente.rfc
+            #    self.obligadoRFC = self.cliente.rfc
+
+    @api.onchange('titularr', 'cliente')
+    def _onchange_titularr(self):
+        """Auto-rellena los datos del obligado solidario cuando el cliente es responsable"""
+        if self.titularr == '1' and self.cliente:  # Si el cliente es responsable
+        #    self.obligado = self.cliente.nombre
+            self.obligado = ''  # Limpia el campo para llenado manual
+            self.obligadoRFC = '' # Limpia el RFC para llenado manual
+        #    if hasattr(self.cliente, 'domicilio') and self.cliente.domicilio:
+        #        self.obligadodomicilio = self.cliente.domicilio
+        #    if hasattr(self.cliente, 'rfc') and self.cliente.rfc:
+        #        self.obligadoRFC = self.cliente.rfc
+        if self.titularr == '0' and self.cliente:  # Si el cliente SI es responsable
+            # Auto-rellena con el cónyuge si está casado
+            if (self.cliente.estado_civil in ['casado', 'union_libre'] and self.cliente.conyugue):
+                self.obligado = self.cliente.conyugue
+            else:
+                self.obligado = ''  # Limpia el campo para llenado manual
+                self.obligadoRFC = ''  # Limpia el RFC para llenado manual
 
     @api.depends('predios', 'contrato')
     def _depends_predios_superficie(self):
@@ -120,7 +165,6 @@ class solcredito(models.Model):
         # En cualquier otro tipo, actualiza automáticamente
         total_superficie = sum(predio.superficiecultivable or 0.0 for predio in self.predios)
         self.superficie = total_superficie
-
 
     @api.onchange('ciclo')
     def _onchange_ciclo(self):
@@ -166,8 +210,17 @@ class solcredito(models.Model):
                     ('id', '!=', record.id)
                 ])
                 if existing:
+                    # Usar display_name, o construir un nombre descriptivo
+                    try:
+                        contrato_name = record.contrato.display_name
+                    except:
+                        # Fallback: construir nombre usando campos disponibles
+                        tipo_dict = {'0': 'AVIO', '1': 'Parcial', '2': 'Especial'}
+                        tipo_nombre = tipo_dict.get(record.contrato.tipocredito, record.contrato.tipocredito)
+                        contrato_name = f"Contrato {tipo_nombre} - Ciclo {record.contrato.ciclo.display_name if record.contrato.ciclo else 'N/A'}"
+                    
                     raise ValidationError(
-                        f"El cliente {record.cliente.nombre} ya tiene asignado el contrato {record.contrato.nombre}. "
+                        f"El cliente {record.cliente.nombre} ya tiene asignado el contrato {contrato_name}. "
                         "Un cliente no puede tener el mismo contrato más de una vez."
                     )
 
@@ -175,8 +228,8 @@ class solcredito(models.Model):
     def _check_garantias_monto(self):
         """Validación: El total de garantías debe ser igual o mayor al monto del crédito"""
         for record in self:
-            # Solo validar si el contrato requiere garantías (no es tipo AVIO - tipocredito != '0')
-            if record.contrato and record.contrato.tipocredito != '0' and record.monto > 0:
+            # CORREGIDO: Solo validar si el contrato requiere garantías (tipo AVIO - tipocredito == '0')
+            if record.contrato and record.contrato.tipocredito == '0' and record.monto > 0:
                 total_garantias = sum(garantia.valor for garantia in record.garantias if garantia.valor)
                 if total_garantias < record.monto:
                     raise ValidationError(
@@ -193,13 +246,11 @@ class solcredito(models.Model):
                     # Editable, el usuario debe capturar
                     if not record.superficie or record.superficie <= 0:
                         raise ValidationError("Debes capturar la Superficie (Hectáreas) para este tipo de crédito.")
-                else:
+                elif record.contrato.tipocredito == '0':  # Solo para AVIO
                     # Se espera que sea suma de predios
                     total = sum(p.superficiecultivable or 0.0 for p in record.predios)
                     if not total or total <= 0:
                         raise ValidationError("Debes agregar al menos un predio con superficie cultivable mayor a 0.")
-                    #if abs((record.superficie or 0) - total) > 0.0001:
-                    #    raise ValidationError("La superficie total debe ser igual a la suma de las superficies cultivables de los predios.")
                     
     @api.constrains('titular')
     def _check_titular(self):
@@ -210,6 +261,6 @@ class solcredito(models.Model):
     @api.depends('predios.superficiecultivable', 'contrato')
     def _compute_superficie(self):
         for record in self:
-            if record.contrato and record.contrato.tipocredito != "1":
+            if record.contrato and record.contrato.tipocredito == "0":  # Solo para AVIO
                 record.superficie = sum(p.superficiecultivable or 0.0 for p in record.predios)
-            # Si es tipo 1, se respeta el valor manual (no se calcula aquí)    
+            # Si es tipo 1 o 2, se respeta el valor manual (no se calcula aquí)
