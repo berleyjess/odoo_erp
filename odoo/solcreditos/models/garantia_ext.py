@@ -1,6 +1,12 @@
-# solcreditos/models/garantia_ext.py
-from odoo import fields, models, api
 
+# solcreditos/models/garantia_ext.py
+
+
+from odoo import fields, models
+
+# garantia_ext.py
+
+from odoo import fields, models, api
 class garantia_ext(models.Model):
     _name = 'solcreditos.garantia_ext'
     _description = 'Extensión del modelo de Garantías'
