@@ -303,3 +303,29 @@ class solcredito(models.Model):
             'view_mode': 'list,form',
             'target': 'current',
         }
+
+    solcreditoestatu_id = fields.Many2one(
+        'solcreditoestatus.solcreditoestatu',
+        string="Estatus de la Solicitud",
+        help="Estado actual de la solicitud."
+    )
+
+    def action_cambiar_a_habilitado(self):
+        for rec in self:
+            if rec.solcreditoestatu_id:
+                rec.solcreditoestatu_id.action_habilitar()
+        return {'type': 'ir.actions.client', 'tag': 'reload'}
+
+    def action_cambiar_a_deshabilitado(self):
+        for rec in self:
+            if rec.solcreditoestatu_id:
+                rec.solcreditoestatu_id.action_deshabilitar()
+        return {'type': 'ir.actions.client', 'tag': 'reload'}
+    
+    #solcredito_opcion = fields.Char(string="Estatus", compute="_compute_estatus_display", store=False)
+
+    #@api.depends('estatu')
+    #def _compute_estatus_display(self):
+    #    """Compute para mostrar el estatus de la solicitud de crédito """
+    #    for record in self:
+    #        record.estatu_nombre = record.estatu.nombre if record.estatu else ''

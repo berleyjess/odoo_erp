@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- solcreditos/views/wizard_cancelar_activo.xml -->
+<odoo>
+    <record id="view_wizard_cancelar_activo_form" model="ir.ui.view">
+        <field name="name">solcreditos.wizard.cancelar.activo.form</field>
+        <field name="model">solcreditos.wizard.cancelar.activo</field>
+        <field name="arch" type="xml">
+            <form string="Cancelar Activo">
+                <group>
+                    <field name="activo_id" invisible="1"/>
+                    <div>
+                        <span style="font-size:22px; color: #d9534f;">⚠️</span>
+                        <b>¿Está seguro de que desea cancelar este activo?</b>
+                    </div>
+                    <br/>
+                    <field name="motivo_cancelacion" placeholder="Especifique el motivo de la cancelación..." nolabel="1"/>
+                </group>
+                <footer>
+                    <button name="action_confirmar_cancelacion" string="Confirmar Cancelación" type="object" class="btn-danger"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Vista lista (árbol) -->
+    <record id="view_solcreditoestatu_tree" model="ir.ui.view">
+        <field name="name">solcreditoestatus.solcreditoestatu.tree</field>
+        <field name="model">solcreditoestatus.solcreditoestatu</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="status"/>
+                <field name="descripcion"/>
+                <field name="fecha"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista formulario -->
+    <record id="view_solcreditoestatu_form" model="ir.ui.view">
+        <field name="name">solcreditoestatus.solcreditoestatu.form</field>
+        <field name="model">solcreditoestatus.solcreditoestatu</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="status"/>
+                        <field name="descripcion"/>
+                        <field name="fecha"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Acción para el menú -->
+    <record id="action_solcreditoestatus" model="ir.actions.act_window">
+        <field name="name">Catálogo de Estatus de Solicitud</field>
+        <field name="res_model">solcreditoestatus.solcreditoestatu</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p>Catálogo para definir los diferentes estatus posibles para las solicitudes de crédito.</p>
+        </field>
+    </record>
+
+    <!-- Menú -->
+    <menuitem id="menu_solcreditoestatus_root" name="Estatus de Solicitud" sequence="30"/>
+    <menuitem id="menu_solcreditoestatus" name="Catálogo de Estatus" parent="menu_solcreditoestatus_root" action="action_solcreditoestatus"/>
+</odoo>

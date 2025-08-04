@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- autorizaciones/views/wizard_rechazo.xml -->
+<odoo>
+    <record id="view_wizard_rechazo_form" model="ir.ui.view">
+        <field name="name">autorizaciones.wizard.rechazo.form</field>
+        <field name="model">autorizaciones.wizard.rechazo</field>
+        <field name="arch" type="xml">
+            <form string="Rechazar Autorización">
+                <group>
+                    <field name="autorizacion_id" invisible="1"/>
+                    <div>
+                        <span style="font-size:22px; color: #d9534f;">⚠️</span>
+                        <b>¿Está seguro de que desea rechazar esta autorización?</b>
+                    </div>
+                    <br/>
+                    <field name="motivo_rechazo" placeholder="Especifique el motivo del rechazo..." nolabel="1"/>
+                </group>
+                <footer>
+                    <button name="action_confirmar_rechazo" string="Confirmar Rechazo" type="object" class="btn-danger"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>
