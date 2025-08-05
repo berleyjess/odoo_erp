@@ -6,30 +6,87 @@ class solcredito(models.Model):
     _name = 'solcreditos.solcredito'
     _description = 'Asignacion de contratos a clientes'
 
-    #Referencia a tdas la autorizaciones relacionadas con esta solicitu
+###########################################################################
+##                      Dictámentes de Autorización
+###########################################################################
+
+    #Referencia a todas las autorizaciones relacionadas con esta solicitud
     autorizaciones = fields.One2many(
-        'solcreditos.autorizacion_ext',
-        'autorizacion_id',
+        'solcreditos.autorizacion',
+        'solcredito_id',
         string='Autorizaciones',
         help='Autorizaciones relacionadas con esta solicitud de crédito.'
     )
 
     #Apunta a la última autorización aprobada
-    ultimaautorizacion = fields.Many2one('solcreditos.autorizacion_ext', string = "Autorizado", compute='_compute_ultima_aprobacion')
+    ultimaautorizacion = fields.Many2one('solcreditos.autorizacion', string = "Autorizado", compute='_compute_ultima_aprobacion')
+    
     @api.depends('autorizaciones')
     def _compute_ultima_aprobacion(self):
-        """Obtiene la última aprobación para CADA proceso (MAXROW por proceso)"""
         for proceso in self:
             # Busca la aprobación más reciente solo para ESTE proceso
-            proceso.autorizaciones= fields.first(
-                proceso.autorizaciones.sorted('fecha desc')
-            )
+            if proceso.autorizaciones:
+                proceso.ultimaautorizacion = fields.first(
+                    proceso.autorizaciones.sorted('fecha desc')
+                )
+            else:
+                # Si no hay autorizaciones, establecer como False o None
+                proceso.ultimaautorizacion = False
+    """
+    def _compute_ultima_aprobacion(self):
+        for proceso in self:
+            proceso.ultima_aprobacion = self.env['solcreditos.autorizacion'].search(
+                [('solcredito_id', '=', proceso.id)],
+                order='fecha desc',
+                limit=1
+            ) or False
+    """
     #Referencia el status de la última autorización capturada
-    autorizada = fields.Selection(string="¿Está autorizada?", related='ultimaautorizacion.status', store=False,
+    autorizada = fields.Selection(string="¿Está autorizada?", compute="_compute_autorizada", store=False,
     selection=[
         ('1', 'Aprobado'),
         ('0', 'Rechazado')
     ], default='0')
+
+    @api.depends('ultimaautorizacion')
+    def _compute_autorizada(self):
+        for record in self:
+            if record.ultimaautorizacion:
+                record.autorizada = record.ultimaautorizacion.status
+            else:
+                record.autorizada = '0'
+
+###########################################################################
+##                      Cambio de Estatus
+###########################################################################
+
+    #Referencia a todas las autorizaciones relacionadas con esta solicitud
+    activaciones = fields.One2many(
+        'solcreditos.activacion',
+        'activacion_id',
+        string='Activaciones',
+        help='Activaciones relacionadas con esta solicitud de crédito.'
+    )
+
+    #Apunta a la última autorización aprobada
+    ultimaactivacion = fields.Many2one('solcreditos.activacion', string = "Autorizado", compute='_compute_ultima_activacion')
+    @api.depends('activaciones')
+    def _compute_ultima_activacion(self):
+        for proceso in self:
+            # Busca la activación más reciente solo para ESTE proceso
+            proceso.activaciones= fields.first(
+                proceso.activaciones.sorted('fecha desc')
+            )
+    #Referencia el status de la última activación capturada
+    activaciones = fields.Selection(string="¿Está autorizada?", related='ultimaactivacion.status', store=False,
+    selection=[
+        ('1', 'Aprobado'),
+        ('0', 'Rechazado')
+    ], default='0')
+
+###########################################################################
+##                      Otros Campos
+###########################################################################
 
     cliente = fields.Many2one('clientes.cliente', string="Nombre", required=True)
     cliente_nombre = fields.Char(string="Cliente", compute="_compute_cliente_nombre", store=False)
@@ -355,11 +412,30 @@ class solcredito(models.Model):
         
         return {
             'type': 'ir.actions.act_window',
-            'res_model': 'solcreditos.autorizacion_ext',
+            'res_model': 'solcreditos.autorizacion',
             'view_mode': 'form',
             'target': 'new',
+            'name': 'Dictamen de Autorización',
             'context': {
-                'default_autorizacion_id': self.id
+                'default_solcredito_id': self.id
+            }
+            
+        }
+
+    def action_activacion(self):
+        """Acción para dictaminar la activación de la solicitud de crédito."""
+        self.ensure_one()
+        """if not self.autorizaciones:
+            raise ValidationError(_("No hay autorizaciones disponibles para esta solicitud."))"""
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'solcreditos.activacion',
+            'view_mode': 'form',
+            'target': 'new',
+            'name': 'Dictamen de Activación',
+            'context': {
+                'default_activacion_id': self.id
             }
             
         }

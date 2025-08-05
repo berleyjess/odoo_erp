@@ -33,7 +33,11 @@
                 <header>
                     <group invisible="id == False">
                         <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
-                        <button name="action_autorizacion" string="Dictaminar Autorización" type="object" class="btn btn-primary" icon="fa-check"/>
+                        <group invisible="autorizada == '0'">
+                            <button name="action_autorizacion" string="Dictaminar Autorización" type="object" class="btn btn-primary" icon="fa-check"/>
+                        </group>
+                        <!--group invisible="autorizada == '1'"-->
+                            <button name="action_activacion" string="Cambia Status" type="object" class="btn btn-primary" icon="fa-check"/>
                     </group>
 
                     <group invisible="id != False">
@@ -144,6 +148,7 @@
                 </header>
                 <sheet>
                     <group>
+                        <field name="folio" readonly="1"/>
                         <field name="solcreditoestatu_id" />
                         <field name="cliente"/>
                         <field name="cliente_nombre" readonly="1"/>
@@ -162,7 +167,6 @@
                         <field name="vencimiento" readonly="not cliente or not contrato"/>
                         <!-- CORREGIDO: Hacer editable solo para tipo "1" -->
                         <field name="superficie" readonly="not cliente or not contrato or tipocredito_val == '0'" invisible="tipocredito_val == '2'" />
-                        <field name="folio" readonly="1"/>
                     </group>
                     <group name="datos_obligado" string="Obligado Solidario">
                         <div class="o_row" invisible="not cliente">
@@ -264,7 +268,7 @@
                         <field name="vencimiento" readonly="not cliente or not contrato"/>
                         <!-- CORREGIDO: Hacer editable solo para tipo "1" -->
                         <field name="superficie" readonly="not cliente or not contrato or tipocredito_val == '0'" invisible="tipocredito_val == '2'" />
-                        <field name="folio" readonly="1"/>
+                        <!--field name="folio" readonly="1"/-->
                     </group>
                     <group name="datos_obligado" string="Obligado Solidario">
                         <div class="o_row" invisible="not cliente">
@@ -352,6 +356,35 @@
         </field>
     </record>
 
+    <record id="view_autorizacion_form" model="ir.ui.view">
+        <field name="name">autorizacion.form</field>
+        <field name="model">solcreditos.autorizacion</field>
+        <field name="arch" type="xml">
+            <form autosave="False">
+                <sheet>
+                    <group>
+                        <field name="status" widget="badge"/>
+                        <field name="descripcion"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>   
+
+    <record id="view_activacion_form" model="ir.ui.view">
+        <field name="name">activacion.form</field>
+        <field name="model">solcreditos.activacion</field>
+        <field name="arch" type="xml">
+            <form autosave="False">
+                <sheet>
+                    <group>
+                        <field name="status" widget="badge"/>
+                        <field name="descripcion"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>   
 
     <!-- Menús -->
     <menuitem id="menu_root" name="Solicitudes de Créditos" sequence="10"/>
