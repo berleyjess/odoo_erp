@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+acl_cliente_viewer,Clientes Viewer,clientes.model_clientes_cliente,security_roles.role_viewer,1,0,0,0
+
+
+
+

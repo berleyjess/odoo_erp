@@ -43,3 +43,102 @@ class ciclo(models.Model):
     ]
 
 
+
+    #PRUEBAS PERMISOS USUARIOS.
+
+    
+
+    
+
+    usuario_editor_id = fields.Many2one(
+        'res.users',
+        string="Editor Responsable",
+        domain=lambda self: [
+            ('groups_id', 'in', self.env.ref('security_roles.role_editor').ids)
+        ],
+        default=lambda self: self.env.user.id,
+        required=True,
+    )
+
+    usuario_lector_id = fields.Many2one(
+        'res.users',
+        string="Usuario solo vista",
+        domain=lambda self: [
+            ('groups_id', 'in', self.env.ref('security_roles.role_viewer').ids)
+        ],
+        default=lambda self: self.env.user.id,
+        required=True,
+    )
+
+    
+
+    editoresYManagers = fields.Many2one(
+        'res.users',
+        string="Administrador Responsable",
+        domain=lambda self: [
+            ('groups_id', 'in', (
+                self.env.ref('security_roles.role_editor').ids +
+                self.env.ref('security_roles.role_manager').ids
+            ))
+        ],
+        default=lambda self: self.env.user.id,
+        required=True,
+    )
+
+
+    current_user = fields.Char(string='Usuario actual', compute='_compute_current_user', store=False)
+
+    
+
+    @api.depends()
+    def _compute_current_user(self):
+        for rec in self:
+            rec.current_user = self.env.user.name
+
+
+
+
+
+
+    #TODOS LOS USUARIOS DE GRUPOS ADMINISTRADORES
+
+    usuario_admin_id = fields.Many2one(
+        'res.users',
+        string="Responsable administrador",
+        domain=lambda self: [
+            ('groups_id', 'in', self._get_admin_groups_ids())
+        ],
+        default=lambda self: self.env.user.id,
+        required=True,
+    )
+
+    @api.model
+    def _get_admin_groups_ids(self):
+        # Busca todos los grupos que pertenecen a la categoría "Administrador"
+        categoria_admin = self.env.ref('security_roles.module_category_admin')
+        admin_groups = self.env['res.groups'].search([
+            ('category_id', '=', categoria_admin.id)
+        ])
+        return admin_groups.ids
+    
+    #TODOS LOS USUARIOS DE GRUPOS ADMINISTRADORES Y EDITORES
+
+    usuario_admin_edit_id = fields.Many2one(
+        'res.users',
+        string="Responsable admin/editor",
+        domain=lambda self: [('groups_id', 'in', self._get_admin_user_groups_ids())],
+        default=lambda self: self.env.user.id,
+        required=True,
+    )
+
+    @api.model
+    def _get_admin_user_groups_ids(self):
+        # Obtener las categorías de admin y usuario
+        categoria_admin = self.env.ref('security_roles.module_category_admin')
+        categoria_user = self.env.ref('security_roles.module_category_user')
+        # Buscar todos los grupos que pertenezcan a esas categorías
+        grupos = self.env['res.groups'].search([
+            ('category_id', 'in', [categoria_admin.id, categoria_user.id])
+        ])
+        # Retornar todos los IDs de los grupos encontrados
+        return grupos.ids

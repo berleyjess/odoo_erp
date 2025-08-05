@@ -1,0 +1,2 @@
+CSV:
+nombreDescriptivo, NombreBackend, Modelo.'model_'nombreClaseDePython, modulo.id_del_grupo, permisoLectura, permisoEscritura, permisoCreacion, permisoEliminacion (1=si, 0=no)

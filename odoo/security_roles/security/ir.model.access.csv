@@ -1,0 +1,31 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+
+
+
+acl_ciclos_viewer,Ciclos solo vista,ciclos.model_ciclos_ciclo,security_roles.role_viewer,1,0,0,0
+acl_ciclos_editor,Ciclos editor,ciclos.model_ciclos_ciclo,security_roles.role_editor,1,1,1,0
+acl_ciclos_manager,Ciclos administrador,ciclos.model_ciclos_ciclo,security_roles.role_manager,1,1,1,1
+
+acl_cliente_viewer,Clientes solo vista,clientes.model_clientes_cliente,security_roles.role_viewer,1,0,0,0
+acl_cliente_editor,Clientes editor,clientes.model_clientes_cliente,security_roles.role_editor,1,1,1,0
+acl_cliente_manager,Clientes administrador,clientes.model_clientes_cliente,security_roles.role_manager,1,1,1,1
+
+acl_contacto_ext_viewer,ContactosExt solo vista,clientes.model_clientes_contacto_ext,security_roles.role_viewer,1,0,0,0
+acl_contacto_ext_editor,ContactosExt editor,clientes.model_clientes_contacto_ext,security_roles.role_editor,1,1,1,0
+acl_contacto_ext_manager,ContactosExt admin,clientes.model_clientes_contacto_ext,security_roles.role_manager,1,1,1,1
+
+acl_localidad_viewer,Localidad solo vista,localidades.model_localidades_localidad,security_roles.role_viewer,1,0,0,0
+acl_localidad_editor,Localidad editor,localidades.model_localidades_localidad,security_roles.role_editor,1,1,1,0
+acl_localidad_manager,Localidad admin,localidades.model_localidades_localidad,security_roles.role_manager,1,1,1,1
+
+acl_ejido_viewer,Ejido solo vista,ejidos.model_ejidos_ejido,security_roles.role_viewer,1,0,0,0
+acl_ejido_editor,Ejido editor,ejidos.model_ejidos_ejido,security_roles.role_editor,1,1,1,0
+acl_ejido_manager,Ejido admin,ejidos.model_ejidos_ejido,security_roles.role_manager,1,1,1,1
+
+acl_garantia_viewer,Garantia solo vista,garantias.model_garantias_garantia,security_roles.role_viewer,1,0,0,0
+acl_garantia_editor,Garantia editor,garantias.model_garantias_garantia,security_roles.role_editor,1,1,1,0
+acl_garantia_manager,Garantia admin,garantias.model_garantias_garantia,security_roles.role_manager,1,1,1,1
+
+acl_georeferencia_viewer,Georeferencia solo vista,georeferencias.model_georeferencias_georeferencia,security_roles.role_viewer,1,0,0,0
+acl_georeferencia_editor,Georeferencia editor,georeferencias.model_georeferencias_georeferencia,security_roles.role_editor,1,1,1,0
+acl_georeferencia_manager,Georeferencia admin,georeferencias.model_georeferencias_georeferencia,security_roles.role_manager,1,1,1,1

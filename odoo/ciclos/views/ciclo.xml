@@ -32,6 +32,11 @@
             <form autosave="False">
                 <sheet>
                     <group>
+
+                        <!--<field name="usuario_editor_id" />
+                        <field name="usuario_lector_id" />
+                        <field name="usuario_admin_id" />
+                        <field name="soloLectura_id" usuario de apoyoo/>-->
                         <field name="periodo" autofocus="autofocus"/>
                         <field name="finicio"/>
                         <field name="ffinal"/>
@@ -42,6 +47,6 @@
     </record>
 
     <!-- Menús -->
-    <menuitem id="menu_root" name="ciclos" sequence="10"/>
-    <menuitem id="menu_action" name="Ciclos Agrícolas" parent="menu_root" action="action_ciclos"/>
+    <menuitem id="menu_root" name="ciclos" sequence="10" />
+    <menuitem id="menu_action" name="Ciclos Agrícolas" parent="menu_root" action="action_ciclos" />
 </odoo>

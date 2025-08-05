@@ -1,0 +1,30 @@
+<odoo>
+    <!-- Categoría para usuarios finales -->
+    <record id="module_category_user" model="ir.module.category">
+        <field name="name">Usuario</field>
+        <field name="sequence">1</field>
+    </record>
+    <!-- Categoría para administradores -->
+    <record id="module_category_admin" model="ir.module.category">
+        <field name="name">Administrador</field>
+        <field name="sequence">2</field>
+    </record>
+
+    <!-- Solo Vista -->
+    <record id="role_viewer" model="res.groups">
+        <field name="name">ROL | Solo Vista</field>
+        <field name="category_id" ref="security_roles.module_category_user"/>
+    </record>
+    <!-- Editor -->
+    <record id="role_editor" model="res.groups">
+        <field name="name">ROL | Editor</field>
+        <field name="category_id" ref="security_roles.module_category_admin"/>
+        <field name="implied_ids" eval="[(4, ref('security_roles.role_viewer'))]"/>
+    </record>
+    <!-- Manager/Administrador -->
+    <record id="role_manager" model="res.groups">
+        <field name="name">ROL | Administrador</field>
+        <field name="category_id" ref="security_roles.module_category_admin"/>
+        <field name="implied_ids" eval="[(4, ref('security_roles.role_editor'))]"/>
+    </record>
+</odoo>
