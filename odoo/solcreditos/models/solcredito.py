@@ -6,6 +6,31 @@ class solcredito(models.Model):
     _name = 'solcreditos.solcredito'
     _description = 'Asignacion de contratos a clientes'
 
+    #Referencia a tdas la autorizaciones relacionadas con esta solicitu
+    autorizaciones = fields.One2many(
+        'solcreditos.autorizacion_ext',
+        'autorizacion_id',
+        string='Autorizaciones',
+        help='Autorizaciones relacionadas con esta solicitud de crédito.'
+    )
+
+    #Apunta a la última autorización aprobada
+    ultimaautorizacion = fields.Many2one('solcreditos.autorizacion_ext', string = "Autorizado", compute='_compute_ultima_aprobacion')
+    @api.depends('autorizaciones')
+    def _compute_ultima_aprobacion(self):
+        """Obtiene la última aprobación para CADA proceso (MAXROW por proceso)"""
+        for proceso in self:
+            # Busca la aprobación más reciente solo para ESTE proceso
+            proceso.autorizaciones= fields.first(
+                proceso.autorizaciones.sorted('fecha desc')
+            )
+    #Referencia el status de la última autorización capturada
+    autorizada = fields.Selection(string="¿Está autorizada?", related='ultimaautorizacion.status', store=False,
+    selection=[
+        ('1', 'Aprobado'),
+        ('0', 'Rechazado')
+    ], default='0')
+
     cliente = fields.Many2one('clientes.cliente', string="Nombre", required=True)
     cliente_nombre = fields.Char(string="Cliente", compute="_compute_cliente_nombre", store=False)
     cliente_estado_civil = fields.Selection(related='cliente.estado_civil', string="Estado Civil", readonly=True)
@@ -322,6 +347,22 @@ class solcredito(models.Model):
                 rec.solcreditoestatu_id.action_deshabilitar()
         return {'type': 'ir.actions.client', 'tag': 'reload'}
     
+    def action_autorizacion(self):
+        """Acción para dictaminar la autorización de la solicitud de crédito."""
+        self.ensure_one()
+        """if not self.autorizaciones:
+            raise ValidationError(_("No hay autorizaciones disponibles para esta solicitud."))"""
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'solcreditos.autorizacion_ext',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_autorizacion_id': self.id
+            }
+            
+        }
     #solcredito_opcion = fields.Char(string="Estatus", compute="_compute_estatus_display", store=False)
 
     #@api.depends('estatu')

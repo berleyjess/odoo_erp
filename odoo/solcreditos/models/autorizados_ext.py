@@ -1,14 +1,14 @@
 # solcreditos/models/solcredito_autorizacion_ext.py
 from odoo import models, fields, api
 
-class SolCreditoAutorizacionExt(models.Model):
-    _inherit = 'solcreditos.solcredito'
+class autorizados_ext(models.Model):
+    _name = 'solcreditos.autorizacion_ext'
+    _inherit = 'solcreditoautorizaciones.autorizacion'  # Hereda del modelo de autorizaciones
 
     autorizacion_id = fields.Many2one(
-        'autorizaciones.autorizacion',
+        'solcreditos.solcredito',
         string='Autorización',
-        help='Autorización vinculada a la solicitud',
-        readonly=True
+        ondelete='cascade'
     )
 
     def is_autorizada(self):
