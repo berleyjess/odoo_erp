@@ -33,6 +33,7 @@
                 <header>
                     <group invisible="id == False">
                         <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
+                        <button name="action_autorizacion" string="Dictaminar Autorización" type="object" class="btn btn-primary" icon="fa-check"/>
                     </group>
 
                     <group invisible="id != False">
@@ -43,7 +44,6 @@
                     <group>
                         <!--field name="solcreditoestatu_id"/-->
                         <field name="cliente"/>
-                        <field name="cliente_nombre" readonly="1"/>
                         <field name="ciclo"/>
                         <field name="contrato"/>
                         <field name="titularr" widget="radio" options="{'horizontal': true}" readonly="not cliente or not contrato"/>

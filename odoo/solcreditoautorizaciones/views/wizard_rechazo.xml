@@ -3,7 +3,7 @@
 <odoo>
     <record id="view_wizard_rechazo_form" model="ir.ui.view">
         <field name="name">autorizaciones.wizard.rechazo.form</field>
-        <field name="model">autorizaciones.wizard.rechazo</field>
+        <field name="model">solcreditoautorizaciones.wizard.rechazo</field>
         <field name="arch" type="xml">
             <form string="Rechazar Autorización">
                 <group>

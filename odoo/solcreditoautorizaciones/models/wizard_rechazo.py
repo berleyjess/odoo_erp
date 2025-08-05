@@ -3,11 +3,11 @@ from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 
 class WizardRechazo(models.TransientModel):
-    _name = 'autorizaciones.wizard.rechazo'
+    _name = 'solcreditoautorizaciones.wizard.rechazo'
     _description = 'Wizard para rechazar autorizaciones con motivo'
 
     autorizacion_id = fields.Many2one(
-        'autorizaciones.autorizacion',
+        'solcreditoautorizaciones.autorizacion',
         string='Autorización',
         required=True
     )
