@@ -1,0 +1,220 @@
+<odoo>
+    <!-- Vista de lista -->
+    <record id="view_prueba_list" model="ir.ui.view">
+        <field name="name">prueba.list</field>
+        <field name="model">pruebas.prueba</field>
+        <field name="arch" type="xml">
+            <list string="Clientes Prueba">
+                <field name="name"/>
+                <field name="email"/>
+                <field name="phone"/>
+                <field name="active" widget="toggle"/>
+                <field name="genero"/>
+                <field name="edad"/>
+                <field name="rating"/>
+                <field name="salario" groups="security_roles.role_editor,security_roles.role_manager"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista BASE (sin grupos específicos) -->
+    <record id="view_prueba_form_base" model="ir.ui.view">
+        <field name="name">prueba.form.base</field>
+        <field name="model">pruebas.prueba</field>
+        <field name="priority" eval="50"/>
+        <field name="arch" type="xml">
+            <form string="Cliente de Pruebas">
+                <header>
+                    <button name="action_mostrar_mensaje" type="object" string="Mensaje" class="oe_highlight"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="email"/>
+                            <field name="phone"/>
+                            <field name="active"/>
+                            <field name="genero"/>
+                        </group>
+                        <group>
+                            <field name="fecha_nacimiento"/>
+                            <field name="edad" readonly="1"/>
+                            <field name="rating" widget="progressbar"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vista SOLO para VIEWERS -->
+    <record id="view_prueba_form_readonly" model="ir.ui.view">
+        <field name="name">prueba.form.readonly</field>
+        <field name="model">pruebas.prueba</field>
+        <field name="arch" type="xml">
+            <form string="Cliente - Solo Lectura" edit="0" create="0">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="email" readonly="1"/>
+                            <field name="phone" readonly="1"/>
+                            <field name="active" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="genero" readonly="1"/>
+                            <field name="edad" readonly="1"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-info">
+                        <strong>Vista de Solo Lectura</strong>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vista SOLO para EDITORS -->
+    <record id="view_prueba_form_editor" model="ir.ui.view">
+        <field name="name">prueba.form.editor</field>
+        <field name="model">pruebas.prueba</field>
+        <field name="arch" type="xml">
+            <form string="Cliente - Editor">
+                <header>
+                    <button name="action_mostrar_mensaje" type="object" string="Mensaje" class="oe_highlight"/>
+                    <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="email"/>
+                            <field name="phone"/>
+                            <field name="active"/>
+                            <field name="genero"/>
+                        </group>
+                        <group>
+                            <field name="fecha_nacimiento"/>
+                            <field name="edad" readonly="1"/>
+                            <field name="salario"/>
+                            <field name="currency_id"/>
+                            <field name="rating" widget="progressbar"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Notas">
+                            <field name="notas_html"/>
+                        </page>
+                        <page string="Contactos">
+                            <field name="hijos_ids">
+                                <list editable="bottom">
+                                    <field name="name"/>
+                                    <field name="email"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    <div class="alert alert-success">
+                        <strong>Vista de Editor</strong>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vista SOLO para MANAGERS -->
+    <record id="view_prueba_form_manager" model="ir.ui.view">
+        <field name="name">prueba.form.manager</field>
+        <field name="model">pruebas.prueba</field>
+        <field name="arch" type="xml">
+            <form string="Cliente - Administrador">
+                <header>
+                    <button name="action_mostrar_mensaje" type="object" string="Mensaje" class="oe_highlight"/>
+                    <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
+                    <button name="action_borrar" string="Borrar" type="object" class="btn btn-danger"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="email"/>
+                            <field name="phone"/>
+                            <field name="active"/>
+                            <field name="genero"/>
+                        </group>
+                        <group>
+                            <field name="fecha_nacimiento"/>
+                            <field name="edad" readonly="1"/>
+                            <field name="salario"/>
+                            <field name="currency_id"/>
+                            <field name="rating" widget="progressbar"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Notas">
+                            <field name="notas_html"/>
+                        </page>
+                        <page string="Contactos">
+                            <field name="hijos_ids">
+                                <list editable="bottom">
+                                    <field name="name"/>
+                                    <field name="email"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Configuración Avanzada">
+                            <group>
+                                <field name="foto"/>
+                                <field name="documento" filename="nombre_documento"/>
+                                <field name="nombre_documento"/>
+                            </group>
+                            <div class="alert alert-warning">
+                                <strong>Solo Administradores</strong>
+                            </div>
+                        </page>
+                    </notebook>
+                    <div class="alert alert-primary">
+                        <strong>Vista de Administrador</strong>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Acciones -->
+    <record id="action_prueba" model="ir.actions.act_window">
+        <field name="name">Clientes Prueba</field>
+        <field name="res_model">pruebas.prueba</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[]</field>
+    </record>
+
+    <record id="action_prueba_admin" model="ir.actions.act_window">
+        <field name="name">Panel Admin</field>
+        <field name="res_model">pruebas.prueba</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[]</field>
+        <field name="groups_id" eval="[(4, ref('security_roles.role_manager'))]"/>
+    </record>
+
+    <!-- Menús -->
+    <menuitem id="menu_prueba_root" name="Pruebas" sequence="10"/>
+    <menuitem id="menu_prueba" name="Clientes Prueba" parent="menu_prueba_root" action="action_prueba" sequence="10"/>
+    <menuitem id="menu_prueba_admin" name="Panel Admin" parent="menu_prueba_root" action="action_prueba_admin" groups="security_roles.role_manager" sequence="20"/>
+</odoo>

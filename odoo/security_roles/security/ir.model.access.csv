@@ -1,6 +1,8 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 
-
+acl_prueba_viewer,Prueba solo vista,pruebas.model_pruebas_prueba,security_roles.role_viewer,1,0,0,0
+acl_prueba_editor,Prueba editor,pruebas.model_pruebas_prueba,security_roles.role_editor,1,1,1,0
+acl_prueba_manager,Prueba admin,pruebas.model_pruebas_prueba,security_roles.role_manager,1,1,1,1
 
 acl_ciclos_viewer,Ciclos solo vista,ciclos.model_ciclos_ciclo,security_roles.role_viewer,1,0,0,0
 acl_ciclos_editor,Ciclos editor,ciclos.model_ciclos_ciclo,security_roles.role_editor,1,1,1,0

@@ -85,7 +85,7 @@
         <field name="name">clientes.cliente.form.simple</field>
         <field name="model">clientes.cliente</field>
         <field name="priority" eval="16"/>
-        <field name="groups">security_roles.role_manager</field>
+        <!--field name="groups">security_roles.role_manager</field-->
         <field name="arch" type="xml">
             <form>
                 <header>
