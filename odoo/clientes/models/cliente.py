@@ -336,7 +336,7 @@ class cliente(models.Model):
             'name': _('Detalles del Cliente'),
             'res_model': 'clientes.cliente',
             'view_mode': 'form',
-            'views': [(self.env.ref('clientes.view_cliente_form').id, 'form')],
+            'views': [(self.env.ref('clientes.view_clientes_form').id, 'form')],
             'target': 'current',
             'res_id': self.id,
         }
