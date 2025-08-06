@@ -24,29 +24,24 @@ class solcredito(models.Model):
     @api.depends('autorizaciones')
     def _compute_ultima_aprobacion(self):
         for proceso in self:
-            # Busca la aprobación más reciente solo para ESTE proceso
             if proceso.autorizaciones:
                 proceso.ultimaautorizacion = fields.first(
-                    proceso.autorizaciones.sorted('fecha desc')
+                    proceso.autorizaciones.sorted('id', reverse=True)[0]
                 )
             else:
                 # Si no hay autorizaciones, establecer como False o None
                 proceso.ultimaautorizacion = False
-    """
-    def _compute_ultima_aprobacion(self):
-        for proceso in self:
-            proceso.ultima_aprobacion = self.env['solcreditos.autorizacion'].search(
-                [('solcredito_id', '=', proceso.id)],
-                order='fecha desc',
-                limit=1
-            ) or False
-    """
     #Referencia el status de la última autorización capturada
-    autorizada = fields.Selection(string="¿Está autorizada?", compute="_compute_autorizada", store=False,
-    selection=[
-        ('1', 'Aprobado'),
-        ('0', 'Rechazado')
-    ], default='0')
+    autorizada = fields.Selection(string="¿Está autorizada?", compute="_compute_autorizada", store=True,
+        selection=[
+            ('0', 'Pendiente'),
+            ('1', 'Aprobado'),
+            ('2', 'Rechazado')
+        ], default='0')
+
+    ultimaautorizacion_fecha = fields.Date(string = "Fecha", related = 'ultimaautorizacion.fecha', readonly = True)
+    ultimaautorizacion_descripcion = fields.Char(string = "Descripción", related = 'ultimaautorizacion.descripcion', readonly = True)
+    ultimaautorizacion_status = fields.Selection(string = "Status", related = 'ultimaautorizacion.status', readonly = True)
 
     @api.depends('ultimaautorizacion')
     def _compute_autorizada(self):
@@ -63,22 +58,29 @@ class solcredito(models.Model):
     #Referencia a todas las autorizaciones relacionadas con esta solicitud
     activaciones = fields.One2many(
         'solcreditos.activacion',
-        'activacion_id',
+        'solcredito_id',
         string='Activaciones',
         help='Activaciones relacionadas con esta solicitud de crédito.'
     )
 
     #Apunta a la última autorización aprobada
     ultimaactivacion = fields.Many2one('solcreditos.activacion', string = "Autorizado", compute='_compute_ultima_activacion')
+    ultimaactivacion_fecha = fields.Date(string = "Fecha", related = 'ultimaactivacion.fecha', readonly = True)
+    ultimaactivacion_descripcion = fields.Char(string = "Descripción", related = 'ultimaactivacion.descripcion', readonly = True)
+    ultimaactivacion_status = fields.Selection(string = "Status", related = 'ultimaactivacion.status', readonly = True)
+
     @api.depends('activaciones')
     def _compute_ultima_activacion(self):
         for proceso in self:
-            # Busca la activación más reciente solo para ESTE proceso
-            proceso.activaciones= fields.first(
-                proceso.activaciones.sorted('fecha desc')
-            )
-    #Referencia el status de la última activación capturada
-    activaciones = fields.Selection(string="¿Está autorizada?", related='ultimaactivacion.status', store=False,
+            if proceso.activaciones:
+                proceso.ultimaactivacion = fields.first(
+                    proceso.activaciones.sorted('id', reverse=True)[0]
+                )
+            else:
+                # Si no hay autorizaciones, establecer como False o None
+                proceso.ultimaactivacion = False
+
+    activacion = fields.Selection(string="¿Está autorizada?", related='ultimaactivacion.status', store=False,
     selection=[
         ('1', 'Aprobado'),
         ('0', 'Rechazado')
@@ -415,7 +417,7 @@ class solcredito(models.Model):
             'res_model': 'solcreditos.autorizacion',
             'view_mode': 'form',
             'target': 'new',
-            'name': 'Dictamen de Autorización',
+            'name': 'Autorización de Contrato',
             'context': {
                 'default_solcredito_id': self.id
             }
@@ -433,9 +435,9 @@ class solcredito(models.Model):
             'res_model': 'solcreditos.activacion',
             'view_mode': 'form',
             'target': 'new',
-            'name': 'Dictamen de Activación',
+            'name': 'Habilitar/Deshabilitar Contrato',
             'context': {
-                'default_activacion_id': self.id
+                'default_solcredito_id': self.id
             }
             
         }

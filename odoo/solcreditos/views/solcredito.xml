@@ -33,25 +33,40 @@
                 <header>
                     <group invisible="id == False">
                         <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
-                        <group invisible="autorizada == '0'">
-                            <button name="action_autorizacion" string="Dictaminar Autorización" type="object" class="btn btn-primary" icon="fa-check"/>
-                        </group>
-                        <!--group invisible="autorizada == '1'"-->
-                            <button name="action_activacion" string="Cambia Status" type="object" class="btn btn-primary" icon="fa-check"/>
                     </group>
-
+                    <group invisible="autorizada == '1' or id == False">
+                        <button name="action_autorizacion" string="Autorizar contrato" type="object" class="btn btn-primary" icon="fa-check"/>
+                    </group>
+                    <group invisible="autorizada == '0' or id == False or activacion == '0'">
+                        <button name="action_activacion" string="Habilitar/Deshabilitar contrato" type="object" class="btn btn-primary" icon="fa-toggle-on"/>
+                    </group>
                     <group invisible="id != False">
                         <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
                     </group>
                 </header>
+                <sheet invisible="not autorizaciones">
+                    <group>
+                        <span>Aprobación del Contrato</span>
+                        <field name="ultimaautorizacion_fecha" readonly="1"/>
+                        <field name="ultimaautorizacion_status" widget="badge" readonly="1"/>
+                        <field name="ultimaautorizacion_descripcion" readonly="1"/>
+                    </group>
+                </sheet>
+                <sheet invisible="not activaciones">
+                    <group>
+                        <div>Habilitación/Deshabilitación de Contrato</div>
+                        <field name="ultimaactivacion_fecha" readonly="1"/>
+                        <field name="ultimaactivacion_status" widget="badge" readonly="1"/>
+                        <field name="ultimaactivacion_descripcion" readonly="1"/>
+                    </group>
+                </sheet>
                 <sheet>
                     <group>
-                        <!--field name="solcreditoestatu_id"/-->
                         <field name="cliente"/>
                         <field name="ciclo"/>
                         <field name="contrato"/>
                         <field name="titularr" widget="radio" options="{'horizontal': true}" readonly="not cliente or not contrato"/>
-                        <field name="monto" readonly="not cliente or not contrato"/>
+                        <field name="monto" readonly="not cliente or not contrato" widget = "monetary"/>
                         <div class="text-muted" invisible="not contrato">
                             <span invisible="tipocredito_val == '2'">
                                 Cálculo automático: Aporte × Superficie
@@ -363,7 +378,7 @@
             <form autosave="False">
                 <sheet>
                     <group>
-                        <field name="status" widget="badge"/>
+                        <field name="status" widget="selection_badge"/>
                         <field name="descripcion"/>
                     </group>
                 </sheet>
@@ -378,7 +393,7 @@
             <form autosave="False">
                 <sheet>
                     <group>
-                        <field name="status" widget="badge"/>
+                        <field name="status" widget="selection_badge"/>
                         <field name="descripcion"/>
                     </group>
                 </sheet>

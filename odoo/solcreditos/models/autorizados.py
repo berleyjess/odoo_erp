@@ -7,8 +7,8 @@ class autorizados(models.Model):
 
     status = fields.Selection(string = "Dictamen", selection=[
         ('1', 'Aprobado'),
-        ('0', 'Rechazado')
-    ], required = True, default = '0')
+        ('2', 'Rechazado')
+    ], required = True, default = '2')
 
     descripcion = fields.Char(
         string='Descripción',

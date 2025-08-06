@@ -6,13 +6,12 @@ class activados(models.Model):
     #_inherit = 'solcreditoautorizaciones.autorizacion'  # Hereda del modelo de autorizaciones
 
     status = fields.Selection(string = "Dictamen", selection=[
-        ('1', 'Aprobado'),
-        ('0', 'Rechazado')
+        ('1', 'Habilitar'),
+        ('0', 'Deshabilitar')
     ], required = True, default = '0')
 
     descripcion = fields.Char(
-        string='Descripción',
-        help='Descripción del status actual. Puede ser un texto breve que explique el estado del activo.', required=True
+        string='Descripción', required=True
     )
 
     fecha = fields.Date(
@@ -22,7 +21,7 @@ class activados(models.Model):
 
     )
 
-    activacion_id = fields.Many2one(
+    solcredito_id = fields.Many2one(
         'solcreditos.solcredito',
         string='Activación',
         ondelete='cascade'
