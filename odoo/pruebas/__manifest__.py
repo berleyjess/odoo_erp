@@ -7,6 +7,8 @@
     'depends': ['base'],
     'data': [
         'views/pruebapersona.xml',
+        'reports/report_templates.xml',
+        'reports/report_actions.xml',
     ],
     'installable': True,
     'application': True,

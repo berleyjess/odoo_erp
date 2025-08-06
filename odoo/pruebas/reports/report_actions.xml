@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--pruebas/reports/report_action.xml-->
+<odoo>
+    <!-- ================== REPORTE PDF ================== -->
+    <record id="action_report_persona_pdf" model="ir.actions.report">
+        <field name="name">Imprimir Persona</field>
+        <field name="model">prueba.persona</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">pruebas.report_persona_pdf</field>
+        <field name="report_file">pruebas.report_persona_pdf</field>
+        <field name="print_report_name">'Persona - %s' % (object.nombre)</field>
+    </record>
+</odoo>

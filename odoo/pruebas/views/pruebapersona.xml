@@ -41,7 +41,6 @@
                 <sheet>
                     <group >
                         <!-- Campos con readonly dinámico -->
-
                         <field name="nombre" readonly="not is_editing and id"/>
                         <field name="correo" readonly="not is_editing and id"/>
                         <field name="activo" readonly="not is_editing and id"/>
@@ -54,45 +53,6 @@
             </form>
         </field>
     </record>
-
-    <!-- ================== TEMPLATE DEL REPORTE ================== -->
-    <template id="report_persona_pdf">
-        <t t-call="web.html_container">
-            <t t-foreach="docs" t-as="persona">
-                <div class="page">
-                    <h2>Persona: <t t-esc="persona.nombre"/>
-                    </h2>
-                    <p>
-                        <strong>Correo:</strong>
-                        <t t-esc="persona.correo"/>
-                    </p>
-                    <p>
-                        <strong>Género:</strong>
-                        <t t-esc="persona.genero"/>
-                    </p>
-                    <p>
-                        <strong>Salario:</strong>
-                        <t t-esc="persona.salario"/>
-                    </p>
-                    <p>
-                        <strong>Fecha de nacimiento:</strong>
-                        <t t-esc="persona.fecha_nacimiento"/>
-                    </p>
-                    <p>
-                        <strong>Edad:</strong>
-                        <t t-esc="persona.edad"/>
-                    </p>
-                    <p>
-                        <strong>Activo:</strong>
-                        <t t-esc="persona.activo and 'Sí' or 'No'"/>
-                    </p>
-                </div>
-            </t>
-        </t>
-    </template>
-
-    <!-- ================== REPORTE PDF ================== -->
-    <report id="action_report_persona_pdf" string="Imprimir Persona" model="prueba.persona" report_type="qweb-pdf" name="pruebas.report_persona_pdf" file="pruebas.report_persona_pdf" />
 
     <!-- ================== MENÚ Y ACCIÓN ================== -->
     <record id="action_prueba_persona" model="ir.actions.act_window">
