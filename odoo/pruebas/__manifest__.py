@@ -6,7 +6,7 @@
     'version': '1.0',
     'depends': ['base'],
     'data': [
-        'views/prueba.xml',
+        'views/pruebapersona.xml',
     ],
     'installable': True,
     'application': True,
