@@ -17,6 +17,121 @@
         </field>
     </record>
 
+    <!-- NUEVAS VISTAS PARA CATEGORÍAS ESPECIALES -->
+
+    <!-- Vista ESPECIAL para categoría USUARIO -->
+    <record id="view_prueba_form_categoria_usuario" model="ir.ui.view">
+        <field name="name">prueba.form.categoria.usuario</field>
+        <field name="model">pruebas.prueba</field>
+        <field name="arch" type="xml">
+            <form string="Cliente - Categoría Usuario">
+                <header>
+                    <button name="action_mostrar_mensaje" type="object" string="Mensaje Usuario" class="oe_highlight"/>
+                    <button name="action_solicitar_ayuda" type="object" string="Solicitar Ayuda" class="btn btn-info"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+                    <div class="alert alert-info mb-3">
+                        <i class="fa fa-user"></i>
+                        <strong>Panel de Usuario Final</strong> - Interfaz simplificada
+                    </div>
+                    <group>
+                        <group string="Información Básica">
+                            <field name="email"/>
+                            <field name="phone"/>
+                            <field name="genero"/>
+                        </group>
+                        <group string="Datos Personales">
+                            <field name="fecha_nacimiento"/>
+                            <field name="edad" readonly="1"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Mi Perfil">
+                            <group>
+                                <field name="foto" widget="image" class="oe_avatar"/>
+                                <field name="rating" widget="priority"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vista ESPECIAL para categoría ADMINISTRADOR -->
+    <record id="view_prueba_form_categoria_admin" model="ir.ui.view">
+        <field name="name">prueba.form.categoria.admin</field>
+        <field name="model">pruebas.prueba</field>
+        <field name="arch" type="xml">
+            <form string="Cliente - Categoría Administrador">
+                <header>
+                    <button name="action_mostrar_mensaje" type="object" string="Mensaje Admin" class="oe_highlight"/>
+                    <button name="action_editar" string="Editar Avanzado" type="object" class="oe_highlight"/>
+                    <button name="action_borrar" string="Eliminar" type="object" class="btn btn-danger"/>
+                    <button name="action_exportar_datos" string="Exportar Datos" type="object" class="btn btn-secondary"/>
+                    <button name="action_auditoria" string="Ver Auditoría" type="object" class="btn btn-warning"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+                    <div class="alert alert-danger mb-3">
+                        <i class="fa fa-shield"></i>
+                        <strong>Panel de Administrador del Sistema</strong> - Control total
+                    </div>
+                    <group>
+                        <group string="Información Principal">
+                            <field name="email"/>
+                            <field name="phone"/>
+                            <field name="active"/>
+                            <field name="genero"/>
+                        </group>
+                        <group string="Datos Avanzados">
+                            <field name="fecha_nacimiento"/>
+                            <field name="edad" readonly="1"/>
+                            <field name="salario"/>
+                            <field name="currency_id"/>
+                            <field name="rating" widget="progressbar"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Información Completa">
+                            <field name="notas_html"/>
+                        </page>
+                        <page string="Relaciones">
+                            <field name="hijos_ids">
+                                <list editable="bottom">
+                                    <field name="name"/>
+                                    <field name="email"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Sistema y Auditoría">
+                            <group>
+                                <field name="foto"/>
+                                <field name="documento" filename="nombre_documento"/>
+                                <field name="nombre_documento"/>
+                                <field name="parent_id"/>
+                                <field name="total_hijos" readonly="1"/>
+                            </group>
+                            <div class="alert alert-warning">
+                                <strong>Zona de Administrador del Sistema</strong> - Configuraciones críticas
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
     <!-- Vista BASE (sin grupos específicos) -->
     <record id="view_prueba_form_base" model="ir.ui.view">
         <field name="name">prueba.form.base</field>
@@ -51,12 +166,16 @@
         </field>
     </record>
 
-    <!-- Vista SOLO para VIEWERS -->
+    <!-- Vista SOLO para VIEWERS - MEJORADA -->
     <record id="view_prueba_form_readonly" model="ir.ui.view">
         <field name="name">prueba.form.readonly</field>
         <field name="model">pruebas.prueba</field>
         <field name="arch" type="xml">
             <form string="Cliente - Solo Lectura" edit="0" create="0">
+                <header>
+                    <!-- Botón solo para viewers -->
+                    <button name="action_solicitar_acceso" type="object" string="Solicitar Acceso" class="btn btn-info"/>
+                </header>
                 <sheet>
                     <div class="oe_title">
                         <h1>
@@ -72,17 +191,24 @@
                         <group>
                             <field name="genero" readonly="1"/>
                             <field name="edad" readonly="1"/>
+                            <!-- Campo solo visible para viewers -->
+                            <field name="rating" readonly="1" widget="priority"/>
                         </group>
                     </group>
                     <div class="alert alert-info">
-                        <strong>Vista de Solo Lectura</strong>
+                        <strong>Vista de Solo Lectura</strong> - Contacta al administrador para modificaciones
+                    </div>
+                    <!-- Texto especial solo para viewers -->
+                    <div class="alert alert-secondary mt-3">
+                        <i class="fa fa-eye"></i>
+                        <strong>Modo Consulta:</strong> Esta información es solo de referencia
                     </div>
                 </sheet>
             </form>
         </field>
     </record>
 
-    <!-- Vista SOLO para EDITORS -->
+    <!-- Vista SOLO para EDITORS - MEJORADA -->
     <record id="view_prueba_form_editor" model="ir.ui.view">
         <field name="name">prueba.form.editor</field>
         <field name="model">pruebas.prueba</field>
@@ -91,6 +217,9 @@
                 <header>
                     <button name="action_mostrar_mensaje" type="object" string="Mensaje" class="oe_highlight"/>
                     <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
+                    <!-- Botones específicos para editores -->
+                    <button name="action_duplicar" string="Duplicar" type="object" class="btn btn-secondary"/>
+                    <button name="action_imprimir" string="Imprimir" type="object" class="btn btn-light"/>
                 </header>
                 <sheet>
                     <div class="oe_title">
@@ -125,16 +254,28 @@
                                 </list>
                             </field>
                         </page>
+                        <!-- Pestaña especial solo para editores -->
+                        <page string="Herramientas de Edición">
+                            <group>
+                                <field name="foto" widget="image"/>
+                                <field name="documento" filename="nombre_documento"/>
+                                <field name="nombre_documento"/>
+                            </group>
+                            <div class="alert alert-warning">
+                                <i class="fa fa-edit"></i>
+                                <strong>Herramientas de Editor:</strong> Funciones avanzadas de edición
+                            </div>
+                        </page>
                     </notebook>
                     <div class="alert alert-success">
-                        <strong>Vista de Editor</strong>
+                        <strong>Vista de Editor</strong> - Puedes modificar la mayoría de campos
                     </div>
                 </sheet>
             </form>
         </field>
     </record>
 
-    <!-- Vista SOLO para MANAGERS -->
+    <!-- Vista SOLO para MANAGERS - MEJORADA -->
     <record id="view_prueba_form_manager" model="ir.ui.view">
         <field name="name">prueba.form.manager</field>
         <field name="model">pruebas.prueba</field>
@@ -144,6 +285,10 @@
                     <button name="action_mostrar_mensaje" type="object" string="Mensaje" class="oe_highlight"/>
                     <button name="action_editar" string="Editar" type="object" class="oe_highlight"/>
                     <button name="action_borrar" string="Borrar" type="object" class="btn btn-danger"/>
+                    <!-- Botones especiales solo para managers -->
+                    <button name="action_cambiar_propietario" string="Cambiar Propietario" type="object" class="btn btn-warning" icon="fa-user-o"/>
+                    <button name="action_historial_cambios" string="Ver Historial" type="object" class="btn btn-info"/>
+                    <button name="action_backup" string="Crear Backup" type="object" class="btn btn-dark"/>
                 </header>
                 <sheet>
                     <div class="oe_title">
@@ -183,14 +328,37 @@
                                 <field name="foto"/>
                                 <field name="documento" filename="nombre_documento"/>
                                 <field name="nombre_documento"/>
+                                <!-- Campos especiales solo para managers -->
+                                <field name="parent_id"/>
+                                <field name="total_hijos" readonly="1"/>
                             </group>
                             <div class="alert alert-warning">
-                                <strong>Solo Administradores</strong>
+                                <strong>Solo Administradores</strong> - Configuraciones críticas del sistema
+                            </div>
+                        </page>
+                        <!-- Pestaña exclusiva para managers -->
+                        <page string="Panel de Control">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="alert alert-danger">
+                                        <h5>
+                                            <i class="fa fa-exclamation-triangle"></i> Zona Crítica</h5>
+                                        <p>Acciones que afectan todo el sistema</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="alert alert-info">
+                                        <h5>
+                                            <i class="fa fa-info-circle"></i> Estadísticas</h5>
+                                        <p>Total de registros relacionados: <field name="total_hijos" readonly="1"/>
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </page>
                     </notebook>
                     <div class="alert alert-primary">
-                        <strong>Vista de Administrador</strong>
+                        <strong>Vista de Administrador</strong> - Control total del sistema
                     </div>
                 </sheet>
             </form>
