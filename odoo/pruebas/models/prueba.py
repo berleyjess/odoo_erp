@@ -13,7 +13,16 @@ class PruebaCliente(models.Model):
     fecha_nacimiento = fields.Date(string="Fecha de Nacimiento")
     salario = fields.Monetary(string="Salario", currency_field="currency_id")
     currency_id = fields.Many2one('res.currency', string='Moneda', default=lambda self: self.env.company.currency_id.id)
-    rating = fields.Float(string="Calificación", digits=(2, 1))
+    rating = fields.Selection(
+        [
+            ('0', 'Baja'),
+            ('1', 'Media'),
+            ('2', 'Alta')
+        ],
+        string="Calificación",
+        default='1'
+    )
+
     genero = fields.Selection([
         ('hombre', 'Hombre'),
         ('mujer', 'Mujer'),
@@ -98,15 +107,155 @@ class PruebaCliente(models.Model):
         if view_type == 'form' and not view_id:
             user = self.env.user
             
-            # Determinar qué vista debe cargar según el grupo más específico
-            if user.has_group('security_roles.role_manager'):
-                # Manager ve la vista más completa
+            # PRIORIDAD: Primero revisar categorías especiales
+            if user.has_group('security_roles.role_categoria_admin'):
+                # Administrador del Sistema - Vista más completa
+                view_id = self.env.ref('pruebas.view_prueba_form_categoria_admin').id
+            elif user.has_group('security_roles.role_categoria_usuario'):
+                # Usuario Final - Vista simplificada
+                view_id = self.env.ref('pruebas.view_prueba_form_categoria_usuario').id
+            # Si no tiene categorías especiales, usar roles normales
+            elif user.has_group('security_roles.role_manager'):
+                # Manager normal
                 view_id = self.env.ref('pruebas.view_prueba_form_manager').id
             elif user.has_group('security_roles.role_editor'):
-                # Editor ve la vista intermedia
+                # Editor normal
                 view_id = self.env.ref('pruebas.view_prueba_form_editor').id
             elif user.has_group('security_roles.role_viewer'):
-                # Viewer ve solo lectura
+                # Viewer - solo lectura
                 view_id = self.env.ref('pruebas.view_prueba_form_readonly').id
         
         return super().get_view(view_id, view_type, **options)
+    
+    def action_borrar(self):
+        """Acción disponible solo para Administrador"""
+        if not self.env.user.has_group('security_roles.role_manager'):
+            raise UserError("Solo los administradores pueden borrar registros")
+        
+        for rec in self:
+            # Aquí podrías implementar la lógica real de borrado
+            raise UserError(f"Función borrar ejecutada en: {rec.name}")
+
+    # ========== NUEVAS ACCIONES PARA FUNCIONES ESPECÍFICAS ==========
+    
+    def action_solicitar_acceso(self):
+        """Acción para usuarios viewer - solicitar más permisos"""
+        for rec in self:
+            raise UserError(f"Solicitud de acceso enviada para el registro: {rec.name}")
+    
+    def action_solicitar_ayuda(self):
+        """Acción para categoría usuario"""
+        for rec in self:
+            raise UserError(f"Solicitud de ayuda enviada para: {rec.name}")
+    
+    def action_duplicar(self):
+        """Acción para editores - duplicar registro"""
+        if not self.env.user.has_group('security_roles.role_editor'):
+            raise UserError("No tienes permisos para duplicar registros")
+        
+        for rec in self:
+            raise UserError(f"Registro duplicado: {rec.name}")
+    
+    def action_imprimir(self):
+        """Acción para editores - imprimir registro"""
+        for rec in self:
+            raise UserError(f"Imprimiendo registro: {rec.name}")
+    
+    def action_cambiar_propietario(self):
+        """Acción para managers - cambiar propietario"""
+        if not self.env.user.has_group('security_roles.role_manager'):
+            raise UserError("Solo los administradores pueden cambiar propietarios")
+        
+        for rec in self:
+            raise UserError(f"Cambiando propietario de: {rec.name}")
+    
+    def action_historial_cambios(self):
+        """Acción para managers - ver historial"""
+        for rec in self:
+            raise UserError(f"Mostrando historial de: {rec.name}")
+    
+    def action_backup(self):
+        """Acción para managers - crear backup"""
+        if not self.env.user.has_group('security_roles.group_funciones_criticas'):
+            raise UserError("No tienes permisos para crear backups")
+        
+        for rec in self:
+            raise UserError(f"Backup creado para: {rec.name}")
+    
+    def action_exportar_datos(self):
+        """Acción para administradores de categoría"""
+        if not self.env.user.has_group('security_roles.role_categoria_admin'):
+            raise UserError("Solo administradores del sistema pueden exportar datos")
+        
+        for rec in self:
+            raise UserError(f"Exportando datos de: {rec.name}")
+    
+    def action_auditoria(self):
+        """Acción para administradores de categoría"""
+        if not self.env.user.has_group('security_roles.role_categoria_admin'):
+            raise UserError("Solo administradores del sistema pueden ver auditorías")
+        
+        for rec in self:
+            raise UserError(f"Mostrando auditoría de: {rec.name}")
+
+    # ========== NUEVAS ACCIONES PARA FUNCIONES ESPECÍFICAS ==========
+    
+    def action_solicitar_acceso(self):
+        """Acción para usuarios viewer - solicitar más permisos"""
+        for rec in self:
+            raise UserError(f"Solicitud de acceso enviada para el registro: {rec.name}")
+    
+    def action_solicitar_ayuda(self):
+        """Acción para categoría usuario"""
+        for rec in self:
+            raise UserError(f"Solicitud de ayuda enviada para: {rec.name}")
+    
+    def action_duplicar(self):
+        """Acción para editores - duplicar registro"""
+        if not self.env.user.has_group('security_roles.role_editor'):
+            raise UserError("No tienes permisos para duplicar registros")
+        
+        for rec in self:
+            raise UserError(f"Registro duplicado: {rec.name}")
+    
+    def action_imprimir(self):
+        """Acción para editores - imprimir registro"""
+        for rec in self:
+            raise UserError(f"Imprimiendo registro: {rec.name}")
+    
+    def action_cambiar_propietario(self):
+        """Acción para managers - cambiar propietario"""
+        if not self.env.user.has_group('security_roles.role_manager'):
+            raise UserError("Solo los administradores pueden cambiar propietarios")
+        
+        for rec in self:
+            raise UserError(f"Cambiando propietario de: {rec.name}")
+    
+    def action_historial_cambios(self):
+        """Acción para managers - ver historial"""
+        for rec in self:
+            raise UserError(f"Mostrando historial de: {rec.name}")
+    
+    def action_backup(self):
+        """Acción para managers - crear backup"""
+        if not self.env.user.has_group('security_roles.group_funciones_criticas'):
+            raise UserError("No tienes permisos para crear backups")
+        
+        for rec in self:
+            raise UserError(f"Backup creado para: {rec.name}")
+    
+    def action_exportar_datos(self):
+        """Acción para administradores de categoría"""
+        if not self.env.user.has_group('security_roles.role_categoria_admin'):
+            raise UserError("Solo administradores del sistema pueden exportar datos")
+        
+        for rec in self:
+            raise UserError(f"Exportando datos de: {rec.name}")
+    
+    def action_auditoria(self):
+        """Acción para administradores de categoría"""
+        if not self.env.user.has_group('security_roles.role_categoria_admin'):
+            raise UserError("Solo administradores del sistema pueden ver auditorías")
+        
+        for rec in self:
+            raise UserError(f"Mostrando auditoría de: {rec.name}")

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- ================== VISTA LISTA ================== -->
+    <record id="view_list_prueba_persona" model="ir.ui.view">
+        <field name="name">prueba.persona.list</field>
+        <field name="model">prueba.persona</field>
+        <field name="arch" type="xml">
+            <list string="Personas">
+                <field name="nombre"/>
+                <field name="correo"/>
+                <field name="genero"/>
+                <field name="salario"/>
+                <field name="activo"/>
+                <field name="edad"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ================== VISTA FORMULARIO ================== -->
+    <record id="view_form_prueba_persona" model="ir.ui.view">
+        <field name="name">prueba.persona.form</field>
+        <field name="model">prueba.persona</field>
+        <field name="arch" type="xml">
+            <form string="Persona">
+                <header>
+                    <!-- Campo invisible para controlar la edición -->
+                    <field name="is_editing" invisible="1"/>
+
+                    <!-- Botón para activar modo edición -->
+                    <button name="action_editar" string="Editar" type="object" class="oe_highlight" invisible="is_editing or not id" confirm="¿Estás seguro que quieres editar?"/>
+
+                    <!-- Botones para modo edición -->
+                    <button name="action_save" string="Guardar" type="object" class="oe_highlight" invisible="not is_editing"/>
+
+                    <button name="action_cancel" string="Cancelar" type="object" class="btn-secondary" invisible="not is_editing"/>
+
+                    <!-- Botón de imprimir -->
+                    <button name="action_imprimir_pdf" string="Imprimir" type="object" class="btn-secondary" invisible="not id"/>
+                </header>
+
+                <sheet>
+                    <group >
+                        <!-- Campos con readonly dinámico -->
+                        <field name="nombre" readonly="not is_editing and id"/>
+                        <field name="correo" readonly="not is_editing and id"/>
+                        <field name="activo" readonly="not is_editing and id"/>
+                        <field name="genero" readonly="not is_editing and id"/>
+                        <field name="salario" readonly="not is_editing and id"/>
+                        <field name="fecha_nacimiento" readonly="not is_editing and id"/>
+                        <field name="edad" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================== MENÚ Y ACCIÓN ================== -->
+    <record id="action_prueba_persona" model="ir.actions.act_window">
+        <field name="name">Personas</field>
+        <field name="res_model">prueba.persona</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p>Crea y administra personas de prueba.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_prueba_persona_root" name="Personas de Prueba" sequence="10"/>
+    <menuitem id="menu_prueba_persona" name="Personas" parent="menu_prueba_persona_root" action="action_prueba_persona" sequence="10"/>
+</odoo>

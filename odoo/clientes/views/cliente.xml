@@ -149,7 +149,7 @@
                 <header>
                     <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
                     <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
-                    <group invisible="id != False">
+                    <group invisible="id == False">
                         <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
                     </group>
                 </header>

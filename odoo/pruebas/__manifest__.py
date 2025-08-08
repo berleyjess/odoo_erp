@@ -6,7 +6,9 @@
     'version': '1.0',
     'depends': ['base'],
     'data': [
-        'views/prueba.xml',
+        'views/pruebapersona.xml',
+        'reports/report_templates.xml',
+        'reports/report_actions.xml',
     ],
     'installable': True,
     'application': True,

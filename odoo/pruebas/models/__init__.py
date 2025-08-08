@@ -1,1 +1,1 @@
-from . import prueba, pruebas_tag
+from . import prueba, pruebas_tag, pruebapersona
