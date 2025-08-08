@@ -8,7 +8,7 @@ class activados(models.Model):
     status = fields.Selection(string = "Dictamen", selection=[
         ('1', 'Habilitar'),
         ('0', 'Deshabilitar')
-    ], required = True, default = '0')
+    ], required = True, default = '1')
 
     descripcion = fields.Char(
         string='Descripción', required=True

@@ -28,7 +28,7 @@
                     <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
                     <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
                     <group invisible="id == False">
-                        <button name="action_editar" string="Editar" type="object" class="oe_highlight" groups="security_roles.role_editor,security_roles.role_manager"/>
+                        <button name="action_editar" string="Editar" type="object" class="oe_highlight"/><!-- groups="security_roles.role_editor,security_roles.role_manager"/-->
                     </group>
 
                     <group invisible="id != False">

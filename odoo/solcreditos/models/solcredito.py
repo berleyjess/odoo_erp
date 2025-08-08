@@ -1,10 +1,13 @@
 # solcreditos/models/solcredito.py
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
+import logging
+_logger = logging.getLogger(__name__)
 
 class solcredito(models.Model):
     _name = 'solcreditos.solcredito'
     _description = 'Asignacion de contratos a clientes'
+    _rec_name = 'contrato'
 
 ###########################################################################
 ##                      Dictámentes de Autorización
@@ -15,16 +18,16 @@ class solcredito(models.Model):
         'solcreditos.autorizacion',
         'solcredito_id',
         string='Autorizaciones',
-        help='Autorizaciones relacionadas con esta solicitud de crédito.'
     )
 
     #Apunta a la última autorización aprobada
-    ultimaautorizacion = fields.Many2one('solcreditos.autorizacion', string = "Autorizado", compute='_compute_ultima_aprobacion')
-    
+    ultimaautorizacion = fields.Many2one('solcreditos.autorizacion', string = "Autorizado", compute='_compute_ultima_autorizacion', store=True)
+
     @api.depends('autorizaciones')
-    def _compute_ultima_aprobacion(self):
+    def _compute_ultima_autorizacion(self):
         for proceso in self:
             if proceso.autorizaciones:
+                _logger.info("*** ULTIMA AUTORIZACION ***")
                 proceso.ultimaautorizacion = fields.first(
                     proceso.autorizaciones.sorted('id', reverse=True)[0]
                 )
@@ -39,13 +42,14 @@ class solcredito(models.Model):
             ('2', 'Rechazado')
         ], default='0')
 
-    ultimaautorizacion_fecha = fields.Date(string = "Fecha", related = 'ultimaautorizacion.fecha', readonly = True)
-    ultimaautorizacion_descripcion = fields.Char(string = "Descripción", related = 'ultimaautorizacion.descripcion', readonly = True)
-    ultimaautorizacion_status = fields.Selection(string = "Status", related = 'ultimaautorizacion.status', readonly = True)
+    ultimaautorizacion_fecha = fields.Date(string = "Fecha", related = 'ultimaautorizacion.fecha', readonly = True, stored = True)
+    ultimaautorizacion_descripcion = fields.Char(string = "Descripción", related = 'ultimaautorizacion.descripcion', readonly = True, stored = True)
+    ultimaautorizacion_status = fields.Selection(string = "Status", related = 'ultimaautorizacion.status', readonly = True, stored = True)
 
     @api.depends('ultimaautorizacion')
     def _compute_autorizada(self):
         for record in self:
+            _logger.info("*** AUTORIZACION AGREGADA ***")
             if record.ultimaautorizacion:
                 record.autorizada = record.ultimaautorizacion.status
             else:
@@ -64,10 +68,10 @@ class solcredito(models.Model):
     )
 
     #Apunta a la última autorización aprobada
-    ultimaactivacion = fields.Many2one('solcreditos.activacion', string = "Autorizado", compute='_compute_ultima_activacion')
-    ultimaactivacion_fecha = fields.Date(string = "Fecha", related = 'ultimaactivacion.fecha', readonly = True)
-    ultimaactivacion_descripcion = fields.Char(string = "Descripción", related = 'ultimaactivacion.descripcion', readonly = True)
-    ultimaactivacion_status = fields.Selection(string = "Status", related = 'ultimaactivacion.status', readonly = True)
+    ultimaactivacion = fields.Many2one('solcreditos.activacion', string = "Autorizado", compute='_compute_ultima_activacion', store = True)
+    ultimaactivacion_fecha = fields.Date(string = "Fecha", related = 'ultimaactivacion.fecha', readonly = True, store = True)
+    ultimaactivacion_descripcion = fields.Char(string = "Detalle", related = 'ultimaactivacion.descripcion', readonly = True, store = True)
+    ultimaactivacion_status = fields.Selection(string = "Status", related = 'ultimaactivacion.status', readonly = True, store = True)
 
     @api.depends('activaciones')
     def _compute_ultima_activacion(self):
@@ -90,8 +94,11 @@ class solcredito(models.Model):
 ##                      Otros Campos
 ###########################################################################
 
-    cliente = fields.Many2one('clientes.cliente', string="Nombre", required=True)
-    cliente_nombre = fields.Char(string="Cliente", compute="_compute_cliente_nombre", store=False)
+
+    contratoaprobado = fields.Boolean(string="Estado de Solicitud", readonly = True, compute='_checkautorizacionstatus')
+    contratoactivo = fields.Boolean(string = "Estatus", readonly = True, compute='_checkcontratoactivo')
+
+    cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
     cliente_estado_civil = fields.Selection(related='cliente.estado_civil', string="Estado Civil", readonly=True)
     cliente_conyugue = fields.Char(related='cliente.conyugue', string="Cónyuge", readonly=True)
     ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)
@@ -104,6 +111,7 @@ class solcredito(models.Model):
     )
 
     FIELDS_TO_UPPER = ['obligado', 'obligadoRFC']
+
 
     @staticmethod
     def _fields_to_upper(vals, fields):
@@ -125,7 +133,7 @@ class solcredito(models.Model):
     # Datos variables dependiendo del tipo de crédito
     monto = fields.Float(string="Monto solicitado", digits=(12, 4), required=True)
     vencimiento = fields.Date(string="Fecha de vencimiento", required=True, default=fields.Date.today)
-    superficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), compute="_compute_superficie", store=True, )
+    superficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), compute="_compute_superficie", store=True)
 
     obligado = fields.Char(string="Nombre", size=100, required=True)
     obligadodomicilio = fields.Many2one('localidades.localidad', string="Domicilio", required=True)
@@ -141,18 +149,34 @@ class solcredito(models.Model):
         readonly=True,
         copy=False,
         default=lambda self: _('Nuevo'),
-        help="Código único autogenerado con formato COD-000001"
+        #help="Código único autogenerado con formato COD-000001"
     )
 
+    is_editing = fields.Boolean(default=False, store = True)
 
     #def _generate_code(self):
     #    sequence = self.env['ir.sequence'].next_by_code('seq_solcredito_folio') or '/'
     #    number = sequence.split('/')[-1]
     #    return f"{number.zfill(6)}"
     
+    
+    @api.depends('ultimaautorizacion_status')
+    def _checkautorizacionstatus(self):
+        for record in self:
+            record.contratoaprobado = record.ultimaautorizacion_status == '1' or record.ultimaautorizacion_status == 'Aprobado'
+            _logger.info("*/*/*/*/*/*/ CONSULTANDO STATUS /*/*/*/*/*/* %s", record.contratoaprobado)
+
+    @api.depends('ultimaactivacion_status')
+    def _checkcontratoactivo(self):
+        ahora = fields.Date.today()
+        for record in self:
+            record.contratoactivo = ((record.ultimaactivacion_status == '1' or not record.activaciones) and record.contratoaprobado == True and record.vencimiento > ahora)
+            _logger.info("*/*/*/*/*/*/ CONSULTANDO HABILITACIÓN /*/*/*/*/*/* %s", record.contratoactivo)
+
     @api.model
     def create(self, vals):
         """Asegura que siempre haya fecha de vencimiento y monto al crear"""
+        #vals['is_editing'] = True
         if vals.get('folio', _('Nuevo')) == _('Nuevo'):
             vals['folio'] = self.env['ir.sequence'].next_by_code('solcreditos.folio') or _('Nuevo')
         # Manejo de fecha de vencimiento
@@ -164,8 +188,7 @@ class solcredito(models.Model):
             elif vals.get('contrato'):
                 contrato = self.env['contratos.contrato'].browse(vals['contrato'])
                 if hasattr(contrato, 'ciclo') and contrato.ciclo and contrato.ciclo.ffinal:
-                    vals['vencimiento'] = contrato.ciclo.ffinal
-        
+                    vals['vencimiento'] = contrato.ciclo.ffinal        
         # Manejo de monto
         if vals.get('contrato') and not vals.get('monto'):
             contrato = self.env['contratos.contrato'].browse(vals['contrato'])
@@ -177,12 +200,6 @@ class solcredito(models.Model):
         # --- FORZAR MAYÚSCULAS ---
         vals = self._fields_to_upper(vals, self.FIELDS_TO_UPPER)
         return super(solcredito, self).create(vals)
-
-    @api.depends('cliente')
-    def _compute_cliente_nombre(self):
-        """Compute para mostrar el nombre del cliente"""
-        for record in self:
-            record.cliente_nombre = record.cliente.nombre if record.cliente else ''
 
     @api.onchange('contrato', 'superficie')
     def _onchange_monto(self):
@@ -352,40 +369,35 @@ class solcredito(models.Model):
     #BOTONES "Editar", "Guardar y Volver" y "Cancelar y volver a la lista"
 
     def action_editar(self):
-        """Muestra un wizard de confirmación antes de abrir el registro en modo edición."""
+        self.ensure_one()
+        self.write({'is_editing': True})
         return {
             'type': 'ir.actions.act_window',
-            'res_model': 'solcreditos.confirmar.edicion.wizard',  # <-- nombre del modelo transitorio
+            'res_model': self.id,
             'view_mode': 'form',
-            'target': 'new',  # 'new' lo muestra como popup/modal
-            'context': {'active_id': self.id},
+            'target': 'current',  # 'new' lo muestra como popup/modal
         }
 
     
     def action_save_and_return(self):
-        """
-        Guarda los cambios y regresa a la vista de detalle.
-        """
         self.ensure_one()
-    
+        self.write({'is_editing': False})
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Detalles de la solicitud de crédito'),
-            'res_model': 'solcreditos.solcredito',
+            'res_model': self.id,
             'view_mode': 'form',
-            'views': [(self.env.ref('solcreditos.view_solcredito_detail').id, 'form')],
-            'target': 'current',
-            'res_id': self.id,
+            'target': 'current',  # 'new' lo muestra como popup/modal
         }
+    
     
     def action_cancelar_y_volver(self):
     # Redirige a la lista de solicitudes de crédito (sin guardar cambios)
+        self.ensure_one()
+        self.write({'is_editing': False})
         return {
             'type': 'ir.actions.act_window',
-            'name': 'Solicitudes de Créditos',
-            'res_model': 'solcreditos.solcredito',
-            'view_mode': 'list,form',
-            'target': 'current',
+            'view_mode': 'list',
+            'target': 'current',  # 'new' lo muestra como popup/modal
         }
 
     solcreditoestatu_id = fields.Many2one(
@@ -441,10 +453,24 @@ class solcredito(models.Model):
             }
             
         }
-    #solcredito_opcion = fields.Char(string="Estatus", compute="_compute_estatus_display", store=False)
 
-    #@api.depends('estatu')
-    #def _compute_estatus_display(self):
-    #    """Compute para mostrar el estatus de la solicitud de crédito """
-    #    for record in self:
-    #        record.estatu_nombre = record.estatu.nombre if record.estatu else ''
+    @api.model
+    def _get_view(self, view_id=None, view_type='form', **options):
+        _logger.info("**************************** ENTRADA A _get_view ******************************")
+
+        if view_type == 'form' and not view_id:
+            context = options.get('context', {})
+            params = context.get('params', {})
+            res_id = params.get('id')
+
+            if not res_id:
+                _logger.info("**************************** MODO CREACIÓN ******************************")
+                #view = self.env.ref('solcreditos.view_solcredito_edit', raise_if_not_found=False)
+            else:
+                _logger.info("**************************** MODO EDICIÓN ******************************")
+                #view = self.env.ref('solcreditos.view_solcredito_detail', raise_if_not_found=False)
+
+            #if view:
+            #   return super()._get_view(view.id, view_type, **options)
+
+        return super()._get_view(view_id, view_type, **options)

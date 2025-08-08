@@ -8,7 +8,7 @@ class venta(models.Model):
     
     codigo = fields.Char(string="Código", required = True)
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required = True)
-    contrato = fields.Many2one('contratos.contrato', string="Contrato")
+    contrato = fields.Many2one('solcreditos.solcredito', string="Contrato", domain="[('cliente', '=', cliente)]" if cliente else "[('id', '=', 0)]")
     observaciones = fields.Char(string = "Observaciones", size=32)
     fecha = fields.Date(string="Fecha", default=lambda self: date.today())
     detalle = fields.One2many('ventas.detalleventa_ext', 'venta_id', string="Ventas")
@@ -23,10 +23,14 @@ class venta(models.Model):
     activa = fields.Boolean(string="Activa", default = True)
     #folio = fields.Char(string="Folio", readonly=True, copy=False, default=lambda self: self.env['ir.sequence'].next_by_code('mi.modelo.folio'))
 
+    @api.onchange('cliente')
+    def _onchange_cliente(self):
+        self.contrato = False
+
     metododepago = fields.Selection(
         selection = [
-            ("PPD", "Pago por parcialidades/Crédíto"),
-            ("PUE", "Pago en una sola exhibición/Contado")
+            ("PPD", "Crédíto"),
+            ("PUE", "Contado")
         ], string="Método de Pago", required=True, default="PPD"
     )
 

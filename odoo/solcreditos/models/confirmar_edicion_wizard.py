@@ -14,6 +14,6 @@ class ConfirmarEdicionWizard(models.TransientModel):
             'res_model': 'solcreditos.solcredito',
             'res_id': active_id,
             'view_mode': 'form',
-            'view_id': self.env.ref('solcreditos.view_asignacion_edit').id,
+            'view_id': self.env.ref('solcreditos.view_solcredito_edit').id,
             'target': 'current',
         }
