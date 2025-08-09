@@ -7,7 +7,9 @@
     'depends': ['base', 'clientes', 'contratos', 'predios', 'cuentasxcobrar'],
     'data': [
         'views/solcredito.xml',
-        'data/seq_code.xml'
+        'views/cxc_inherit_solcreditos.xml',
+        'data/seq_code.xml',
+
     ],
     'installable': True,
     'application': True,

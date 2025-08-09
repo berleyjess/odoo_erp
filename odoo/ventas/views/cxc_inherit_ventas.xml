@@ -1,0 +1,24 @@
+<odoo>
+    <record id="view_cxc_list_add_venta" model="ir.ui.view">
+        <field name="name">cxc.list.add.venta</field>
+        <field name="model">cuentasxcobrar.cuentaxcobrar</field>
+        <field name="inherit_id" ref="cuentasxcobrar.view_cxc_list_base"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list/field[@name='fecha']" position="after">
+                <field name="venta_id"/>
+                <field name="detalle_venta_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_cxc_search_add_group_venta" model="ir.ui.view">
+        <field name="name">cxc.search.add.group.venta</field>
+        <field name="model">cuentasxcobrar.cuentaxcobrar</field>
+        <field name="inherit_id" ref="cuentasxcobrar.view_cxc_search_base"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <filter name="group_by_venta" string="Agrupar por Venta" context="{'group_by': 'venta_id'}"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,13 @@
+<odoo>
+    <!-- Extiende la lista base de CxC para mostrar contrato_id -->
+    <record id="view_cxc_list_add_contrato" model="ir.ui.view">
+        <field name="name">cxc.list.add.contrato</field>
+        <field name="model">cuentasxcobrar.cuentaxcobrar</field>
+        <field name="inherit_id" ref="cuentasxcobrar.view_cxc_list_base"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list/field[@name='fecha']" position="after">
+                <field name="contrato_id"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

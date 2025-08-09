@@ -1,3 +1,4 @@
+#ventas/models/venta
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 from datetime import date
@@ -8,7 +9,12 @@ class venta(models.Model):
     
     codigo = fields.Char(string="Código", required = False)
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required = True)
-    contrato = fields.Many2one('solcreditos.solcredito', string="Contrato", domain="[('cliente', '=', cliente)]" if cliente else "[('id', '=', 0)]")
+    contrato = fields.Many2one(
+    'solcreditos.solcredito',
+    string="Contrato",
+    domain="[('cliente', '=', cliente)]"
+    )
+
     observaciones = fields.Char(string = "Observaciones", size=32)
     fecha = fields.Date(string="Fecha", default=lambda self: date.today())
     detalle = fields.One2many('ventas.detalleventa_ext', 'venta_id', string="Ventas")
@@ -61,6 +67,7 @@ class venta(models.Model):
         self.ieps = sum(line.ieps for line in self.detalle)
         self.total = sum(line.importe for line in self.detalle)
 
+
     @api.constrains('detalle')
     def _check_detalle_venta(self):
         for record in self:
@@ -71,8 +78,27 @@ class venta(models.Model):
                 raise ValidationError(_('La Cantidad/Precio no pueden ser 0'))
             if not linea.producto:
                 raise ValidationError(_('Debe seleccionar un producto'))
-            
+
+    def _post_to_statement_if_needed(self):
+        CxC = self.env['cuentasxcobrar.cuentaxcobrar']
+        for v in self:
+            if v.metododepago == 'PPD' and v.contrato:
+                for line in v.detalle:
+                    if not CxC.search_count([('contrato_id','=',v.contrato.id), ('detalle_venta_id','=',line.id)]):
+                        CxC.create_from_sale_line(v.contrato, v, line)
+
     @api.model
+    def create(self, vals):
+        rec = super().create(vals)
+        rec._post_to_statement_if_needed()
+        return rec
+
+    def write(self, vals):
+        res = super().write(vals)
+        self._post_to_statement_if_needed()
+        return res
+      
+    """@api.model
     def create(self, vals):
         # Primero creamos el registro de venta
         lventas = super(venta, self).create(vals)
@@ -97,4 +123,4 @@ class venta(models.Model):
                     'detalle_id': linea.id,
                     'contrato_id': self.contrato,
                 })
-        return lventas
+        return lventas"""

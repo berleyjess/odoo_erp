@@ -128,23 +128,21 @@
         </field>
     </record>
 
-   <record id="view_solcredito_detail" model="ir.ui.view">
+    <record id="view_solcredito_detail" model="ir.ui.view">
         <field name="name">asignacion.form</field>
         <field name="model">solcreditos.solcredito</field>
         <field name="arch" type="xml">
             <form autosave="False">
                 <header>
                     <button name="action_editar" string="Editar" type="object" class="oe_highlight" invisible="not id or is_editing"/>
-                    
+
                     <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save" invisible="id or not is_editing"/>
 
                     <button name="action_autorizacion" string="Autorizar contrato" type="object" class="btn btn-primary" icon="fa-check" invisible="not id or is_editing or contratoaprobado"/>
 
-                    <button name="action_activacion" string="Bloquear contrato" type="object" class="btn btn-primary" icon="fa-toggle-on"
-                    invisible="not id or is_editing or not contratoaprobado or not contratoactivo"/>
+                    <button name="action_activacion" string="Bloquear contrato" type="object" class="btn btn-primary" icon="fa-toggle-on" invisible="not id or is_editing or not contratoaprobado or not contratoactivo"/>
 
-                    <button name="action_activacion" string="Habilitar contrato" type="object" class="btn btn-primary" icon="fa-toggle-on"
-                    invisible="not id or is_editing or not contratoaprobado or contratoactivo"/>
+                    <button name="action_activacion" string="Habilitar contrato" type="object" class="btn btn-primary" icon="fa-toggle-on" invisible="not id or is_editing or not contratoaprobado or contratoactivo"/>
 
                     <button name="action_edocuenta" string="Estado de Cuenta" type="object" class="oe_highlight" invisible="not id or is_editing"/>
                 </header>
@@ -261,7 +259,7 @@
                 </sheet>
             </form>
         </field>
-    </record>   
+    </record>
 
     <record id="view_activacion_form" model="ir.ui.view">
         <field name="name">activacion.form</field>
@@ -278,24 +276,26 @@
         </field>
     </record>
 
-    <record id="view_edodecuenta_tree" model="ir.ui.view">
-        <field name="name">activacion.form</field>
-        <field name="model">solcreditos.cuentaxcobrar_ext</field>
+    <record id="view_edodecuenta_list" model="ir.ui.view">
+        <field name="name">solcredito.edodecuenta.list</field>
+        <field name="model">cuentasxcobrar.cuentaxcobrar</field>        <!-- <- modelo base -->
         <field name="arch" type="xml">
-            <list editable="bottom">
+            <list string="Estado de cuenta" editable="bottom">
                 <field name="fecha"/>
                 <field name="referencia"/>
+                <field name="concepto"/>
                 <field name="cantidad"/>
                 <field name="precio"/>
                 <field name="importe"/>
                 <field name="iva"/>
                 <field name="ieps"/>
-                <field name="abono"/>
                 <field name="cargo"/>
+                <field name="abono"/>
                 <field name="saldo"/>
             </list>
         </field>
-    </record>   
+    </record>
+
 
     <!-- Menús -->
     <menuitem id="menu_root" name="Solicitudes de Créditos" sequence="10"/>

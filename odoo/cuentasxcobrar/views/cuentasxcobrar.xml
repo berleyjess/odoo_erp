@@ -1,29 +1,44 @@
 <odoo>
-    <!-- Acción de Menú (DEBE IR PRIMERO) -->
-    <record id="action_cuentas" model="ir.actions.act_window">
-        <field name="name">cuentas Agrícolas</field>
-        <field name="res_model">cuentasxcobrar.cuentaxcobrar</field>
-        <field name="view_mode">autorizacion</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Añade una Cuenta x Cobrar</p>
-        </field>
-    </record>
-
-    <!-- Vista árbol -->
-    <record id="view_ciclo_list" model="ir.ui.view">
-        <field name="name">cuentas.list</field>
+    <!--cuentasxcobrar/views/cuentasxcobrar.xml-->
+    <record id="view_cxc_list_base" model="ir.ui.view">
+        <field name="name">cxc.list.base</field>
         <field name="model">cuentasxcobrar.cuentaxcobrar</field>
         <field name="arch" type="xml">
-            <list>
+            <list string="Estado de cuenta" editable="bottom">
                 <field name="fecha"/>
-                <field name="abono"/>
+                <field name="referencia"/>
+                <field name="concepto"/>
+                <field name="cantidad"/>
+                <field name="precio"/>
+                <field name="importe"/>
+                <field name="iva"/>
+                <field name="ieps"/>
                 <field name="cargo"/>
+                <field name="abono"/>
                 <field name="saldo"/>
             </list>
         </field>
     </record>
 
-    <!-- Menús -->
-    <menuitem id="menu_root" name="cuentas" sequence="10" />
-    <menuitem id="menu_action" name="Cuentas x Cobrar" parent="menu_root" action="action_cuentas" />
+    <!-- search base, para que ventas pueda heredar el group_by -->
+    <record id="view_cxc_search_base" model="ir.ui.view">
+        <field name="name">cxc.search.base</field>
+        <field name="model">cuentasxcobrar.cuentaxcobrar</field>
+        <field name="arch" type="xml">
+            <search string="Buscar">
+                <field name="referencia"/>
+                <field name="concepto"/>
+                <filter name="today" string="Hoy" domain="[('fecha','=', context_today())]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_cxc" model="ir.actions.act_window">
+        <field name="name">Estado de cuenta</field>
+        <field name="res_model">cuentasxcobrar.cuentaxcobrar</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_cxc_root" name="Cuentas" sequence="10"/>
+    <menuitem id="menu_cxc_action" name="Cuentas x Cobrar" parent="menu_cxc_root" action="action_cxc"/>
 </odoo>

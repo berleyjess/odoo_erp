@@ -1,3 +1,4 @@
+#ventas/models/detalleventa_ext
 from odoo import models, fields, api
 
 class detalleventa_ext(models.Model):

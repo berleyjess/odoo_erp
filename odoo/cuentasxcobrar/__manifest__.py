@@ -4,7 +4,7 @@
     'description': """Estados de cuenta de clientes""",
     'author': "Grupo Safinsa",
     'version': '1.0',
-    'depends': ['base', 'detalleventas'],
+    'depends': ['base'],
     'data': [
         'views/cuentasxcobrar.xml',
     ],

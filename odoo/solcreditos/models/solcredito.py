@@ -110,7 +110,8 @@ class solcredito(models.Model):
         ], required = True, string="El cliente es responsable del crédito?", default="0"
     )
 
-    edodecuenta = fields.One2many('solcreditos.cuentaxcobrar_ext', 'contrato_id', "Estado de cuenta")
+    edodecuenta = fields.One2many('cuentasxcobrar.cuentaxcobrar', 'contrato_id', string="Estado de cuenta")
+
     FIELDS_TO_UPPER = ['obligado', 'obligadoRFC']
 
 
@@ -454,11 +455,11 @@ class solcredito(models.Model):
             }
             
         }
-    
+    """
     def action_edocuenta(self):
         self.ensure_one()
-        """if not self.autorizaciones:
-            raise ValidationError(_("No hay autorizaciones disponibles para esta solicitud."))"""
+        if not self.autorizaciones:
+            raise ValidationError(_("No hay autorizaciones disponibles para esta solicitud."))
         
         return {
             'type': 'ir.actions.act_window',
@@ -471,6 +472,7 @@ class solcredito(models.Model):
             }
             
         }
+    """
 
     @api.model
     def _get_view(self, view_id=None, view_type='form', **options):
@@ -492,3 +494,38 @@ class solcredito(models.Model):
             #   return super()._get_view(view.id, view_type, **options)
 
         return super()._get_view(view_id, view_type, **options)
+    
+    def _sync_statement_from_sales(self):
+        """Crea líneas de estado por cada renglón de venta (si no existen)."""
+        CxC = self.env['cuentasxcobrar.cuentaxcobrar']
+        Venta = self.env['ventas.venta']
+
+        for rec in self:
+            ventas = Venta.search([('contrato', '=', rec.id)])
+            for v in ventas:
+                for line in v.detalle:
+                    # Si ya existe (por la constraint, buscar liviano)
+                    exists = CxC.search_count([
+                        ('contrato_id', '=', rec.id),
+                        ('detalle_venta_id', '=', line.id),
+                    ])
+                    if not exists:
+                        CxC.create_from_sale_line(rec, v, line)
+
+    def action_edocuenta(self):
+        self.ensure_one()
+        self._sync_statement_from_sales()  # crea lo que falte
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Estado de cuenta',
+            'res_model': 'cuentasxcobrar.cuentaxcobrar',
+            'view_mode': 'list,form',
+            'target': 'current',
+            'domain': [('contrato_id', '=', self.id)],
+            'context': {
+                'default_contrato_id': self.id,
+                # opcional: ordena por venta/fecha
+                'search_default_group_by_venta': 1,  # si defines un filtro agrupado en la vista
+            },
+        }

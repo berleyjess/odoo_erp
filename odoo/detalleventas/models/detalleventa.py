@@ -4,29 +4,39 @@ class detalleventa(models.Model):
     _name='detalleventas.detalleventa'
     _description = 'Detalle de la Venta de los artículos'
 
-    producto = fields.Many2one('productos.producto', string="Artículo", required = True)
-    cantidad = fields.Float(string="Cantidad", required = True, default=0.0)
-    precio = fields.Float(string = "Precio", required = True, default=0.0)
-    importeb = fields.Float(compute='_calcimporte', string="Importe")
-    importe = fields.Float(compute='_calcimporte',string="Importe")
+    producto = fields.Many2one('productos.producto', string="Artículo", required=True)
+    cantidad = fields.Float(string="Cantidad", required=True, default=0.0)
+    precio   = fields.Float(string="Precio", required=True, default=0.0)
 
-    #Impuestos
-    iva = fields.Float(string="iva", readonly=True)
-    ieps = fields.Float(string="ieps", readonly=True)
+    importeb = fields.Float(string="Importe base", compute='_compute_importes', store=True)
+    importe  = fields.Float(string="Importe total", compute='_compute_importes', store=True)
 
-    #Movimientos de Bodega
-    retiros = fields.Float(string="Retiros")
+    iva  = fields.Float(string="iva",  compute='_compute_importes', store=True)
+    ieps = fields.Float(string="ieps", compute='_compute_importes', store=True)
+
+    retiros      = fields.Float(string="Retiros")
     devoluciones = fields.Float(string="Devoluciones")
 
-    @api.depends('precio', 'cantidad', 'producto')
-    def _calcimporte(self):
-        for field in self:
-            self.importeb = self.cantidad * self.precio
-            self.iva = float(self.producto.iva or 0) * self.importeb
-            self.ieps = float(self.producto.ieps or 0)* self.importeb
-            self.importe = self.importeb + self.iva + self.ieps
+    @api.depends('cantidad', 'precio', 'producto', 'producto.iva', 'producto.ieps')
+    def _compute_importes(self):
+        for rec in self:
+            qty   = float(rec.cantidad or 0.0)
+            price = float(rec.precio or 0.0)
+            base  = qty * price
 
+            # Si tus productos guardan tasas como '0.16' (texto) o 0.16 (float),
+            # esto lo vuelve número siempre.
+            try:
+                iva_rate = float(rec.producto.iva or 0.0)
+            except Exception:
+                iva_rate = 0.0
+            try:
+                ieps_rate = float(rec.producto.ieps or 0.0)
+            except Exception:
+                ieps_rate = 0.0
 
-    
-
+            rec.importeb = base
+            rec.iva      = base * iva_rate
+            rec.ieps     = base * ieps_rate
+            rec.importe  = base + rec.iva + rec.ieps
 

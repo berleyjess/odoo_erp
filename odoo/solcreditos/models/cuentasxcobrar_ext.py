@@ -1,13 +1,18 @@
-from odoo import fields, models, api
+# solcreditos/models/cuentasxcobrar_ext.py
+from odoo import fields, models
 
-class cuentasxcobrar_ext(models.Model):
-    _name = 'solcreditos.cuentaxcobrar_ext'
+class CxCContrato(models.Model):
     _inherit = 'cuentasxcobrar.cuentaxcobrar'
 
-    contrato_id = fields.Many2one('solcreditos.solcredito', string = "Contrato")
+    contrato_id = fields.Many2one(
+        'solcreditos.solcredito',
+        string="Solicitud/Contrato",
+        index=True,
+        ondelete='cascade'
+    )
 
     
-    @api.model
+    """@api.model
     def create(self, vals):
         # 1. Primero creamos el registro principal
         record = super().create(vals)
@@ -62,7 +67,7 @@ class cuentasxcobrar_ext(models.Model):
                             float(vals.get('ieps', detalle.ieps))
 
                 })
-            """
+            
             elif record.cargo_id:
                 record.referencia = record.cargo_id.folio
                 record.concepto = record.cargo_id.detalle
@@ -83,5 +88,4 @@ class cuentasxcobrar_ext(models.Model):
                 record.ieps = 0
                 record.cargo = 0
                 record.abono = record.importe + record.iva + record.ieps
-            """
-            return super().write(vals)
+            return super().write(vals)"""
