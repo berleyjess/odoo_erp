@@ -22,9 +22,9 @@ class detalleventa(models.Model):
     def _calcimporte(self):
         for field in self:
             self.importeb = self.cantidad * self.precio
-            self.iva = self.producto.iva * self.importeb
-            self.ieps = self.producto.ieps * self.importeb
-            self.importe = self.importeb + self.iva +  self.ieps
+            self.iva = float(self.producto.iva or 0) * self.importeb
+            self.ieps = float(self.producto.ieps or 0)* self.importeb
+            self.importe = self.importeb + self.iva + self.ieps
 
 
     

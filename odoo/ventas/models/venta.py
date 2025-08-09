@@ -6,7 +6,7 @@ class venta(models.Model):
     _name = 'ventas.venta'
     _description = 'Venta de artículos'
     
-    codigo = fields.Char(string="Código", required = True)
+    codigo = fields.Char(string="Código", required = False)
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required = True)
     contrato = fields.Many2one('solcreditos.solcredito', string="Contrato", domain="[('cliente', '=', cliente)]" if cliente else "[('id', '=', 0)]")
     observaciones = fields.Char(string = "Observaciones", size=32)
@@ -69,5 +69,32 @@ class venta(models.Model):
         for linea in record.detalle:
             if linea.cantidad <= 0 or linea.precio <= 0:
                 raise ValidationError(_('La Cantidad/Precio no pueden ser 0'))
-            if not linea.detalle.producto:
+            if not linea.producto:
                 raise ValidationError(_('Debe seleccionar un producto'))
+            
+    @api.model
+    def create(self, vals):
+        # Primero creamos el registro de venta
+        lventas = super(venta, self).create(vals)
+        
+        # Luego creamos las cuentas por cobrar
+        if lventas.detalle:
+            for linea in lventas.detalle:
+                self.env['solcreditos.cuentaxcobrar_ext'].create({
+                    'detalle_id': linea.id,
+                    'contrato_id': self.contrato,
+                })
+        return lventas
+    
+    def write(self, vals):
+        # Primero creamos el registro de venta
+        lventas  = super(venta, self).create(vals)
+        
+        # Luego creamos las cuentas por cobrar
+        if lventas.detalle:
+            for linea in lventas.detalle:
+                self.env['solcreditos.cuentaxcobrar_ext'].create({
+                    'detalle_id': linea.id,
+                    'contrato_id': self.contrato,
+                })
+        return lventas

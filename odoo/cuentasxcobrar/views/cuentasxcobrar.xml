@@ -1,0 +1,29 @@
+<odoo>
+    <!-- Acción de Menú (DEBE IR PRIMERO) -->
+    <record id="action_cuentas" model="ir.actions.act_window">
+        <field name="name">cuentas Agrícolas</field>
+        <field name="res_model">cuentasxcobrar.cuentaxcobrar</field>
+        <field name="view_mode">autorizacion</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Añade una Cuenta x Cobrar</p>
+        </field>
+    </record>
+
+    <!-- Vista árbol -->
+    <record id="view_ciclo_list" model="ir.ui.view">
+        <field name="name">cuentas.list</field>
+        <field name="model">cuentasxcobrar.cuentaxcobrar</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="fecha"/>
+                <field name="abono"/>
+                <field name="cargo"/>
+                <field name="saldo"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Menús -->
+    <menuitem id="menu_root" name="cuentas" sequence="10" />
+    <menuitem id="menu_action" name="Cuentas x Cobrar" parent="menu_root" action="action_cuentas" />
+</odoo>

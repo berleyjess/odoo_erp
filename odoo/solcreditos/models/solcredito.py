@@ -110,6 +110,7 @@ class solcredito(models.Model):
         ], required = True, string="El cliente es responsable del crédito?", default="0"
     )
 
+    edodecuenta = fields.One2many('solcreditos.cuentaxcobrar_ext', 'contrato_id', "Estado de cuenta")
     FIELDS_TO_UPPER = ['obligado', 'obligadoRFC']
 
 
@@ -448,6 +449,23 @@ class solcredito(models.Model):
             'view_mode': 'form',
             'target': 'new',
             'name': 'Habilitar/Deshabilitar Contrato',
+            'context': {
+                'default_solcredito_id': self.id
+            }
+            
+        }
+    
+    def action_edocuenta(self):
+        self.ensure_one()
+        """if not self.autorizaciones:
+            raise ValidationError(_("No hay autorizaciones disponibles para esta solicitud."))"""
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'solcreditos.cuentaxcobrar_ext',
+            'view_mode': 'form',
+            'target': 'new',
+            'name': 'Estado e cuenta',
             'context': {
                 'default_solcredito_id': self.id
             }
