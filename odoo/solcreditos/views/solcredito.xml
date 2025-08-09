@@ -145,6 +145,8 @@
 
                     <button name="action_activacion" string="Habilitar contrato" type="object" class="btn btn-primary" icon="fa-toggle-on"
                     invisible="not id or is_editing or not contratoaprobado or contratoactivo"/>
+
+                    <button name="action_edocuenta" string="Estado de Cuenta" type="object" class="oe_highlight" invisible="not id or is_editing"/>
                 </header>
                 <sheet>
                     <group>
@@ -273,6 +275,25 @@
                     </group>
                 </sheet>
             </form>
+        </field>
+    </record>
+
+    <record id="view_edodecuenta_tree" model="ir.ui.view">
+        <field name="name">activacion.form</field>
+        <field name="model">solcreditos.cuentaxcobrar_ext</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="fecha"/>
+                <field name="referencia"/>
+                <field name="cantidad"/>
+                <field name="precio"/>
+                <field name="importe"/>
+                <field name="iva"/>
+                <field name="ieps"/>
+                <field name="abono"/>
+                <field name="cargo"/>
+                <field name="saldo"/>
+            </list>
         </field>
     </record>   
 

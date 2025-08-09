@@ -24,7 +24,7 @@ class producto(models.Model):
 
     # Iva: Solo 8 y 16
     iva = fields.Selection(
-        selection=[('8', "8"), ('16', "16")],
+        selection=[('0', '0.0'), ('8', '8.0'), ('16', '16.0')],
         string="IVA",
         required=True,
         default='16'
