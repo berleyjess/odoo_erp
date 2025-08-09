@@ -5,6 +5,16 @@ class PruebaPersona(models.Model):
     _description = 'Persona de Prueba'
 
     nombre = fields.Char("Nombre")
+    ine = fields.Char("Ine")
+    rfc = fields.Char("RFC")
+    superficie = fields.Char("Superfice")
+    cultivo = fields.Char ("Cultivo")
+    fechayhora = fields.Char ("Fecha y hora")
+    ubicacion = fields.Char ("Ubicación")
+    monto = fields.Char ("Monto")
+    montoletra = fields.Char("Monto en letra")
+    documento = fields.Char ("Documento")
+    direccion = fields.Char ("Direccion")
     correo = fields.Char("Correo")
     activo = fields.Boolean("Activo")
     genero = fields.Selection([('masculino','Masculino'),('femenino','Femenino')], string="Género")
