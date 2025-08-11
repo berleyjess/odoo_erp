@@ -26,7 +26,8 @@
         </field>
     </record>
 
-    <!-- Vista DETALLE -->
+
+    <!--
     <record id="view_solcredito_edit" model="ir.ui.view">
         <field name="name">asignacion.form</field>
         <field name="model">solcreditos.solcredito</field>
@@ -57,7 +58,7 @@
                             </span>
                         </div>
                         <field name="vencimiento" readonly="not cliente or not contrato"/>
-                        <!-- CORREGIDO: Hacer editable solo para tipo "1" -->
+                        
                         <field name="superficie" readonly="not cliente or not contrato or tipocredito_val == '0'" invisible="tipocredito_val == '2'" />
                         <field name="folio" readonly="1"/>
                     </group>
@@ -72,10 +73,10 @@
 
                     </group>
 
-                    <!-- CORREGIDO: Agregar campo tipocredito_val oculto para que funcione la condición -->
+                  
                     <field name="tipocredito_val" invisible="1"/>
 
-                    <!-- CORREGIDO: Mostrar predios solo para tipo AVIO (tipocredito == '0') -->
+                   
                     <group name="predios" string="Predios" invisible="tipocredito_val != '0'">
                         <field name="predios" readonly="not cliente or not contrato">
                             <list editable="bottom">
@@ -91,12 +92,12 @@
                                 <field name="colsur" width="90px"/>
                                 <field name="coleste" width="90px"/>
                                 <field name="coloeste" width="90px"/>
-                                <!-- Aquí podrías agregar georeferencias como smart button o vista aparte -->
+                               
                             </list>
                         </field>
                     </group>
 
-                    <!-- CORREGIDO: Mostrar garantías solo para tipo AVIO (tipocredito == '0') -->
+                  
                     <group name="garantias" string="Garantías" invisible="tipocredito_val != '0'">
                         <div class="o_row">
                             <field name="garantias" readonly="not cliente or not contrato">
@@ -126,8 +127,8 @@
                 </sheet>
             </form>
         </field>
-    </record>
-
+    </record-->
+    
     <record id="view_solcredito_detail" model="ir.ui.view">
         <field name="name">asignacion.form</field>
         <field name="model">solcreditos.solcredito</field>
@@ -278,9 +279,10 @@
 
     <record id="view_edodecuenta_list" model="ir.ui.view">
         <field name="name">solcredito.edodecuenta.list</field>
-        <field name="model">cuentasxcobrar.cuentaxcobrar</field>        <!-- <- modelo base -->
+        <field name="model">cuentasxcobrar.cuentaxcobrar</field>
+        <!--field name="model">solcredito.cuentaxcobrar_ext</field-->
         <field name="arch" type="xml">
-            <list string="Estado de cuenta" editable="bottom">
+            <list string="Estado de cuenta">
                 <field name="fecha"/>
                 <field name="referencia"/>
                 <field name="concepto"/>

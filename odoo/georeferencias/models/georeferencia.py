@@ -4,5 +4,5 @@ class georeferencias(models.Model):
     _name = "georeferencias.georeferencia"
     _description = "Georeferencias"
 
-    lat = fields.Float(string="Latitud", required=True)
-    lon = fields.Float(string="Longitud", required=True)
+    lat = fields.Float(string="Latitud", required=True, digits=(16, 5))
+    lon = fields.Float(string="Longitud", required=True, digits=(16, 5))

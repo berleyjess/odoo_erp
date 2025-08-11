@@ -95,8 +95,8 @@ class solcredito(models.Model):
 ###########################################################################
 
 
-    contratoaprobado = fields.Boolean(string="Estado de Solicitud", readonly = True, compute='_checkautorizacionstatus')
-    contratoactivo = fields.Boolean(string = "Estatus", readonly = True, compute='_checkcontratoactivo')
+    contratoaprobado = fields.Boolean(string="Estado de Solicitud", readonly = True, compute='_checkautorizacionstatus', store = True)
+    contratoactivo = fields.Boolean(string = "Estatus", readonly = True, compute='_checkcontratoactivo', store = True)
 
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
     cliente_estado_civil = fields.Selection(related='cliente.estado_civil', string="Estado Civil", readonly=True)
@@ -133,8 +133,8 @@ class solcredito(models.Model):
     garantias = fields.One2many('solcreditos.garantia_ext', 'solcredito_id', string = "Garantías")
     
     # Datos variables dependiendo del tipo de crédito
-    monto = fields.Float(string="Monto solicitado", digits=(12, 4), required=True)
-    vencimiento = fields.Date(string="Fecha de vencimiento", required=True, default=fields.Date.today)
+    monto = fields.Float(string="Monto solicitado", digits=(12, 4), required=True, store = True)
+    vencimiento = fields.Date(string="Fecha de vencimiento", required=True, default=fields.Date.today, store = True)
     superficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), compute="_compute_superficie", store=True)
 
     obligado = fields.Char(string="Nombre", size=100, required=True)
@@ -168,11 +168,10 @@ class solcredito(models.Model):
             record.contratoaprobado = record.ultimaautorizacion_status == '1' or record.ultimaautorizacion_status == 'Aprobado'
             _logger.info("*/*/*/*/*/*/ CONSULTANDO STATUS /*/*/*/*/*/* %s", record.contratoaprobado)
 
-    @api.depends('ultimaactivacion_status')
+    @api.depends('ultimaactivacion_status', 'ultimaautorizacion_status')
     def _checkcontratoactivo(self):
-        ahora = fields.Date.today()
         for record in self:
-            record.contratoactivo = ((record.ultimaactivacion_status == '1' or not record.activaciones) and record.contratoaprobado == True and record.vencimiento > ahora)
+            record.contratoactivo = ((record.ultimaactivacion_status == '1' or not record.activaciones) and record.contratoaprobado == True)
             _logger.info("*/*/*/*/*/*/ CONSULTANDO HABILITACIÓN /*/*/*/*/*/* %s", record.contratoactivo)
 
     @api.model
@@ -519,8 +518,10 @@ class solcredito(models.Model):
         return {
             'type': 'ir.actions.act_window',
             'name': 'Estado de cuenta',
+            #'res_model': 'solcredito.cuentaxcobrar_ext',
             'res_model': 'cuentasxcobrar.cuentaxcobrar',
-            'view_mode': 'list,form',
+            'view_mode': 'list',
+            #'view_mode': 'list,form',
             'target': 'current',
             'domain': [('contrato_id', '=', self.id)],
             'context': {

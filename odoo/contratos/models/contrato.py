@@ -23,6 +23,10 @@ class contrato(models.Model):
     
     display_name = fields.Char(compute='_compute_display_name', store=True, string="Contrato")
 
+    @api.onchange('tipocredito')
+    def _cambiotipo(self):
+        self.cultivo = False
+
     @api.depends('ciclo', 'cultivo', 'tipocredito')
     def _compute_display_name(self):
         for record in self:
