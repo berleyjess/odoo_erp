@@ -6,8 +6,8 @@
     'version': '1.0',
     'depends': ['base'],
     'data': [
-        'views/empresa.xml',
         'data/seq_code.xml',
+        'views/empresa.xml',
     ],
     'installable': True,
     'application': True,

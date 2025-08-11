@@ -12,7 +12,5 @@ class detalleventa_ext(models.Model):
     def _updateprice(self):
         for record in self:
             if record.producto:
-                if record.venta_id.metododepago == 'PUE':
-                    record.precio = record.producto.contado
-                else:
-                    record.precio = record.producto.credito
+                metodo = record.venta_id.metododepago or 'PPD'
+                record.precio = record.producto.contado if metodo == 'PUE' else record.producto.credito

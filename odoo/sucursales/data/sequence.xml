@@ -1,0 +1,11 @@
+<odoo>
+    <data noupdate="1">
+        <record id="seq_sucursal_code" model="ir.sequence">
+            <field name="name">Código Sucursal</field>
+            <field name="code">seq_sucursal_code</field>
+            <field name="prefix">SUC/</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+        </record>
+    </data>
+</odoo>

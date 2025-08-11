@@ -135,3 +135,15 @@ class producto(models.Model):
         if 'description' in vals:
             vals['description'] = vals['description'].upper() if vals['description'] else False
         return super().write(vals)
+
+    # productos/models/producto.py
+    #precio = fields.Float(
+    #    string="Precio (compat)",
+    ##    compute="_compute_precio_compat",
+    #    store=False,
+    #)
+
+    #def _compute_precio_compat(self):
+    #    for p in self:
+    #        # elige tu prioridad
+    #        p.precio = p.costo or p.contado or p.credito or 0.0

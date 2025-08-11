@@ -9,11 +9,11 @@ class empresa(models.Model):
     telefono = fields.Char(string = "Teléfono", size = 10)
     razonsocial = fields.Char(string = "Razón Social", required = True)
     rfc = fields.Char(string = "RFC", required = True, size = 14)
-    cp = fields.Char(string = "Código Postal", required = True)
+    cp = fields.Char(string = "Código Postal", required = True, size=5)
     calle = fields.Char(string = "Calle", size = 20)
     numero = fields.Char(string = "Número", size = 32)
-    sucursales = fields.One2many('sucursal', 'empresa', string = "Sucursales")
-    bodegas = fields.One2many('bodega', 'empresa', string="Bodegas", ondelete='cascade')
+    #sucursales = fields.One2many('sucursal', 'empresa', string = "Sucursales")
+    #bodegas = fields.One2many('bodega', 'empresa', string="Bodegas", ondelete='cascade')
     codigo = fields.Char(
         string='Código',
         size=10,

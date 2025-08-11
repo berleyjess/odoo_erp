@@ -9,7 +9,8 @@
     'author': 'Grupo Safinsa',
     'depends': ['base', 'proveedores'],
     'data': [
-        'views\compra.xml'
+        'data/seq_code.xml',
+        'views/compra.xml',
     ],
     'installable': True,
     'application': True,

@@ -1,0 +1,23 @@
+<odoo>
+    <record id="view_compra_form_inherit_stock_sucursales" model="ir.ui.view">
+        <field name="name">compras.compra.form.inherit.stock.sucursales</field>
+        <field name="model">compras.compra</field>
+        <field name="inherit_id" ref="compras.view_compras_form"/>
+        <field name="arch" type="xml">
+
+            <!-- La vista base no tiene header: créalo -->
+            <xpath expr="//form" position="inside">
+                <header>
+                    <button name="action_confirmar" type="object" string="Confirmar" class="btn-primary" invisible="state == 'confirmed'"/>
+                </header>
+            </xpath>
+
+            <!-- Inserta campos en el primer group -->
+            <xpath expr="//form/sheet//group[1]" position="inside">
+                <field name="sucursal_id" required="1"/>
+                <field name="state" widget="statusbar" statusbar_visible="draft,confirmed"/>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

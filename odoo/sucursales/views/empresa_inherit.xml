@@ -1,0 +1,24 @@
+<odoo>
+    <record id="view_empresa_form_inherit_sucursales" model="ir.ui.view">
+        <field name="name">empresas.empresa.form.inherit.sucursales</field>
+        <field name="model">empresas.empresa</field>
+        <field name="inherit_id" ref="empresas.view_empresa_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form/sheet" position="inside">
+                <notebook>
+                    <page string="Sucursales">
+                        <field name="sucursales">
+                            <list editable="bottom">
+                                <field name="codigo"/>
+                                <field name="nombre"/>
+                                <field name="localidad"/>
+                                <field name="cp"/>
+                                <field name="activa"/>
+                            </list>
+                        </field>
+                    </page>
+                </notebook>
+            </xpath>
+        </field>
+    </record>
+</odoo>
