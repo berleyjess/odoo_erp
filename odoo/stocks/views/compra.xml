@@ -1,4 +1,5 @@
 <odoo>
+    <!--stocks/views/compra.xml-->
     <record id="view_compra_form_inherit_stock_sucursales" model="ir.ui.view">
         <field name="name">compras.compra.form.inherit.stock.sucursales</field>
         <field name="model">compras.compra</field>
