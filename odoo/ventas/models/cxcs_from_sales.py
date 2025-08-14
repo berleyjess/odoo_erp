@@ -1,12 +1,14 @@
 # ventas/models/cxcs_from_sales.py
 from odoo import api, fields, models
 
+# Extiende cuentasxcobrar.cuentaxcobrar para vincular ventas y sus detalles
 class CxCVentas(models.Model):
     _inherit = 'cuentasxcobrar.cuentaxcobrar'
 
     venta_id = fields.Many2one('ventas.venta', string="Venta", index=True)
     detalle_venta_id = fields.Many2one('ventas.detalleventa_ext', string="Detalle de venta", index=True)
 
+# Evita que una misma línea de venta se registre dos veces en el mismo contrato
     _sql_constraints = [
         # Evita duplicar la misma línea de venta en el mismo contrato
         ('uniq_contrato_detalle',
@@ -14,6 +16,7 @@ class CxCVentas(models.Model):
          'Este renglón de venta ya está en el estado de cuenta.')
     ]
 
+# Crea una línea en CxC a partir de un detalle de venta, calculando importes e impuestos
     @api.model
     def create_from_sale_line(self, contrato, venta, line):
         """Crea una línea de estado a partir de un renglón de venta."""
@@ -42,3 +45,12 @@ class CxCVentas(models.Model):
             'saldo': cargo,  # si luego registras pagos, aquí se va disminuyendo
         }
         return self.create(vals)
+
+        """
+        Qué hace: Construye y crea una línea en cuentasxcobrar.cuentaxcobrar con:
+        Vinculaciones: contrato_id, venta_id, detalle_venta_id.
+        Datos económicos: cantidad, precio, importe (= cantidad*precio), iva, ieps, cargo (= importe+iva+ieps), abono=0, saldo=cargo.
+        Metadatos: fecha (de la venta), referencia (código o nombre de venta), concepto (nombre del producto o descripción).
+        Cuándo corre: Llamado por _post_to_statement_if_needed() por cada línea de venta que no esté ya en CxC.
+        Efecto: Crea el renglón de estado de cuenta que luego podrá ser abonado con pagos (que disminuirán saldo).
+        """

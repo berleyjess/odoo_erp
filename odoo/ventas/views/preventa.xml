@@ -1,0 +1,74 @@
+<odoo>
+    <record id="action_preventas" model="ir.actions.act_window">
+        <field name="name">Preventas</field>
+        <field name="res_model">ventas.preventa</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_preventas" name="Preventas" parent="menu_root" action="action_preventas" sequence="20"/>
+
+    <record id="view_preventa_list" model="ir.ui.view">
+        <field name="name">preventa.tree</field>
+        <field name="model">ventas.preventa</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="fecha"/>
+                <field name="sucursal_id"/>
+                <field name="codigo"/>
+                <field name="cliente"/>
+                <field name="contrato"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_preventa_form" model="ir.ui.view">
+        <field name="name">preventa.form</field>
+        <field name="model">ventas.preventa</field>
+        <field name="arch" type="xml">
+            <form autosave="False">
+                <header>
+                    <button name="action_convert_to_venta" type="object" string="Convertir a Venta" class="btn-primary"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="fecha"/>
+                        <field name="sucursal_id"/>
+                        <field name="codigo" readonly="1"/>
+                        <field name="state" readonly="1"/>
+                        <field name="cliente"/>
+                        <field name="metododepago" widget="radio" options="{'horizontal': true}"/>
+                        <field name="formadepago"
+                               required="metododepago == 'PUE'"
+                               invisible="metododepago != 'PUE'"/>
+                        <field name="contrato"
+                               required="metododepago != 'PUE'"
+                               invisible="metododepago == 'PUE'"/>
+                        <field name="solicita"/>
+                        <field name="observaciones"/>
+                    </group>
+                    <notebook>
+                        <page string="Detalles de Preventa">
+                            <field name="detalle">
+                                <list editable="bottom">
+                                    <field name="producto"/>
+                                    <field name="cantidad"/>
+                                    <field name="precio"/>
+                                    <field name="iva"/>
+                                    <field name="ieps"/>
+                                    <field name="importe"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    <div class="row" style="margin-top: 10px;">
+                        <div class="col-md-3"><label for="importe" string="Importe: "/><field name="importe"/></div>
+                        <div class="col-md-3"><label for="iva" string="IVA: "/><field name="iva" string="IVA"/></div>
+                        <div class="col-md-3"><label for="ieps" string="IEPS: "/><field name="ieps" string="IEPS"/></div>
+                        <div class="col-md-3"><label for="total" string="Total: "/><field name="total" string="Total"/></div>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>

@@ -1,4 +1,6 @@
 <odoo>
+<!--ventas/ventas/cxc_inherit_ventas-->
+<!-- Hereda la vista lista de CxC y agrega columnas de venta y detalle de venta -->
     <record id="view_cxc_list_add_venta" model="ir.ui.view">
         <field name="name">cxc.list.add.venta</field>
         <field name="model">cuentasxcobrar.cuentaxcobrar</field>
@@ -10,7 +12,7 @@
             </xpath>
         </field>
     </record>
-
+<!-- Hereda la vista búsqueda de CxC y agrega opción para agrupar por venta -->
     <record id="view_cxc_search_add_group_venta" model="ir.ui.view">
         <field name="name">cxc.search.add.group.venta</field>
         <field name="model">cuentasxcobrar.cuentaxcobrar</field>
