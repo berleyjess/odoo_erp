@@ -9,7 +9,7 @@ class venta(models.Model):
     
     codigo = fields.Char(string="Código", required = False)
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required = True)
-    contrato = fields.Many2one('solcreditos.solcredito', string="Contrato")
+    contrato = fields.Many2one('solcreditos.solcredito', string="Contrato", domain="['&',('cliente', '=', cliente), ('contratoactivo','=',True), ('vencimiento' > hoy)]" if cliente else "[('id', '=', 0)]")
 
 
     hoy = fields.Date(compute='_compute_hoy')
