@@ -1,0 +1,19 @@
+<odoo>
+    <!-- Secuencia para ventas -->
+    <record id="seq_venta_code" model="ir.sequence">
+        <field name="name">Secuencia Ventas</field>
+        <field name="code">seq_venta_code</field>
+        <field name="prefix"></field>
+        <field name="padding">6</field>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <!-- Secuencia para preventas -->
+    <record id="seq_preventa_code" model="ir.sequence">
+        <field name="name">Secuencia Preventas</field>
+        <field name="code">seq_preventa_code</field>
+        <field name="prefix"></field>
+        <field name="padding">6</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

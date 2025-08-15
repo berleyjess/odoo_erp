@@ -1,4 +1,6 @@
-from odoo import models, fields
+from odoo import models, fields, api
+from odoo.exceptions import ValidationError
+import re
 
 class Sucursal(models.Model):
     _name = "sucursales.sucursal"
@@ -21,6 +23,32 @@ class Sucursal(models.Model):
     cp = fields.Char("Código Postal", size=5)
     activa = fields.Boolean(string="Activa", default=True, required=True)
 
+    serie = fields.Char(string='Serie', required=True, size=2, index=True)
+
     _sql_constraints = [
         ("sucursal_codigo_uniq", "unique(codigo)", "El código de la sucursal debe ser único."),
+        # Unicidad global de la serie (tras normalizar a MAYÚSCULAS)
+        ("sucursal_serie_uniq", "unique(serie)", "La serie ya está en uso por otra sucursal."),
     ]
+
+    # --- Normalización a MAYÚSCULAS y sin espacios ---
+    @api.model
+    def create(self, vals):
+        serie = vals.get('serie')
+        if serie:
+            vals['serie'] = serie.strip().upper()
+        return super().create(vals)
+
+    def write(self, vals):
+        serie = vals.get('serie')
+        if serie:
+            vals['serie'] = serie.strip().upper()
+        return super().write(vals)
+
+    # --- Validación: exactamente 2 letras ---
+    @api.constrains('serie')
+    def _check_serie(self):
+        regex = re.compile(r'^[A-Z]{2}$')  # exactamente 2 letras A-Z
+        for rec in self:
+            if rec.serie and not regex.match(rec.serie):
+                raise ValidationError("La serie debe tener exactamente 2 letras (A–Z).")

@@ -1,3 +1,4 @@
+#stocks/models/compra_inherit.py
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
@@ -21,6 +22,12 @@ class Compra(models.Model):
 
             if not compra.detalle:
                 raise UserError(_("La compra no tiene líneas de detalle."))
+            
+            for line in compra.detalle:
+                if not line.producto or not line.cantidad:
+                    continue
+                self.env["stock.sucursal.producto"].add_stock(compra.sucursal_id, line.producto, line.cantidad)
+                line.applied_qty = line.cantidad  # snapshot aplicado
 
             for line in compra.detalle:
                 producto = getattr(line, "producto", False)
@@ -34,3 +41,6 @@ class Compra(models.Model):
                 "stock_aplicado": True,
             })
         return True
+
+
+    

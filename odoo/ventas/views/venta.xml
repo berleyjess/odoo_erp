@@ -1,5 +1,5 @@
 <odoo>
-    <!-- Acción de Menú (DEBE IR PRIMERO) -->
+    <!-- Acción que abre la vista principal de ventas en modo lista y formulario -->
     <record id="action_ventas" model="ir.actions.act_window">
         <field name="name">Ventas</field>
         <field name="res_model">ventas.venta</field>
@@ -9,7 +9,7 @@
         </field>
     </record>
 
-    <!-- Vista árbol -->
+    <!-- Vista lista (árbol) para mostrar ventas -->
     <record id="view_venta_list" model="ir.ui.view">
         <field name="name">venta.tree</field>
         <field name="model">ventas.venta</field>
@@ -18,20 +18,36 @@
                 <field name="fecha"/>
                 <field name="cliente"/>
                 <field name="contrato"/>
+                <field name="sucursal_id"/>
+                <field name="codigo"/>
+                <field name="state"/>
             </list>
         </field>
     </record>
 
-    <!-- Vista formulario -->
+    <!-- Vista formulario de ventas, con campos condicionales según método de pago -->
     <record id="view_venta_form" model="ir.ui.view">
         <field name="name">venta.form</field>
         <field name="model">ventas.venta</field>
         <field name="arch" type="xml">
+            
+
             <form autosave="False">
+                <header>
+                    <button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/>
+                    <!-- Opcional: botón Crear Preventa desde Venta -->
+                    <!--button name="action_make_preventa" type="object" string="Crear Preventa" invisible="state != 'draft'"/-->
+                    <button name="action_cancel" type="object" string="Cancelar"
+            class="btn-danger" invisible="state != 'confirmed'"/>
+                </header>
+
                 <sheet>
                     <group>
                         <field name="fecha"/>
                         <field name="cliente"/>
+                        <field name="sucursal_id"/>
+                        <field name="codigo" readonly="1"/>
+                        <field name="state" readonly="1"/>
                         <field name="metododepago" widget="radio" options="{'horizontal': true}"/>
                         <field name="formadepago"                             
                             required="metododepago == 'PUE'"
@@ -44,6 +60,7 @@
                         <field name="solicita"/>
                         <field name="observaciones"/>
                     </group>
+                        <!-- Pestaña con las líneas de detalle de la venta -->
                     <notebook>
                         <page string="Detalles de Venta">
                             <field name="detalle">
@@ -59,6 +76,7 @@
                         </page>
                     </notebook>
                     <div class="oe_title" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;"/>
+                        <!-- Bloque visual para mostrar importes e impuestos -->
                     <div class="row">
                         <div class="col-md-3">
                             <label for="importe" string="Importe: "/>
@@ -82,7 +100,8 @@
         </field>
     </record>
 
-    <!-- Menús -->
+    <!-- Menú raíz de Ventas -->
     <menuitem id="menu_root" name="Ventas" sequence="10"/>
+    <!-- Submenú para abrir listado de ventas -->
     <menuitem id="menu_action" name="Listado de Ventas" parent="menu_root" action="action_ventas"/>
 </odoo>

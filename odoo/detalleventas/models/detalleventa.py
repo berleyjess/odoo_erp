@@ -1,8 +1,15 @@
+#detalleventas/models/detalleventa.py
 from odoo import models, fields, api
+# Modelo de líneas de venta: calcula importes (base, IVA, IEPS y total) a partir de
+# producto, cantidad y precio. Los campos 'iva' e 'ieps' guardan el IMPORTE, no la tasa.
 
 class detalleventa(models.Model):
     _name='detalleventas.detalleventa'
     _description = 'Detalle de la Venta de los artículos'
+
+# Entrada del usuario
+# - 'producto' define las tasas IVA/IEPS (en % almacenado en el producto).
+# - 'precio' es unitario; 'cantidad' es la cantidad vendida.
 
     producto = fields.Many2one('productos.producto', string="Artículo", required=True)
     cantidad = fields.Float(string="Cantidad", required=True, default=0.0)
@@ -36,7 +43,7 @@ class detalleventa(models.Model):
                 ieps_rate = 0.0
 
             rec.importeb = base
-            rec.iva      = base * iva_rate
-            rec.ieps     = base * ieps_rate
+            rec.iva      = base * (iva_rate/100)
+            rec.ieps     = base * (ieps_rate/100)
             rec.importe  = base + rec.iva + rec.ieps
 

@@ -4,10 +4,7 @@
         <t t-set="company" t-value="env.company"/>
         <t t-call="web.external_layout_standard">
             <main>
-                <div style="text-align:center; margin-bottom:20px;">
-                    <img src="/pruebas/static/src/img/safinsa.jpg" style="max-height:80px;"/>
-                    <h2 style="margin:0; font-weight:bold;">SAFINSA</h2>
-                </div>
+               
                 <t t-foreach="docs" t-as="persona">
                     <div class="page">
                         <p style="text-align:justify;">
