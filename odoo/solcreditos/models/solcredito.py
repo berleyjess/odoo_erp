@@ -111,9 +111,41 @@ class solcredito(models.Model):
     )
 
     edodecuenta = fields.One2many('cuentasxcobrar.cuentaxcobrar', 'contrato_id', string="Estado de cuenta")
+    intereses = fields.Float(string = "Intereses", compute = '_calc_intereses', store = False)
+
+    descintereses = fields.Float(string = "Descuento de Intereses", store = True, default = 0.0, required = True)
+
+    def _calc_interese(self):
+        interes = 0
+        tot_interes = 0
+        lastdate = False
+        capital = 0
+        tasa = 0
+        for cta in self.edodecuenta:
+            if lastdate != False and lastdate != cta.fecha:
+                interes = capital * (1 / 360) * tasa
+                tot_interes += interes
+            lastdate = cta.fecha
+            periodo = self._periodo(cta.fecha)
+            tasa = self.obtener_tasa(periodo)
+            capital += cta.saldo + interes
+        interes = capital * (1 / 360) * tasa
+        tot_interes += interes
+        capital += cta.saldo + interes
+
+        return tot_interes
+    
+    def obtener_tasa(self, periodo):
+        tasa = self.env['tasaintereses'].search([
+            ('periodo', '==', periodo),
+        ], order='fecha DESC', limit=1)
+        return tasa.tasa if tasa else 0.0
+
+    @staticmethod
+    def _periodo(fecha_date):
+        return f"{fecha_date.month:02d}{str(fecha_date.year)[-2:]}"
 
     FIELDS_TO_UPPER = ['obligado', 'obligadoRFC']
-
 
     @staticmethod
     def _fields_to_upper(vals, fields):
