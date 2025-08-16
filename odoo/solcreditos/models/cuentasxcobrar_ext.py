@@ -11,3 +11,5 @@ class CxCContrato(models.Model):
         index=True,
         ondelete='cascade'
     )
+
+    

@@ -562,3 +562,9 @@ class solcredito(models.Model):
                 'search_default_group_by_venta': 1,  # si defines un filtro agrupado en la vista
             },
         }
+    
+    def action_edocuenta2(self):
+        simulator = self.env['edocta'].create({
+            'partner_id': self.id,
+        })
+        simulator.generate_simulation()
