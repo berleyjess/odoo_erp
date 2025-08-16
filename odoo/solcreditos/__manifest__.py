@@ -6,6 +6,8 @@
     'version': '1.0',
     'depends': ['base', 'clientes', 'contratos', 'predios', 'cuentasxcobrar'],
     'data': [
+        'reports/solcredito_report.xml',
+        'views/solcredito_button_print.xml',
         'views/solcredito.xml',
         'views/cxc_inherit_solcreditos.xml',
         'data/seq_code.xml',

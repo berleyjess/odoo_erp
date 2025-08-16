@@ -1,0 +1,19 @@
+<odoo>
+  <data>
+    <record id="solcredito_form_add_print_btn" model="ir.ui.view">
+      <field name="name">solcredito.form.add.print.btn</field>
+      <field name="model">solcreditos.solcredito</field>
+      <!-- usa tu id real de vista form -->
+      <field name="inherit_id" ref="solcreditos.view_solcredito_detail"/>
+      <field name="arch" type="xml">
+        <xpath expr="//header" position="inside">
+          <button name="%(solcreditos.action_report_solcredito)d"
+                  string="Generar solicitud"
+                  type="action"
+                  class="oe_highlight"
+                  invisible="not id or is_editing"/>
+        </xpath>
+      </field>
+    </record>
+  </data>
+</odoo>
