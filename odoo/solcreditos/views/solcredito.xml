@@ -34,15 +34,15 @@
             <form>
                 <sheet>
                     <group>
-                        <field name="edocta_id"/>
+                        <field name="contrato_id"/>
                     </group>
                     
-                    <footer>
-                        <button name="generate_simulation" 
+                    <!--footer>
+                        <button name="action_edocuenta2" 
                                 string="Generar Simulación" 
                                 type="object" 
                                 class="oe_highlight"/>
-                    </footer>
+                    </footer-->
                     
                     <notebook>
                         <page string="Resultados">

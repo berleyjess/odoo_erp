@@ -14,8 +14,8 @@ class transientmodel(models.TransientModel):
         self.ensure_one()
         self.lines.unlink()
 
-        cxcs = self.env['cuentasxcobrar'].search([
-            'contrado_id', '=', self.contrado_id
+        cxcs = self.env['cuentasxcobrar.cuentaxcobrar'].search([
+            ('contrato_id', '=', self.contrato_id.id),
         ])
 
         lineas = []
@@ -24,7 +24,7 @@ class transientmodel(models.TransientModel):
         for linea in cxcs:
             balance += linea.saldo
             lineas.append((0,0,{
-                'edocta_id': self.contrado_id,
+                'edocta_id': self.contrato_id,
                 'fecha': linea.fecha,
                 'referencia': linea.referencia,
                 'concepto': linea.concepto,
@@ -38,18 +38,18 @@ class transientmodel(models.TransientModel):
                 'balance': balance,
             }
             ))
-        balance+=self.intereses
+        balance+=self.contrato_id.intereses
         lineas.append((0,0,{
-            'edocta_id': self.contrado_id,
+            'edocta_id': self.contrato_id,
             'fecha': fields.Date.today(),
             #'referencia': linea.referencia,
             'concepto': "Intereses",
             'cantidad': 1,
-            'precio': self.intereses,
+            'precio': self.contrato_id.intereses,
             'iva': 0.0,
             'ieps': 0.0,
             'importe': 0.0,
-            'cargo': self.intereses,
+            'cargo': self.contrato_id.intereses,
             'abono': 0.0,
             'balance': balance,
         }))
@@ -63,5 +63,7 @@ class transientmodel(models.TransientModel):
             'res_model': 'edocta',
             'res_id': self.id,
             'view_mode': 'form',
-            'target': 'new'
+            'target': 'new',
+            'context': self.env.context,  # Añadir contexto
+            'views': [(False, 'form')]  # Especificar la vista
         }

@@ -115,12 +115,13 @@ class solcredito(models.Model):
 
     descintereses = fields.Float(string = "Descuento de Intereses", store = True, default = 0.0, required = True)
 
-    def _calc_interese(self):
+    def _calc_intereses(self):
         interes = 0
         tot_interes = 0
         lastdate = False
         capital = 0
         tasa = 0
+        saldo = 0
         for cta in self.edodecuenta:
             if lastdate != False and lastdate != cta.fecha:
                 interes = capital * (1 / 360) * tasa
@@ -128,12 +129,13 @@ class solcredito(models.Model):
             lastdate = cta.fecha
             periodo = self._periodo(cta.fecha)
             tasa = self.obtener_tasa(periodo)
-            capital += cta.saldo + interes
+            saldo = cta.saldo
+            capital += saldo + interes
         interes = capital * (1 / 360) * tasa
         tot_interes += interes
-        capital += cta.saldo + interes
+        capital += saldo + interes
 
-        return tot_interes
+        self.intereses = tot_interes
     
     def obtener_tasa(self, periodo):
         tasa = self.env['tasaintereses'].search([
@@ -565,6 +567,6 @@ class solcredito(models.Model):
     
     def action_edocuenta2(self):
         simulator = self.env['edocta'].create({
-            'partner_id': self.id,
+            'contrato_id': self.id,
         })
-        simulator.generate_simulation()
+        simulator._generar()
