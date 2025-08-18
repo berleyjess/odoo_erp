@@ -2,6 +2,7 @@ from odoo import models, fields, api
 
 class proveedores(models.Model):
     _name = 'proveedores.proveedor'
+    _rec_name = 'nombre'
 
     nombre = fields.Char(string = "Razón Social", required = True)
     rfc = fields.Char(string = "RFC", required = True)
