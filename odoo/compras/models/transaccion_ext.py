@@ -1,9 +1,9 @@
 from odoo import models, fields, api
 
 class transaccion_ext(models.Model):
-    inherit = 'transacciones.transaccion'
+    _inherit = 'transacciones.transaccion'
 
-    compra_id = fields.Many2One(
+    compra_id = fields.Many2one(
         'compras.compra',
         string = "Compra"
     )

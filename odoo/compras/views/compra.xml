@@ -23,13 +23,15 @@
                         <field name="proveedor"/>
                         <field name="detalle" widget="one2many_list" context="{'default_compra_id': id}">
                             <list editable="bottom">
-                                <field name="producto"/>
-                                <field name="cantidad"/>
-                                <field name="precio_unitario"/>
+                                <field name="producto_id"/>
+                                <field name="c_entrada"/>
+                                <field name="precio"/>
                                 <!-- Mostrar importes (no tasas) -->
-                                <field name="iva_amount" string="IVA" readonly="1"/>
-                                <field name="ieps_amount" string="IEPS" readonly="1"/>
-                                <field name="total" readonly="1"/>
+                                <field name="iva" string="Iva %" readonly="1"/>
+                                <field name="iva_amount" string="Iva" readonly="1"/>
+                                <field name="ieps" string="Ieps %" readonly="1"/>
+                                <field name="ieps_amount" string="Ieps" readonly="1"/>
+                                <field name="subtotal" readonly="1"/>
                             </list>
                         </field>
                     </group>

@@ -1,1 +1,1 @@
-from . import compra, detallecompra_ext
+from . import compra, transaccion_ext

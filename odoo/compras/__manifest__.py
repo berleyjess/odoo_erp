@@ -7,7 +7,7 @@
         This module provides functionalities to manage and track purchase details in Odoo.
     """,
     'author': 'Grupo Safinsa',
-    'depends': ['base', 'proveedores'],
+    'depends': ['base', 'proveedores', 'transacciones'],
     'data': [
         'data/seq_code.xml',
         'views/compra.xml',
