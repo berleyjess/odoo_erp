@@ -17,46 +17,36 @@
         </field>
     </record>
 
-    <!-- Vista NO EDITABLE -->
+    <!-- ESTA VISTA ES LA QUE ODOO ESTÁ LLAMANDO PARA CREAR UN NUEVO REGISTRO -->
     <record id="view_clientes_form" model="ir.ui.view">
         <field name="name">clientes.cliente.form</field>
         <field name="model">clientes.cliente</field>
         <field name="priority" eval="10"/>
         <field name="arch" type="xml">
-            <form edit = "0" create = "0">
+            <form autosave = False edit = "0" create = "0">
                 <header>
                     <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
                     <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
                     <group invisible="id == False">
                         <button name="action_editar" string="Editar" type="object" class="oe_highlight"/><!-- groups="security_roles.role_editor,security_roles.role_manager"/-->
-                    </group>
+                    </group> 
 
                     <group invisible="id != False">
                         <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
                     </group>
                 </header>
+                <div>view_clientes_form</div>
                 <sheet>
                     <group>
-                        <group string="Información General">
+                        <group>
                             <field name="tipo" widget="radio" options="{'horizontal': true}"/>
                             <field name="nombre"/>
                             <field name="regimen"/>
                             <field name="rfc"/>
                         </group>
-                        <group string="Información Personal">
-                            <field name="ine"/>
-                            <field name="curp"/>
-                            <field name="estado_civil"/>
-                            <field name="conyugue"/>
-                        </group>
-                    </group>
-
-                    <group string="Dirección">
-                        <group>
-                            <field name="localidad"/>
+                        <group string="Dirección">
                             <field name="codigop"/>
-                        </group>
-                        <group>
+                            <field name="localidad"/>
                             <field name="colonia"/>
                             <field name="calle"/>
                             <field name="numero"/>
@@ -64,6 +54,24 @@
                     </group>
 
                     <notebook>
+                        <page string="Datos Adicionales">
+                            <group>
+                                <field name="ine"/>
+                                <field name="curp"/>
+                                <field name="estado_civil"/>
+                            </group>
+                            <group invisible="not (estado_civil in ['casado', 'union_libre'])">
+                                <field name="conyugue"/>
+                                <field name="regimenconyugal"/>
+                            </group>
+                            <group>
+                                <field name="empresa"/>
+                                <field name="puesto"/>
+                                <field name="ingresomensual"/>
+                                <field name="dependientes"/>
+                                <field name="tipovivienda"/>
+                            </group>
+                        </page>
                         <page string="Contactos">
                             <field name="contacto">
                                 <list editable="bottom">
@@ -95,6 +103,7 @@
                         <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
                     </group>
                 </header>
+                <div>view_clientes_form_simple</div>
                 <sheet>
                     <group>
                         <group string="Información General">
@@ -153,6 +162,7 @@
                         <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
                     </group>
                 </header>
+                <div>view_clientes_form_edit</div>
                 <sheet>
                     <group>
                         <group string="Información General">

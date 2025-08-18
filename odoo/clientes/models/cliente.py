@@ -79,8 +79,14 @@ class cliente(models.Model):
                               help="Régimen fiscal del cliente. El dominio se recalcula dinámicamente en _onchange_tipo."
     )
 
+    codigop = fields.Char(string="Código Postal", size=5)
+    localidad = fields.Many2one('localidades.localidad', string = "Ciudad/Localidad")
+    colonia = fields.Char(string = "Colonia", size = 32)
+    calle = fields.Char(string = "Calle", size = 32)
+    numero = fields.Char(string = "Número")
+
     # Campos de identificación / Estado civil
-    ine = fields.Char(string="INE (Clave de Lector)", size=18, help="Ingrese solo la clave de lector del INE")
+    ine = fields.Char(string="INE (Clave de Elector)", size=18, help="Ingrese solo la clave de lector del INE")
     curp = fields.Char(string="CURP", size=18, help="Clave Única de Registro de Población")
     estado_civil = fields.Selection([
         ('soltero', 'Soltero(a)'),
@@ -88,21 +94,36 @@ class cliente(models.Model):
         ('divorciado', 'Divorciado(a)'),
         ('viudo', 'Viudo(a)'),
         ('union_libre', 'Unión Libre')
-    ], string="Estado Civil",
-        help="Estado civil del cliente. "
+    ], string="Estado Civil"
     )
-    
+
     conyugue = fields.Char(string="Nombre del Cónyuge", size=100, help="Nombre completo del cónyuge")
 
-    codigop = fields.Char(string="Código Postal", size=5)
-    localidad = fields.Many2one('localidades.localidad', string = "Ciudad/Localidad",help="Ciudad o localidad del domicilio del cliente")
-    colonia = fields.Char(string = "Colonia", size = 32)
-    calle = fields.Char(string = "Calle", size = 32)
-    numero = fields.Char(string = "Número", help="Número exterior del domicilio del cliente")
+    regimenconyugal = fields.Selection(
+        string = "Régimen Conyugal", store = True, selection = [
+            ('0', "Sociedad Conyugal"),
+            ('1', "Separación de Bienes"),
+            ('2', "Régimen Mixto")
+        ]
+    )
+
+    dependientes = fields.Integer(
+        string = "Dependientes económicos", default = 0, store = True
+    )
+
+    tipovivienda = fields.Selection(
+        string = "Tipo de Vivienda", store = True, selection = [
+            ('0', "Propia"),
+            ('1', "Alquiler")
+        ]
+    )
+    
+    #Referencias Laborales
+    empresa = fields.Char(string = "Empresa donde labora", store = True, size = 32)
+    puesto = fields.Char(string = "Puesto que desempeña", store = True)
+    ingresomensual = fields.Float(string = "Ingreso Mensual Estimado", store = True, default = 0.0)
 
     #Relación con contactos
-
-
 
     contacto = fields.One2many('clientes.contacto_ext', 'cliente_id', string = "Contactos",help="Contactos externos relacionados con este cliente.")
 
@@ -269,7 +290,15 @@ class cliente(models.Model):
     #                _("La clave de elector INE '%s' no es válida.") % ine
     #            )
 
-
+    @api.constrains('estado_civil', 'conyugue', 'regimenconyugal')
+    def _check_requeridos_conyugue(self):
+        for record in self:
+            if record.estado_civil in ['casado', 'union_libre']:
+                if not record.conyugue:
+                    raise ValidationError("¡El nombre del cónyuge es obligatorio!")
+                if not record.regimenconyugal:
+                    raise ValidationError("¡El régimen conyugal es obligatorio!")
+            
     @api.constrains('codigop')
     def _check_cp(self):
         for rec in self:

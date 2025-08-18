@@ -22,12 +22,11 @@ class producto(models.Model):
     contado = fields.Float(string="Precio de contado", digits=(14, 2), default=0.0)
     credito = fields.Float(string="Precio de crédito", digits=(14, 2), default=0.0)
 
-    # Iva: Solo 8 y 16
-    iva = fields.Selection(
-        selection=[('0', '0.0'), ('8', '8.0'), ('16', '16.0')],
-        string="IVA",
+    # Iva: entre 0.0 y 1.0, válidos sólo 0.0, 0.08 y 0.16
+    iva = fields.Float(
+        string="Iva %",
         required=True,
-        default='16'
+        default='0.0'
     )
 
     # Tipo de Producto: Insumos, Ferretería, Granos
@@ -39,8 +38,8 @@ class producto(models.Model):
         default='0'
     )
 
-    # IEPS: entre 0 y 100 (entero)
-    ieps = fields.Integer(string="IEPS", default=0)
+    # IEPS: entre 0.0 y 1.0
+    ieps = fields.Float(string="Ieps %", default=0.0)
 
     #Clase del Producto
     linea = fields.Many2one(
@@ -75,11 +74,13 @@ class producto(models.Model):
     cuenta = fields.Char(string = "Cuenta contable")
 
     
-    @api.constrains('ieps')
+    @api.constrains('ieps', 'iva')
     def _check_ieps_range(self):
         for rec in self:
-            if not (0 <= rec.ieps <= 100):
-                raise ValidationError("El IEPS debe estar entre 0 y 100.")
+            if not (0.0 <= rec.ieps <= 1.0):
+                raise ValidationError("El IEPS debe estar entre 0.0 y 1.0.")
+            if not rec.iva in [0.0, 0.08, 0.16]:
+                raise ValidationError("Seleccione entre 0.0, 0.08 ó 0.16")
 
     @api.constrains('costo', 'contado', 'credito')
     def _check_price_format(self):

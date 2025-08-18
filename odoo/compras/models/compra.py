@@ -7,7 +7,8 @@ class compra(models.Model):
 
     fecha = fields.Date(string="Fecha", default=fields.Date.context_today, required=True)
     proveedor = fields.Many2one('proveedores.proveedor', string='Proveedor', required=True)
-    detalle = fields.One2many('compras.detallecompra_ext', 'compra_id', string="Detalles de Compra")
+    #detalle = fields.One2many('compras.detallecompra_ext', 'compra_id', string="Detalles de Compra")
+    detalle = fields.One2Many('transacciones.transaccion', 'compra_id', string = "Detalles de Compra")
 
     codigo = fields.Char(
         string='Código', size=10, required=True, readonly=True, copy=False,
