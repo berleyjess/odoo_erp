@@ -1,0 +1,20 @@
+<odoo>
+<!-- compras/views/compra_button_print.xml -->
+  <data>
+    <record id="compra_form_add_print_btn" model="ir.ui.view">
+      <field name="name">compra.form.add.print.btn</field>
+      <field name="model">compras.compra</field>
+      <!-- usa tu id real de vista form -->
+      <field name="inherit_id" ref="compras.view_compras_form"/>
+      <field name="arch" type="xml">
+        <xpath expr="//header" position="inside">
+          <button name="%(compras.action_report_compra)d"
+                  string="Generar compra"
+                  type="action"
+                  class="oe_highlight"
+                  invisible="not id"/>
+        </xpath>
+      </field>
+    </record>
+  </data>
+</odoo>

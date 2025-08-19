@@ -1,0 +1,204 @@
+<odoo>
+  <data>
+
+    <!-- Acción de reporte PDF -->
+    <record id="action_report_compra" model="ir.actions.report">
+      <field name="name">Compra</field>
+      <field name="type">ir.actions.report</field>
+      <field name="report_type">qweb-pdf</field>
+      <!-- report_name = <módulo>.<id_del_template> -->
+      <field name="report_name">compras.report_compra_document</field>
+      <field name="report_file">compras.report_compra_document</field>
+      <field name="model">compras.compra</field>
+      <field name="print_report_name">'COMPRA_%s' % (object.codigo or object.display_name)</field>
+      <field name="attachment_use">False</field>
+      <field name="attachment">'compra_%s.pdf' % (object.codigo or object.id)</field>
+    </record>
+
+    <!-- Template QWeb base (solo cabecera y caja de foto, listo para ampliar) -->
+    <template id="report_compra_document">
+      <t t-call="web.basic_layout">
+        <t t-foreach="docs" t-as="o">
+
+
+    <title>Reporte de compra</title>
+    <style>
+        /* Reset y configuración base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.12;
+            color: #000;
+            background: #fff;
+        }
+        
+        /* Marca / dirección */
+        .brand .name {
+            font-size: 30px;
+            font-weight: 900;
+            letter-spacing: 0.2px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .brand .addr {
+            font-size: 12px;
+            
+            margin-top: 6px;
+        }
+
+        /* Reglas divisorias */
+        .rule-strong {
+            border-top: 2px solid #000;
+            margin: 12px 0 14px 0;
+        }
+
+        .rule-thin {
+            border-top: 1px solid #000;
+            margin: 8px 0 10px 0;
+        }
+
+        /* Ajustes responsivos para PDF */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            
+            .sol-top {
+                max-height: none;
+                padding: 10px;
+            }
+        }
+
+    </style>
+<body>
+    <div class="sol-top">
+
+        <div class="brand">
+            <div class="name">Hola Mundo</div>
+        </div>
+        <div class="rule-strong"></div>
+
+
+    </div>
+</body>
+
+<div class="page">
+            <h2 class="text-center">Compra <t t-esc="o.codigo or o.display_name"/></h2>
+
+            <!-- Cabecera: datos clave -->
+            <div class="row mt-2">
+              <div class="col-6">
+                <p><strong>Fecha:</strong> <span t-field="o.fecha"/></p>
+                <p><strong>Proveedor:</strong> <t t-esc="o.proveedor.nombre"/></p>
+                <t t-if="o.proveedor.rfc">
+                  <p><strong>RFC:</strong> <t t-esc="o.proveedor.rfc"/></p>
+                </t>
+                <t t-if="o.proveedor.localidad">
+                  <p>
+                    <strong>Ciudad:</strong>
+                    <t t-esc="o.proveedor.localidad.nombre"/>
+                  </p>
+                </t>
+              </div>
+            </div>
+
+            <!-- Detalle -->
+            <table class="table table-sm o_main_table mt16">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th class="text-right">Cantidad</th>
+                  <th class="text-right">Precio</th>
+                  <th class="text-right">IVA</th>
+                  <th class="text-right">IEPS</th>
+                  <th class="text-right">Importe</th>
+                </tr>
+              </thead>
+              <tbody>
+  <tr t-foreach="o.detalle" t-as="l">
+    <!-- Variables seguras por línea -->
+    <t t-set="product_name"
+       t-value="(l._fields.get('producto_id') and l.producto_id and l.producto_id.display_name)
+                or (l._fields.get('producto') and l.producto and l.producto.display_name)
+                or ''"/>
+
+    <t t-set="qty"
+       t-value="(l._fields.get('c_entrada') and (l.c_entrada or 0.0))
+                or (l._fields.get('cantidad') and (l.cantidad or 0.0))
+                or 0.0"/>
+
+    <t t-set="price"
+       t-value="(l._fields.get('precio') and (l.precio or 0.0))
+                or (l._fields.get('precio_unitario') and (l.precio_unitario or 0.0))
+                or 0.0"/>
+
+    <!-- Subtotal/importe por línea (usa el que exista) -->
+    <t t-set="line_subtotal"
+       t-value="(l._fields.get('subtotal') and (l.subtotal or 0.0))
+                or (l._fields.get('total') and (l.total or 0.0))
+                or 0.0"/>
+
+    <!-- IVA por línea: usa monto si existe; si no, calcula % * subtotal -->
+    <t t-set="line_iva"
+       t-value="(l._fields.get('iva_amount') and (l.iva_amount or 0.0))
+                or ((l._fields.get('iva') and l._fields.get('subtotal')) and ((l.subtotal or 0.0) * (l.iva or 0.0) / 100.0))
+                or 0.0"/>
+
+    <!-- IEPS por línea: igual que IVA -->
+    <t t-set="line_ieps"
+       t-value="(l._fields.get('ieps_amount') and (l.ieps_amount or 0.0))
+                or ((l._fields.get('ieps') and l._fields.get('subtotal')) and ((l.subtotal or 0.0) * (l.ieps or 0.0) / 100.0))
+                or 0.0"/>
+
+    <!-- Render -->
+    <td><t t-esc="product_name"/></td>
+    <td class="text-right"><t t-esc="qty"/></td>
+    <td class="text-right"><t t-esc="price"/></td>
+    <td class="text-right"><t t-esc="line_iva"/></td>
+    <td class="text-right"><t t-esc="line_ieps"/></td>
+    <td class="text-right"><t t-esc="line_subtotal"/></td>
+  </tr>
+</tbody>
+
+            </table>
+
+            <!-- Totales -->
+            <div class="row mt16">
+              <div class="col-6"/>
+              <div class="col-6">
+                <table class="table table-sm">
+                  <tr>
+                    <th>Subtotal</th>
+                    <td class="text-right"><t t-esc="o.amount_subtotal"/></td>
+                  </tr>
+                  <tr>
+                    <th>Total IVA</th>
+                    <td class="text-right"><t t-esc="o.amount_iva"/></td>
+                  </tr>
+                  <tr>
+                    <th>Total IEPS</th>
+                    <td class="text-right"><t t-esc="o.amount_ieps"/></td>
+                  </tr>
+                  <tr>
+                    <th>Total general</th>
+                    <td class="text-right"><t t-esc="o.amount_total"/></td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </t>
+      </t>
+    </template>
+
+  </data>
+</odoo>

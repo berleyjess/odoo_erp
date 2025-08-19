@@ -17,6 +17,9 @@
         <field name="model">compras.compra</field>
         <field name="arch" type="xml">
             <form string="Compras">
+            <header>
+
+            </header>
                 <sheet>
                     <group>
                         <field name="fecha"/>
