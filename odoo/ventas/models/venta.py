@@ -50,6 +50,7 @@ class venta(models.Model):
     string="Estado", default='draft', required=True, index=True
     )
 
+    is_editing = fields.Boolean(default=False, store = True)
 
     _sql_constraints = [
         ('venta_codigo_uniq', 'unique(codigo)', 'El código de la venta debe ser único.'),
@@ -215,6 +216,7 @@ class venta(models.Model):
 
     def action_cancel(self):
         """Cancela: revierte stock y borra CxC; luego marca 'cancelled'."""
+        #self.write({'is_editing': False})
         for v in self:
             if v.state != 'confirmed':
                 continue

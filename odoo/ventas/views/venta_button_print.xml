@@ -1,0 +1,20 @@
+<odoo>
+<!-- ventas/views/venta_button_print.xml -->
+  <data>
+    <record id="venta_form_add_print_btn" model="ir.ui.view">
+      <field name="name">venta.form.add.print.btn</field>
+      <field name="model">ventas.venta</field>
+      <!-- usa tu id real de vista form -->
+      <field name="inherit_id" ref="ventas.view_venta_form"/>
+      <field name="arch" type="xml">
+        <xpath expr="//header" position="inside">
+          <button name="%(ventas.action_report_venta)d"
+                  string="Generar solicitud"
+                  type="action"
+                  class="oe_highlight"
+                  invisible="not id"/>
+        </xpath>
+      </field>
+    </record>
+  </data>
+</odoo>
