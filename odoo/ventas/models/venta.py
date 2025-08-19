@@ -22,7 +22,6 @@ class venta(models.Model):
 
     observaciones = fields.Char(string = "Observaciones", size=32)
     fecha = fields.Date(string="Fecha", default=lambda self: date.today())
-    detalle = fields.One2many('ventas.detalleventa_ext', 'venta_id', string="Ventas")
     #vendedor = fields.Many2one('vendedor', string="Vendedor", required = True)
     #sucursal = fields.Many2one('sucursal', string="Sucursal", required = True)
     #empresa = fields.Many2one('empresa', string="Empresa", readonly = True)
@@ -33,6 +32,9 @@ class venta(models.Model):
     total = fields.Float(string="Total", readonly=True)
     activa = fields.Boolean(string="Activa", default = True)
     #folio = fields.Char(string="Folio", readonly=True, copy=False, default=lambda self: self.env['ir.sequence'].next_by_code('mi.modelo.folio'))
+
+    #detalle = fields.One2many('ventas.detalleventa_ext', 'venta_id', string="Ventas")
+    detalle = fields.One2many('transacciones.transaccion', 'venta_id', string="Venta")
 
         # Relación con Sucursal (obligatoria para prefijar el código)
     sucursal_id = fields.Many2one(
@@ -120,15 +122,17 @@ class venta(models.Model):
         for v in self:
             metodo = v.metododepago or 'PPD'
             for line in v.detalle:
-                if line.producto:
-                    line.precio = line.producto.contado if metodo == 'PUE' else line.producto.credito
+                #if line.producto:
+                #    line.precio = line.producto.contado if metodo == 'PUE' else line.producto.credito
+                if line.producto_id:
+                    line.precio = line.producto_id.contado if metodo == 'PUE' else line.producto_id.credito
 
 
 
 # Recalcula importes, IVA, IEPS y total a partir de las líneas de detalle
     @api.onchange('detalle')
     def _onchange_detalles(self):
-        self.importe = sum(line.importeb for line in self.detalle)
+        self.importe = sum(line.subtotal for line in self.detalle)#importeb -> subtotal
         self.iva = sum(line.iva for line in self.detalle)
         self.ieps = sum(line.ieps for line in self.detalle)
         self.total = sum(line.importe for line in self.detalle)
@@ -146,9 +150,9 @@ class venta(models.Model):
             if not record.detalle:
                 raise ValidationError(_('No se puede guardar una venta sin al menos un producto.'))
         for linea in record.detalle:
-            if linea.cantidad <= 0 or linea.precio <= 0:
+            if linea.c_salida <= 0 or linea.precio <= 0:
                 raise ValidationError(_('La Cantidad/Precio no pueden ser 0'))
-            if not linea.producto:
+            if not linea.producto_id:
                 raise ValidationError(_('Debe seleccionar un producto'))
     """
     Qué hace (validación de negocio):
@@ -240,8 +244,8 @@ class venta(models.Model):
         for line in self.detalle:
             Det.create({
                 'venta_id': prev.id,   # reusa el many2one; en preventa funciona por herencia de campos
-                'producto': line.producto.id,
-                'cantidad': line.cantidad,
+                'producto': line.producto_id.id,
+                'cantidad': line.c_salida,
                 'precio': line.precio,
             })
         return {
@@ -266,12 +270,12 @@ class venta(models.Model):
             ])
             stock_map = {(s.producto_id.id): s for s in stocks}
             for line in v.detalle:
-                sline = stock_map.get(line.producto.id)
-                qty_avail = sline.cantidad if sline else 0.0
-                if line.cantidad > qty_avail:
+                sline = stock_map.get(line.producto_id.id)
+                qty_avail = sline.c_salida if sline else 0.0
+                if line.c_salida > qty_avail:
                     raise ValidationError(_(
                         "Stock insuficiente en %s para %s: requerido %.2f, disponible %.2f"
-                    ) % (v.sucursal_id.display_name, line.producto.display_name, line.cantidad, qty_avail))
+                    ) % (v.sucursal_id.display_name, line.producto_id.display_name, line.c_salida, qty_avail))
 
 
 
@@ -286,19 +290,19 @@ class venta(models.Model):
             ])
             stock_map = {(s.producto_id.id): s for s in stocks}
             for line in v.detalle:
-                sline = stock_map.get(line.producto.id)
+                sline = stock_map.get(line.producto_id.id)
                 if not sline:
                     sline = Stock.create({
                         "sucursal_id": v.sucursal_id.id,
-                        "producto_id": line.producto.id,
+                        "producto_id": line.producto_id.id,
                         "cantidad": 0.0,
                     })
                     stock_map[line.producto.id] = sline
                 if sline.cantidad < line.cantidad:
                     raise ValidationError(_(
                         "Stock insuficiente al confirmar: %s (solicitado %.2f, disponible %.2f)"
-                    ) % (line.producto.display_name, line.cantidad, sline.cantidad))
-                sline.cantidad = sline.cantidad - line.cantidad
+                    ) % (line.producto.display_name, line.c_salida, sline.cantidad))
+                sline.cantidad = sline.cantidad - line.c_salida
 
     def _restore_stock_on_reopen(self):
         """Devuelve al stock lo descontado en la confirmación (usa líneas actuales)."""
@@ -313,15 +317,15 @@ class venta(models.Model):
             ])
             stock_map = {(s.producto_id.id): s for s in stocks}
             for line in v.detalle:
-                sline = stock_map.get(line.producto.id)
+                sline = stock_map.get(line.producto_id.id)
                 if not sline:
                     sline = Stock.create({
                         "sucursal_id": v.sucursal_id.id,
-                        "producto_id": line.producto.id,
+                        "producto_id": line.producto_id.id,
                         "cantidad": 0.0,
                     })
-                    stock_map[line.producto.id] = sline
-                sline.cantidad = sline.cantidad + line.cantidad
+                    stock_map[line.producto_id.id] = sline
+                sline.cantidad = sline.cantidad + line.c_salida
 
 
     def action_confirm(self):

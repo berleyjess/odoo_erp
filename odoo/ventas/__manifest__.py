@@ -4,7 +4,7 @@
     'description': """Módulo para gestionar ventas de artículos""",
     'author': "Grupo Safinsa",
     'version': '1.0',
-    'depends': ['base', 'clientes', 'solcreditos', 'detalleventas','cuentasxcobrar'],
+    'depends': ['base', 'clientes', 'solcreditos', 'detalleventas','cuentasxcobrar', 'transacciones'],
     'data': [
         'data/ir_sequence_ventas.xml',
         'views/preventa.xml',

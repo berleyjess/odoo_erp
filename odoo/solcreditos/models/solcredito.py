@@ -210,6 +210,7 @@ class solcredito(models.Model):
 
     @api.model
     def create(self, vals):
+        self.ensure_one()
         """Asegura que siempre haya fecha de vencimiento y monto al crear"""
         #vals['is_editing'] = True
         if vals.get('folio', _('Nuevo')) == _('Nuevo'):

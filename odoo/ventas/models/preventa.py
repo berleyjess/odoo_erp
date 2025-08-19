@@ -7,7 +7,8 @@ class Preventa(models.Model):
     _description = 'Preventa (sin stock ni CxC)'
 
     # Redefinir One2many para separar DB de líneas
-    detalle = fields.One2many('ventas.detallepreventa_ext', 'preventa_id', string="Preventas")
+    #detalle = fields.One2many('ventas.detallepreventa_ext', 'preventa_id', string="Preventas")
+    detalle = fields.One2many('transacciones.transaccion', 'preventa_id', string="Preventas")
 
     _sql_constraints = [
         ('preventa_codigo_uniq', 'unique(codigo)', 'El código de la preventa debe ser único.'),
@@ -48,12 +49,12 @@ class Preventa(models.Model):
             ])
             stock_map = {(s.producto_id.id): s for s in stocks}
             for line in p.detalle:
-                sline = stock_map.get(line.producto.id)
+                sline = stock_map.get(line.producto_id.id)
                 qty_avail = sline.cantidad if sline else 0.0
-                if line.cantidad > qty_avail:
+                if line.c_salida > qty_avail:
                     raise ValidationError(_(
                         "No hay stock suficiente para %s en %s. Requerido %.2f, disponible %.2f."
-                    ) % (line.producto.display_name, p.sucursal_id.display_name, line.cantidad, qty_avail))
+                    ) % (line.producto.display_name, p.sucursal_id.display_name, line.c_salida, qty_avail))
         return True
 
     def action_convert_to_venta(self):
@@ -79,8 +80,8 @@ class Preventa(models.Model):
         for line in self.detalle:
             DetVenta.create({
                 'venta_id': venta.id,
-                'producto': line.producto.id,
-                'cantidad': line.cantidad,
+                'producto': line.producto_id.id,
+                'cantidad': line.c_salida,
                 'precio': line.precio,
             })
 

@@ -28,14 +28,6 @@ class transaccion(models.Model):
                                 ('5', "Producción"),
                             ])
 
-    @api.onchange('producto_id')
-    def _mod_producto(self):
-        for i in self:
-            if i.producto_id:
-                i.iva = i.producto_id.iva
-                i.ieps = i.producto_id.ieps
-                i.precio = i.producto_id.costo
-
     @api.depends('producto_id', 'c_entrada', 'c_salida', 'precio')
     def _calc_montos(self):
         for i in self:

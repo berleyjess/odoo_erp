@@ -1,1 +1,1 @@
-from . import detalleventa_ext, venta, cxcs_from_sales,preventa,detallepreventa_ext
+from . import detalleventa_ext, venta, cxcs_from_sales,preventa,detallepreventa_ext, transaccion_ext, transaccion_prev_ext
