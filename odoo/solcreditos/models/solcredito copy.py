@@ -5,7 +5,7 @@ import logging
 _logger = logging.getLogger(__name__)
 
 class solcredito(models.Model):
-    _name = 'solcreditos.solcredito'
+    _name = 'solcreditos.solcreditocopy'
     _description = 'Asignacion de contratos a clientes'
     _rec_name = 'contrato'
 
@@ -110,7 +110,7 @@ class solcredito(models.Model):
         ], required = True, string="El cliente es responsable del crédito?", default="0"
     )
 
-    """edodecuenta = fields.One2many('cuentasxcobrar.cuentaxcobrar', 'contrato_id', string="Estado de cuenta")
+    edodecuenta = fields.One2many('cuentasxcobrar.cuentaxcobrar', 'contrato_id', string="Estado de cuenta")
     intereses = fields.Float(string = "Intereses", compute = '_calc_intereses', store = False)
 
     descintereses = fields.Float(string = "Descuento de Intereses", store = True, default = 0.0, required = True)
@@ -146,7 +146,6 @@ class solcredito(models.Model):
     @staticmethod
     def _periodo(fecha_date):
         return f"{fecha_date.month:02d}{str(fecha_date.year)[-2:]}"
-    """
 
     FIELDS_TO_UPPER = ['obligado', 'obligadoRFC']
 
@@ -211,7 +210,7 @@ class solcredito(models.Model):
 
     @api.model
     def create(self, vals):
-        #self.ensure_one()
+        self.ensure_one()
         """Asegura que siempre haya fecha de vencimiento y monto al crear"""
         #vals['is_editing'] = True
         if vals.get('folio', _('Nuevo')) == _('Nuevo'):
@@ -529,3 +528,46 @@ class solcredito(models.Model):
             #   return super()._get_view(view.id, view_type, **options)
 
         return super()._get_view(view_id, view_type, **options)
+    
+    def _sync_statement_from_sales(self):
+        """Crea líneas de estado por cada renglón de venta (si no existen)."""
+        CxC = self.env['cuentasxcobrar.cuentaxcobrar']
+        Venta = self.env['ventas.venta']
+
+        for rec in self:
+            ventas = Venta.search([('contrato', '=', rec.id)])
+            for v in ventas:
+                for line in v.detalle:
+                    # Si ya existe (por la constraint, buscar liviano)
+                    exists = CxC.search_count([
+                        ('contrato_id', '=', rec.id),
+                        ('detalle_venta_id', '=', line.id),
+                    ])
+                    if not exists:
+                        CxC.create_from_sale_line(rec, v, line)
+
+    def action_edocuenta(self):
+        self.ensure_one()
+        self._sync_statement_from_sales()  # crea lo que falte
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Estado de cuenta',
+            #'res_model': 'solcredito.cuentaxcobrar_ext',
+            'res_model': 'cuentasxcobrar.cuentaxcobrar',
+            'view_mode': 'list',
+            #'view_mode': 'list,form',
+            'target': 'current',
+            'domain': [('contrato_id', '=', self.id)],
+            'context': {
+                'default_contrato_id': self.id,
+                # opcional: ordena por venta/fecha
+                'search_default_group_by_venta': 1,  # si defines un filtro agrupado en la vista
+            },
+        }
+    
+    def action_edocuenta2(self):
+        simulator = self.env['edocta'].create({
+            'contrato_id': self.id,
+        })
+        simulator._generar()

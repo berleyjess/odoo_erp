@@ -8,7 +8,7 @@ class transaccion_ext(models.Model):
     @api.onchange('venta_id')
     def _def_tipo(self):
         for i in self:
-            i.tipo = 2
+            i.tipo = '1'
 
     @api.onchange('producto_id')
     def _mod_producto(self):

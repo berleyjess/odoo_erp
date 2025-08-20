@@ -24,14 +24,14 @@ class Compra(models.Model):
                 raise UserError(_("La compra no tiene líneas de detalle."))
             
             for line in compra.detalle:
-                if not line.producto or not line.cantidad:
+                if not line.producto_id or not line.c_entrada:
                     continue
                 self.env["stock.sucursal.producto"].add_stock(compra.sucursal_id, line.producto, line.cantidad)
                 line.applied_qty = line.cantidad  # snapshot aplicado
 
             for line in compra.detalle:
-                producto = getattr(line, "producto", False)
-                qty = getattr(line, "cantidad", 0.0)
+                producto = getattr(line, "producto_id", False)
+                qty = getattr(line, "c_entrada", 0.0)
                 if not producto or not qty:
                     continue
                 self.env["stock.sucursal.producto"].add_stock(compra.sucursal_id, producto, qty)

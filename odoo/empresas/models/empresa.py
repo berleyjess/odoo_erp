@@ -3,6 +3,7 @@ from odoo import fields, models, api
 class empresa(models.Model):
     _name = 'empresas.empresa'
     _description = "Modelo de Empresa, almacena el catálogo de empresas."
+    _rec_name = 'nombre'
 
     nombre = fields.Char(string = "Nombre", required = True, size = 50)
     descripcion = fields.Char(string = "Descripción", size = 50)

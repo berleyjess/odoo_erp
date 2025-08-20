@@ -125,7 +125,7 @@ class cliente(models.Model):
 
     #Relación con contactos
 
-    contacto = fields.One2many('clientes.contacto_ext', 'cliente_id', string = "Contactos",help="Contactos externos relacionados con este cliente.")
+    contacto = fields.One2many('contactos.contacto', 'cliente_id', string = "Contactos",help="Contactos externos relacionados con este cliente.")
 
     # ONCHAGE METHODS
 

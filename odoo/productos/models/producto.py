@@ -52,12 +52,12 @@ class producto(models.Model):
   
     #----
     #Propiedades del Producto
-    ferreteria = fields.Boolean(string="Producto de Ferretería", default = False)
     venta = fields.Boolean(string="Producto para venta", default = True)
     produccion = fields.Boolean(string="De producción", default = False)
     compra = fields.Boolean(string="Producto para compra", default = False)
     materiaprima = fields.Boolean(string="Producto para Materia Prima", default = False)
     consumible = fields.Boolean(string="Producto consumible (Envases, etiquetas, etc)", default = False)
+    
     #----
     codigo = fields.Char( #Código interno del producto
         string='Código',

@@ -27,7 +27,7 @@
     </record>
 
 
-    <record id="view_temp_statement_simulation_form" model="ir.ui.view">
+    <!--record id="view_temp_statement_simulation_form" model="ir.ui.view">
         <field name="name">temp.statement.simulation.form</field>
         <field name="model">edocta</field>
         <field name="arch" type="xml">
@@ -36,14 +36,7 @@
                     <group>
                         <field name="contrato_id"/>
                     </group>
-                    
-                    <!--footer>
-                        <button name="action_edocuenta2" 
-                                string="Generar Simulación" 
-                                type="object" 
-                                class="oe_highlight"/>
-                    </footer-->
-                    
+                                        
                     <notebook>
                         <page string="Resultados">
                             <field name="lines">
@@ -65,7 +58,7 @@
                 </sheet>
             </form>
         </field>
-    </record>
+    </record-->
     
     <record id="view_solcredito_detail" model="ir.ui.view">
         <field name="name">asignacion.form</field>
@@ -83,7 +76,7 @@
 
                     <button name="action_activacion" string="Habilitar contrato" type="object" class="btn btn-primary" icon="fa-toggle-on" invisible="not id or is_editing or not contratoaprobado or contratoactivo"/>
 
-                    <button name="action_edocuenta2" string="Estado de Cuenta" type="object" class="oe_highlight" invisible="not id or is_editing"/>
+                    <!--button name="action_edocuenta2" string="Estado de Cuenta" type="object" class="oe_highlight" invisible="not id or is_editing"/-->
                 </header>
                 <sheet>
                     <group>
@@ -215,10 +208,10 @@
         </field>
     </record>
 
-    <record id="view_edodecuenta_list" model="ir.ui.view">
+    <!--record id="view_edodecuenta_list" model="ir.ui.view">
         <field name="name">solcredito.edodecuenta.list</field>
         <field name="model">cuentasxcobrar.cuentaxcobrar</field>
-        <!--field name="model">solcredito.cuentaxcobrar_ext</field-->
+        
         <field name="arch" type="xml">
             <list string="Estado de cuenta">
                 <field name="fecha"/>
@@ -234,7 +227,7 @@
                 <field name="saldo"/>
             </list>
         </field>
-    </record>
+    </record-->
 
 
     <!-- Menús -->

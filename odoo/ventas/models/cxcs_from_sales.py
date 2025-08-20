@@ -20,8 +20,8 @@ class CxCVentas(models.Model):
     @api.model
     def create_from_sale_line(self, contrato, venta, line):
         """Crea una línea de estado a partir de un renglón de venta."""
-        concepto = line.producto.display_name if getattr(line, 'producto', False) else (getattr(line, 'descripcion', '') or '')
-        cantidad = float(getattr(line, 'cantidad', 0.0))
+        concepto = line.producto_id.display_name if getattr(line, 'producto_id', False) else (getattr(line, 'descripcion', '') or '')
+        cantidad = float(getattr(line, 'c_entrada', 0.0))
         precio   = float(getattr(line, 'precio', 0.0))
         iva      = float(getattr(line, 'iva', 0.0))
         ieps     = float(getattr(line, 'ieps', 0.0))

@@ -34,11 +34,11 @@
 
             <form autosave="False">
                 <header>
-                    <button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/>
+                    <!--button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/-->
                     <!-- Opcional: botón Crear Preventa desde Venta -->
                     <!--button name="action_make_preventa" type="object" string="Crear Preventa" invisible="state != 'draft'"/-->
-                    <button name="action_cancel" type="object" string="Cancelar"
-            class="btn-danger" invisible="state != 'confirmed'"/>
+                    <!--button name="action_cancel" type="object" string="Cancelar"
+            class="btn-danger" invisible="state != 'confirmed'"/-->
                 </header>
 
                 <sheet>
@@ -57,7 +57,6 @@
                             required="metododepago != 'PUE'"
                             invisible="metododepago == 'PUE'"
                         />
-                        <field name="solicita"/>
                         <field name="observaciones"/>
                     </group>
                         <!-- Pestaña con las líneas de detalle de la venta -->
@@ -65,7 +64,7 @@
                         <page string="Detalles de Venta">
                             <field name="detalle">
                                 <list editable="bottom">
-                                    <field name="producto"/>
+                                    <field name="producto_id"/>
                                     <field name="cantidad"/>
                                     <field name="precio"/>
                                     <field name="iva"/>
