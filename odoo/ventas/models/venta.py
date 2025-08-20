@@ -10,7 +10,7 @@ class venta(models.Model):
     
     codigo = fields.Char(string="Código", required = False)
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required = True)
-    contrato = fields.Many2one('solcreditos.solcredito', string="Contrato", domain="['&',('cliente', '=', cliente), ('contratoactivo','=',True), ('vencimiento', '>', hoy)]" if cliente else "[('id', '=', 0)]")
+    contrato = fields.Many2one('solcreditos.solcredito', string="Contrato", domain="[('cliente', '=', cliente), ('contratoactivo','=',True), ('vencimiento', '>', context_today())]" if cliente else "[('id', '=', 0)]")
 
     # Calcula siempre la fecha actual sin depender de otros campos
     hoy = fields.Date(compute='_compute_hoy')
@@ -18,21 +18,17 @@ class venta(models.Model):
     def _compute_hoy(self):
         for record in self:
             record.hoy = date.today()
-    #contrato = fields.Many2one('solcreditos.solcredito', string="Contrato")#, domain="['&',('cliente', '=', cliente), ('contratoactivo','=',True), ('vencimiento' > context_today())]" if cliente else "[('id', '=', 0)]")
 
     observaciones = fields.Char(string = "Observaciones", size=48)
     fecha = fields.Date(string="Fecha", default=lambda self: date.today())
     #vendedor = fields.Many2one('vendedor', string="Vendedor", required = True)
-    #sucursal = fields.Many2one('sucursal', string="Sucursal", required = True)
     #empresa = fields.Many2one('empresa', string="Empresa", readonly = True)
     importe = fields.Float(string="Importe", readonly=True, store = True, compute='_add_detalles')
     iva = fields.Float(string="iva", readonly=True, store = True, compute='_add_detalles')
     ieps = fields.Float(string="ieps", readonly=True, store = True, compute='_add_detalles')
     total = fields.Float(string="Total", readonly=True, store = True, compute='_add_detalles')
     activa = fields.Boolean(string="Activa", default = True)
-    #folio = fields.Char(string="Folio", readonly=True, copy=False, default=lambda self: self.env['ir.sequence'].next_by_code('mi.modelo.folio'))
 
-    #detalle = fields.One2many('ventas.detalleventa_ext', 'venta_id', string="Ventas")
     detalle = fields.One2many('transacciones.transaccion', 'venta_id', string="Venta")
 
         # Relación con Sucursal (obligatoria para prefijar el código)
@@ -42,7 +38,7 @@ class venta(models.Model):
     )
 
     # Código único de la venta (SERIE-000001)
-    codigo = fields.Char(string="Código", readonly=True, copy=False, index=True)
+    codigo = fields.Char(string="Folio", readonly=True, copy=False, index=True)
 
     state = fields.Selection(
     [('draft', 'Borrador'), ('confirmed', 'Confirmada'), ('cancelled', 'Cancelada'), ('invoiced', 'Facturada')],
@@ -59,7 +55,7 @@ class venta(models.Model):
     @api.onchange('cliente')
     def _onchange_cliente(self):
         self.contrato = False
-        self.env.context = {}
+        """self.env.context = {}
         if self.cliente:
             # Filtramos en el servidor para que use Python y no dependa de campos no stored
             contratos_validos = self.env['solcreditos.solcredito'].search([
@@ -77,7 +73,7 @@ class venta(models.Model):
                 'domain': {
                     'contrato': [('id', '=', 0)]
                 }
-            }
+            }"""
 
 # Método de pago: PPD (Crédito) o PUE (Contado)
     metododepago = fields.Selection(

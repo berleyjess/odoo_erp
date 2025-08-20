@@ -77,7 +77,7 @@
                  options="{'no_create': True, 'no_edit': True, 'no_open': True, 'no_create_edit': True}">
                  <list string="Detalles de compra">
                     <field name="producto_id" readonly="1"/>
-                    <field name="c_entrada" readonly="1"/>
+                    <field name="cantidad" readonly="1"/>
                     <field name="precio" readonly="1"/>
                     <field name="iva" string="Iva %" readonly="1"/>
                     <field name="iva_amount" string="Iva" readonly="1"/>

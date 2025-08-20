@@ -2,7 +2,7 @@ from odoo import models, fields
 from datetime import date
 
 class transientmodel(models.TransientModel):
-    _name = 'edocta'
+    _name = 'transient.edocta'
 
     lines = fields.One2many('tmpline', 'edocta_id', string = "Lineas")
     contrato_id = fields.Many2one('solcreditos.solcredito', string = "Crédito")
@@ -14,7 +14,7 @@ class transientmodel(models.TransientModel):
         self.ensure_one()
         self.lines.unlink()
 
-        cxcs = self.env['cuentasxcobrar.cuentaxcobrar'].search([
+        cxcs = self.env['transacciones.transaccion'].search([
             ('contrato_id', '=', self.contrato_id.id),
         ])
 
@@ -24,21 +24,21 @@ class transientmodel(models.TransientModel):
         for linea in cxcs:
             balance += linea.saldo
             lineas.append((0,0,{
-                'edocta_id': self.contrato_id,
+                'edocta_id': self.id,
                 'fecha': linea.fecha,
                 'referencia': linea.referencia,
-                'concepto': linea.concepto,
+                'concepto': linea.producto_id,
                 'cantidad': linea.cantidad,
                 'precio': linea.precio,
-                'iva': linea.iva,
-                'ieps': linea.ieps,
+                'iva': linea.iva_ammount,
+                'ieps': linea.ieps_ammount,
                 'importe': linea.importe,
-                'cargo': linea.cargo,
-                'abono': linea.abono,
+                'cargo': linea.importe,
+                'abono': 0,
                 'balance': balance,
             }
             ))
-        balance+=self.contrato_id.intereses
+        """balance+=self.contrato_id.intereses
         lineas.append((0,0,{
             'edocta_id': self.contrato_id,
             'fecha': fields.Date.today(),
@@ -52,8 +52,9 @@ class transientmodel(models.TransientModel):
             'cargo': self.contrato_id.intereses,
             'abono': 0.0,
             'balance': balance,
-        }))
-
+        }))"""
+        # Escribir las líneas en el wizard
+        self.write({'lines': lineas})
         return self._show_results()
     
     def _show_results(self):
