@@ -34,3 +34,41 @@ class compra(models.Model):
         sequence = self.env['ir.sequence'].next_by_code('seq_compra_code') or '/'
         number = sequence.split('/')[-1]
         return f"{number.zfill(6)}"
+
+    def action_open_edit(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Editar compra',
+            'res_model': 'compras.compra',
+            'view_mode': 'form',
+            'views': [(self.env.ref('compras.view_compras_form').id, 'form')],  # <- aquí
+            'res_id': self.id,
+            'target': 'current',
+            'context': dict(self.env.context, form_view_initial_mode='edit'),
+        }
+
+    def action_save_button(self):
+    
+        """Botón 'Guardar': el cliente web guarda el formulario primero,
+        luego llama a este método. Regresamos a la misma ficha en readonly."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Compra',
+            'res_model': 'compras.compra',
+            'view_mode': 'form',
+            'res_id': self.id,
+            'target': 'current',
+            'context': dict(self.env.context, form_view_initial_mode='readonly'),
+        }
+    
+    def action_back_to_list(self):
+        """Regresa al listado de compras."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Compras'),
+            'res_model': 'compras.compra',
+            'view_mode': 'list,form',
+            'target': 'current',
+        }

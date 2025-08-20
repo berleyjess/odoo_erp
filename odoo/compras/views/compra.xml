@@ -18,7 +18,7 @@
         <field name="arch" type="xml">
             <form string="Compras">
             <header>
-
+                <button name="%(compras.action_compras)d" type="action" string="Volver" class="btn-secondary"/>
             </header>
                 <sheet>
                     <group>
@@ -50,21 +50,101 @@
         </field>
     </record>
 
+    
+  <!-- FORM SOLO LECTURA (DETALLE) -->
+
+    <record id="view_compras_form_detalle" model="ir.ui.view">
+     <field name="name">compras.form.detalle</field>
+     <field name="model">compras.compra</field>
+     <field name="arch" type="xml">
+        <form string="Compras" edit="false" create="false" delete="false">
+            <header>
+            <!-- Botón que abre la vista EDIT -->
+                
+                <button name="action_open_edit" type="object" string="Editar" class="btn-primary" confirm="¿Estas seguro que quieres editar el registro?"/>
+                <button name="%(compras.action_compras)d" type="action" string="Volver" class="btn-secondary"/>
+            </header>
+         <sheet>
+            <group>
+                <field name="fecha" readonly="1"/>
+                <field name="proveedor" readonly="1"/>
+
+          <!-- Bloquea edición del one2many SIN usar editable="false" -->
+                <field name="detalle"
+                 widget="one2many_list"
+                 readonly="1"
+                 context="{'default_compra_id': id}"
+                 options="{'no_create': True, 'no_edit': True, 'no_open': True, 'no_create_edit': True}">
+                 <list string="Detalles de compra">
+                    <field name="producto_id" readonly="1"/>
+                    <field name="c_entrada" readonly="1"/>
+                    <field name="precio" readonly="1"/>
+                    <field name="iva" string="Iva %" readonly="1"/>
+                    <field name="iva_amount" string="Iva" readonly="1"/>
+                    <field name="ieps" string="Ieps %" readonly="1"/>
+                    <field name="ieps_amount" string="Ieps" readonly="1"/>
+                    <field name="subtotal" readonly="1"/>
+                 </list>
+                </field>
+            </group>
+
+            <group string="Totales">
+                <field name="amount_subtotal" readonly="1"/>
+                <field name="amount_iva" readonly="1"/>
+                <field name="amount_ieps" readonly="1"/>
+                <field name="amount_total" readonly="1"/>
+            </group>
+         </sheet>
+        </form>
+     </field>
+    </record>
+
+
     <record id="action_compras" model="ir.actions.act_window">
         <field name="name">Compras</field>
         <field name="res_model">compras.compra</field>
         <field name="view_mode">list,form</field>
-        <field name="view_id" ref="view_compras_list"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_create">
-                Click to create a new purchase.
-            </p>
-            <p>
-                Use this view to manage the details of purchases, including products, quantities, and prices.
-            </p>
-        </field>
+        <!--PARA OCULTAR EL BOTON "NEW" POR DEFECTO DE ODOO.-->
+        <field name="context">{'create': False}</field>
+        <field name="target">current</field>
     </record>
+
+    <!-- Bindear la LISTA a la acción (esto hace que aparezca el “List” en el switcher) -->
+    <record id="action_compras_list_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="10"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_compras_list"/>
+        <field name="act_window_id" ref="action_compras"/>
+    </record>
+
+  <!-- Forzar que el FORM de la acción principal sea el de DETALLE -->
+    <record id="action_compras_form_detalle" model="ir.actions.act_window.view">
+        <field name="sequence" eval="20"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_compras_form_detalle"/>
+        <field name="act_window_id" ref="action_compras"/>
+    </record>
+
+
+
+  <!-- (Opcional) Acción para "Nueva compra" que abre directamente el form EDIT en modo edición -->
+    <record id="action_compras_new" model="ir.actions.act_window">
+        <field name="name">Nueva compra</field>
+        <field name="res_model">compras.compra</field>
+        <field name="view_mode">form</field>
+        <field name="context">{'form_view_initial_mode': 'edit'}</field>
+    </record>
+    <record id="action_compras_new_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="10"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_compras_form"/>
+        <field name="act_window_id" ref="action_compras_new"/>
+    </record>
+
+    
 
     <menuitem id="menu_root" name="Compras"/>
     <menuitem id="menu_action" name="Compras" parent="menu_root" action="action_compras"/>
+    <menuitem id="menu_action_new" name="Nueva compra" parent="menu_root" action="action_compras_new"/>
+
 </odoo>
