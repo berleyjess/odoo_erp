@@ -137,6 +137,7 @@ class producto(models.Model):
             vals['description'] = vals['description'].upper() if vals['description'] else False
         return super().write(vals)
 
+    
     # productos/models/producto.py
     #precio = fields.Float(
     #    string="Precio (compat)",
