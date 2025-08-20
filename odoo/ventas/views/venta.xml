@@ -1,20 +1,28 @@
 <odoo>
-    <!-- Acción que abre la vista principal de ventas en modo lista y formulario -->
+
+    <!-- =============================
+         ACCIÓN PRINCIPAL (Lista + Form Detalle)
+         ============================= -->
     <record id="action_ventas" model="ir.actions.act_window">
         <field name="name">Ventas</field>
         <field name="res_model">ventas.venta</field>
         <field name="view_mode">list,form</field>
+        <!-- Oculta botón "Crear" en la acción principal -->
+        <field name="context">{'create': False}</field>
+        <field name="target">current</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Crea tu primer venta</p>
+            <p class="o_view_nocontent_smiling_face">Crea tu primera venta</p>
         </field>
     </record>
 
-    <!-- Vista lista (árbol) para mostrar ventas -->
+    <!-- =============================
+         LISTA (árbol)
+         ============================= -->
     <record id="view_venta_list" model="ir.ui.view">
-        <field name="name">venta.tree</field>
+        <field name="name">venta.list</field>
         <field name="model">ventas.venta</field>
         <field name="arch" type="xml">
-            <list>
+            <list string="Ventas">
                 <field name="fecha"/>
                 <field name="cliente"/>
                 <field name="contrato"/>
@@ -25,20 +33,17 @@
         </field>
     </record>
 
-    <!-- Vista formulario de ventas, con campos condicionales según método de pago -->
+    <!-- =============================
+         FORM EDITABLE
+         ============================= -->
     <record id="view_venta_form" model="ir.ui.view">
         <field name="name">venta.form</field>
         <field name="model">ventas.venta</field>
         <field name="arch" type="xml">
-            
-
-            <form autosave="False">
+            <form string="Ventas">
                 <header>
-                    <!--button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/-->
-                    <!-- Opcional: botón Crear Preventa desde Venta -->
-                    <!--button name="action_make_preventa" type="object" string="Crear Preventa" invisible="state != 'draft'"/-->
-                    <!--button name="action_cancel" type="object" string="Cancelar"
-            class="btn-danger" invisible="state != 'confirmed'"/-->
+                    <!-- Botón Volver a la lista -->
+                    <button name="%(ventas.action_ventas)d" type="action" string="Volver" class="btn-secondary"/>
                 </header>
 
                 <sheet>
@@ -48,21 +53,25 @@
                         <field name="sucursal_id"/>
                         <field name="codigo" readonly="1"/>
                         <field name="state" readonly="1"/>
+
                         <field name="metododepago" widget="radio" options="{'horizontal': true}"/>
-                        <field name="formadepago"                             
-                            required="metododepago == 'PUE'"
-                            invisible="metododepago != 'PUE'"
-                        />
+
+                        <!-- Solo si PUE -->
+                        <field name="formadepago"
+                               required="metododepago == 'PUE'"
+                               invisible="metododepago != 'PUE'"/>
+
+                        <!-- Si NO es PUE (PPD/Crédito) -->
                         <field name="contrato"
-                            required="metododepago != 'PUE'"
-                            invisible="metododepago == 'PUE'"
-                        />
+                               required="metododepago != 'PUE'"
+                               invisible="metododepago == 'PUE'"/>
+
                         <field name="observaciones"/>
                     </group>
-                        <!-- Pestaña con las líneas de detalle de la venta -->
+
                     <notebook>
                         <page string="Detalles de Venta">
-                            <field name="detalle">
+                            <field name="detalle" widget="one2many_list">
                                 <list editable="bottom">
                                     <field name="producto_id"/>
                                     <field name="cantidad"/>
@@ -74,33 +83,118 @@
                             </field>
                         </page>
                     </notebook>
-                    <div class="oe_title" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;"/>
-                        <!-- Bloque visual para mostrar importes e impuestos -->
-                    <div class="row">
-                        <div class="col-md-3">
-                            <label for="importe" string="Importe: "/>
-                            <field name="importe"/>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="iva" string="iva: "/>
-                            <field name="iva" string="iva"/>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="ieps" string="ieps: "/>
-                            <field name="ieps" string="ieps"/>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="total" string="Total: "/>
-                            <field name="total" string="total"/>
-                        </div>
-                    </div>                        
+
+                    <group string="Totales">
+                        <field name="importe"/>
+                        <field name="iva"/>
+                        <field name="ieps"/>
+                        <field name="total"/>
+                    </group>
                 </sheet>
             </form>
         </field>
     </record>
 
-    <!-- Menú raíz de Ventas -->
+    <!-- =============================
+         FORM SOLO LECTURA (DETALLE)
+         ============================= -->
+    <record id="view_venta_form_detalle" model="ir.ui.view">
+        <field name="name">venta.form.detalle</field>
+        <field name="model">ventas.venta</field>
+        <field name="arch" type="xml">
+            <form string="Ventas" edit="false" create="false" delete="false">
+                <header>
+                    <!-- Abrir el mismo registro en la vista EDIT -->
+                    <button name="action_open_edit" type="object" string="Editar"
+                            class="btn-primary"
+                            confirm="¿Estás seguro que quieres editar el registro?"/>
+                    <button name="%(ventas.action_ventas)d" type="action" string="Volver" class="btn-secondary"/>
+                </header>
+
+                <sheet>
+                    <group>
+                        <field name="fecha" readonly="1"/>
+                        <field name="cliente" readonly="1" options="{'no_open': True}"/>
+                        <field name="sucursal_id" readonly="1" options="{'no_open': True}"/>
+                        <field name="codigo" readonly="1"/>
+                        <field name="state" readonly="1"/>
+
+                        <field name="metododepago" readonly="1" widget="radio" options="{'horizontal': true}"/>
+
+                        <!-- Mostrar condicionados pero siempre readonly -->
+                        <field name="formadepago" readonly="1" invisible="metododepago != 'PUE'"/>
+                        <field name="contrato" readonly="1" invisible="metododepago == 'PUE'" options="{'no_open': True}"/>
+
+                        <field name="observaciones" readonly="1"/>
+                    </group>
+
+                    <!-- One2many bloqueado con opciones (sin usar editable="false") -->
+                    <field name="detalle"
+                           widget="one2many_list"
+                           readonly="1"
+                           options="{'no_create': True, 'no_edit': True, 'no_open': True, 'no_create_edit': True}">
+                        <list string="Detalles de Venta">
+                            <field name="producto_id" readonly="1"/>
+                            <field name="cantidad" readonly="1"/>
+                            <field name="precio" readonly="1"/>
+                            <field name="iva" readonly="1"/>
+                            <field name="ieps" readonly="1"/>
+                            <field name="importe" readonly="1"/>
+                        </list>
+                    </field>
+
+                    <group string="Totales">
+                        <field name="importe" readonly="1"/>
+                        <field name="iva" readonly="1"/>
+                        <field name="ieps" readonly="1"/>
+                        <field name="total" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- =============================
+         BINDINGS: forzar que el FORM por defecto sea el DETALLE
+         ============================= -->
+    <record id="action_ventas_list_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="10"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_venta_list"/>
+        <field name="act_window_id" ref="action_ventas"/>
+    </record>
+
+    <record id="action_ventas_form_detalle" model="ir.actions.act_window.view">
+        <field name="sequence" eval="20"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_venta_form_detalle"/>
+        <field name="act_window_id" ref="action_ventas"/>
+    </record>
+
+    <!-- =============================
+         ACCIÓN "NUEVA VENTA" (abre la vista EDIT directamente)
+         ============================= -->
+    <record id="action_ventas_new" model="ir.actions.act_window">
+        <field name="name">Nueva venta</field>
+        <field name="res_model">ventas.venta</field>
+        <field name="view_mode">form</field>
+        <field name="context">{'form_view_initial_mode': 'edit'}</field>
+        <field name="target">current</field>
+    </record>
+
+    <record id="action_ventas_new_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="10"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_venta_form"/>
+        <field name="act_window_id" ref="action_ventas_new"/>
+    </record>
+
+    <!-- =============================
+         MENÚS
+         ============================= -->
     <menuitem id="menu_root" name="Ventas" sequence="10"/>
-    <!-- Submenú para abrir listado de ventas -->
     <menuitem id="menu_action" name="Listado de Ventas" parent="menu_root" action="action_ventas"/>
+    <menuitem id="menu_action_new" name="Nueva venta" parent="menu_root" action="action_ventas_new"/>
+
 </odoo>
+

@@ -154,3 +154,16 @@ class venta(models.Model):
                 raise ValidationError(_('La Cantidad/Precio no pueden ser 0'))
             if not linea.producto_id:
                 raise ValidationError(_('Debe seleccionar un producto'))
+            
+    def action_open_edit(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Editar Venta',
+            'res_model': 'ventas.venta',
+            'view_mode': 'form',
+            'view_id': self.env.ref('ventas.view_venta_form').id,
+            'res_id': self.id,
+            'target': 'current',
+            'context': {'form_view_initial_mode': 'edit'},
+        }

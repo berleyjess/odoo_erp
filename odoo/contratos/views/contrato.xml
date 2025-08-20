@@ -57,7 +57,7 @@
 
     <!-- Menús -->
     <menuitem id="menu_root" name="contratos"/>
-        <menuitem id="menu_action" name="Lista de contratos" parent="menu_root" action="action_contratos"/>
+    <menuitem id="menu_action" name="Lista de contratos" parent="menu_root" action="action_contratos"/>
     <!--        <menuitem id="menu_final" name="contratos" parent="menu_action" action="action_contratos"/>-->
 </odoo>
 
