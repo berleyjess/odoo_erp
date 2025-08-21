@@ -110,7 +110,7 @@ class solcredito(models.Model):
         ], required = True, string="El cliente es responsable del crédito?", default="0"
     )
 
-    edodecuenta = fields.One2many('transacciones.transaccion', 'contrato_id', string="Estado de cuenta")
+    edodecuenta = fields.One2many('transient.edocta', 'contrato_id', string="Estado de cuenta")
     """edodecuenta = fields.One2many('cuentasxcobrar.cuentaxcobrar', 'contrato_id', string="Estado de cuenta")
     intereses = fields.Float(string = "Intereses", compute = '_calc_intereses', store = False)
 

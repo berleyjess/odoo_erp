@@ -30,9 +30,9 @@ class transaccion_ext(models.Model):
             venta_obj = self.env['ventas.venta']
             venta = venta_obj.browse(vals['venta_id'])
             
-            if venta.tipo == 'PPD' and venta.contrato:
+            if venta.metododepago == 'PPD' and venta.contrato:
                 vals['contrato_id'] = venta.contrato.id
-            if venta.cliente_id:
+            if venta.cliente:
                 vals['cliente_id'] = venta.cliente.id
         
         return super().create(vals)
