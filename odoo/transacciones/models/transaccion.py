@@ -43,6 +43,8 @@ class transaccion(models.Model):
     def _calc_montos(self):
         for i in self:
             if i.producto_id:
+                i.iva = i.producto_id.iva
+                i.ieps = i.producto_id.ieps
                 i.subtotal = i.cantidad * i.precio
                 i.iva_amount = i.iva * i.importe
                 i.ieps_amount = i.ieps * i.importe

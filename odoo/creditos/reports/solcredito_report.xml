@@ -2,21 +2,21 @@
   <data>
 
     <!-- Acción de reporte PDF -->
-    <record id="action_report_solcredito" model="ir.actions.report">
+    <record id="action_report_credito" model="ir.actions.report">
       <field name="name">Solicitud de Crédito</field>
       <field name="type">ir.actions.report</field>
       <field name="report_type">qweb-pdf</field>
       <!-- report_name = <módulo>.<id_del_template> -->
-      <field name="report_name">solcreditos.report_solcredito_document</field>
-      <field name="report_file">solcreditos.report_solcredito_document</field>
-      <field name="model">solcreditos.solcredito</field>
+      <field name="report_name">creditos.report_credito_document</field>
+      <field name="report_file">creditos.report_credito_document</field>
+      <field name="model">creditos.credito</field>
       <field name="print_report_name">'SOLICITUD_%s' % (object.folio or object.display_name)</field>
       <field name="attachment_use">False</field>
       <field name="attachment">'solicitud_%s.pdf' % (object.folio or object.id)</field>
     </record>
 
     <!-- Template QWeb base (solo cabecera y caja de foto, listo para ampliar) -->
-    <template id="report_solcredito_document">
+    <template id="report_credito_document">
       <t t-call="web.basic_layout">
         <t t-foreach="docs" t-as="o">
 

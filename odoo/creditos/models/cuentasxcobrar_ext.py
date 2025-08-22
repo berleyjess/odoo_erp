@@ -1,12 +1,12 @@
-# solcreditos/models/cuentasxcobrar_ext.py
+# creditos/models/cuentasxcobrar_ext.py
 from odoo import fields, models
 
 class CxCContrato(models.Model):
     _inherit = 'cuentasxcobrar.cuentaxcobrar'
-    #_name = 'solcredito.cuentaxcobrar_ext'
+    #_name = 'credito.cuentaxcobrar_ext'
 
     contrato_id = fields.Many2one(
-        'solcreditos.solcredito',
+        'creditos.credito',
         string="Solicitud/Contrato",
         index=True,
         ondelete='cascade'

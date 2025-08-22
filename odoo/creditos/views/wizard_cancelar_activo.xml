@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- solcreditos/views/wizard_cancelar_activo.xml -->
+<!-- creditos/views/wizard_cancelar_activo.xml -->
 <odoo>
     <record id="view_wizard_cancelar_activo_form" model="ir.ui.view">
-        <field name="name">solcreditos.wizard.cancelar.activo.form</field>
-        <field name="model">solcreditos.wizard.cancelar.activo</field>
+        <field name="name">creditos.wizard.cancelar.activo.form</field>
+        <field name="model">creditos.wizard.cancelar.activo</field>
         <field name="arch" type="xml">
             <form string="Cancelar Activo">
                 <group>

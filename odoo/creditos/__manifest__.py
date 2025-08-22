@@ -6,12 +6,12 @@
     'version': '1.0',
     'depends': ['base', 'clientes', 'contratos', 'predios'],
     'data': [
-        'reports/solcredito_report.xml',
-        #'views/solcredito_button_print.xml',
-        'views/solcredito.xml',
-        #'views/cxc_inherit_solcreditos.xml',
+        'reports/credito_report.xml',
+        #'views/credito_button_print.xml',
+        'views/credito.xml',
+        #'views/cxc_inherit_creditos.xml',
         'data/seq_code.xml',
-
+        'views/edocta.xml',
     ],
     'installable': True,
     'application': True,

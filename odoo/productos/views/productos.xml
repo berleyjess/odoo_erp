@@ -38,6 +38,7 @@
                 </header>
                 <sheet>
                     <group>
+                        <field name="tipoProducto"/>
                         <field name="name"/>
                         <field name="description"/>
                         <field name="codigosat"
@@ -48,14 +49,9 @@
                         <field name="costo" options="{'force_input': True}" placeholder="0.00"/>
                         <field name="contado" options="{'force_input': True}" placeholder="0.00"/>
                         <field name="credito" options="{'force_input': True}" placeholder="0.00"/>
-                        <field name="tipoProducto"/>
                         <field name="iva"/>
                         <field name="ieps"/>
-                    </group>
-                    
-                    <button string="Guardar" type="object" name="action_manual_save" class="btn-primary"/>
-                        <span style="margin-left:12px;"/>
-                
+                    </group>               
                 </sheet>
             </form>
         </field>

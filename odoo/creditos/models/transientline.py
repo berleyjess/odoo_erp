@@ -3,7 +3,7 @@ from odoo import models, fields
 class transientline(models.TransientModel):
     _name = 'tmpline'
 
-    edocta_id = fields.Many2one('edocta', string = "Estado de Cuenta")
+    edocta_id = fields.Many2one('transient.edocta', string = "Estado de Cuenta")
     fecha = fields.Date(string = "Fecha")
     referencia = fields.Char(string = "Referencia")
     concepto = fields.Char(string = "Concepto")

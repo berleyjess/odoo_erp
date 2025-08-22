@@ -4,7 +4,7 @@ class transaccion_ext(models.Model):
     _inherit  = 'transacciones.transaccion'
 
     venta_id = fields.Many2one('ventas.venta', string = "Venta")
-    contrato_id = fields.Many2one('solcreditos.solcredito', string = "Contrato")
+    contrato_id = fields.Many2one('creditos.credito', string = "Contrato")
     cliente_id = fields.Many2one('clientes.cliente', string = "Cliente")
 
     @api.onchange('venta_id')
@@ -30,9 +30,9 @@ class transaccion_ext(models.Model):
             venta_obj = self.env['ventas.venta']
             venta = venta_obj.browse(vals['venta_id'])
             
-            if venta.tipo == 'PPD' and venta.contrato:
+            if venta.metododepago == 'PPD' and venta.contrato:
                 vals['contrato_id'] = venta.contrato.id
-            if venta.cliente_id:
+            if venta.cliente:
                 vals['cliente_id'] = venta.cliente.id
         
         return super().create(vals)
