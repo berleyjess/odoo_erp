@@ -1,0 +1,59 @@
+<odoo>
+<!-- personas/views/persona.xml -->
+  <!-- Menú y acción base de Personas -->
+  <record id="action_personas" model="ir.actions.act_window">
+    <field name="name">Personas</field>
+    <field name="res_model">persona.persona</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_personas_root" name="Personas"/>
+  <menuitem id="menu_personas" name="Personas" parent="menu_personas_root" action="action_personas"/>
+
+  <record id="view_persona_form" model="ir.ui.view">
+    <field name="name">persona.persona.form</field>
+    <field name="model">persona.persona</field>
+    <field name="arch" type="xml">
+      <form string="Persona">
+        <sheet>
+          <group string="Identidad">
+            <field name="name" required="1"/>
+            <field name="rfc"/>
+            <field name="email"/>
+            <field name="telefono"/>
+            <field name="fecha_nacimiento"/>
+          </group>
+
+          <group string="Ubicación" colspan="4">
+            <group>
+              <field name="localidad_id"/>
+              <field name="colonia"/>
+              <field name="numero_casa"/>
+            </group>
+          </group>
+
+          <group string="Estado">
+            <field name="active"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="view_persona_tree" model="ir.ui.view">
+    <field name="name">persona.persona.tree</field>
+    <field name="model">persona.persona</field>
+    <field name="arch" type="xml">
+      <list string="Personas">
+        <field name="name"/>
+        <field name="rfc"/>
+        <field name="email"/>
+        <field name="telefono"/>
+        <field name="localidad_id"/>
+        <field name="colonia"/>
+        <field name="numero_casa"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+</odoo>
+

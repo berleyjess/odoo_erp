@@ -149,7 +149,7 @@
         </field>
     </record>
 
-    <!-- Vista de formulario para editar clientes
+    <!-- Vista de formulario para editar clientes -->
     <record id="view_clientes_form_edit" model="ir.ui.view">
         <field name="name">clientes.cliente.form.edit</field>
         <field name="model">clientes.cliente</field>
@@ -204,7 +204,7 @@
                 </sheet>
             </form>
         </field>
-    </record-->
+    </record>
 
     <!-- Acción principal que muestra la vista tabla -->
     <record id="action_clientes_model" model="ir.actions.act_window">
