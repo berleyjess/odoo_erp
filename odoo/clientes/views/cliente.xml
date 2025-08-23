@@ -1,5 +1,5 @@
 <odoo>
-
+<!-- clientes/views/cliente.xml -->
     <record id="view_clientes_list" model="ir.ui.view">
         <field name="name">clientes.cliente.list</field>
         <field name="model">clientes.cliente</field>
@@ -37,6 +37,7 @@
                 </header>
                 <div>view_clientes_form</div>
                 <sheet>
+                <field name="persona_id" invisible="1"/>
                     <group>
                         <group>
                             <field name="tipo" widget="radio" options="{'horizontal': true}"/>
@@ -51,6 +52,11 @@
                             <field name="calle"/>
                             <field name="numero"/>
                         </group>
+                    </group>
+
+                    <group string="Contacto">
+                        <field name="telefono"/>
+                        <field name="email"/>
                     </group>
 
                     <notebook>
@@ -79,6 +85,7 @@
                                     <field name="descripcion"/>
                                     <field name="telefono"/>
                                     <field name="email"/>
+                                    <field name="es_principal" widget="boolean_toggle"/>
                                 </list>
                             </field>
                         </page>
@@ -96,6 +103,7 @@
         <!--field name="groups">security_roles.role_manager</field-->
         <field name="arch" type="xml">
             <form>
+            
                 <header>
                     <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
                     <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
@@ -104,7 +112,11 @@
                     </group>
                 </header>
                 <div>view_clientes_form_simple</div>
+                <header>
+                    <!--button name="action_match_persona_by_rfc" type="object" string="Buscar persona por RFC" class="oe_secondary" invisible="persona_id"/-->
+                </header>
                 <sheet>
+                <field name="persona_id" invisible="1"/>
                     <group>
                         <group string="Información General">
                             <field name="tipo" widget="radio" options="{'horizontal': true}"/>
@@ -131,6 +143,10 @@
                             <field name="numero"/>
                         </group>
                     </group>
+                    <group string="Contacto">
+                        <field name="telefono"/>
+                        <field name="email"/>
+                    </group>
 
                     <notebook>
                         <page string="Contactos">
@@ -140,6 +156,7 @@
                                     <field name="descripcion"/>
                                     <field name="telefono"/>
                                     <field name="email"/>
+                                    <field name="es_principal" widget="boolean_toggle"/>
                                 </list>
                             </field>
                         </page>
@@ -155,6 +172,7 @@
         <field name="model">clientes.cliente</field>
         <field name="arch" type="xml">
             <form>
+            
                 <header>
                     <group invisible="id == False">
                         <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
@@ -162,6 +180,7 @@
                 </header>
                 <div>view_clientes_form_edit</div>
                 <sheet>
+                <field name="persona_id" invisible="1"/>
                     <group>
                         <group string="Información General">
                             <field name="tipo" widget="radio" options="{'horizontal': true}"/>
@@ -214,6 +233,8 @@
         <field name="view_id" ref="view_clientes_list"/>
         <!-- Aquí se fuerza que la primera vista sea la de lista -->
     </record>
+
+    <menuitem id="menu_clientes_buscar_rfc" name="Buscar persona por RFC" parent="menu_clientes_root" action="action_rfc_lookup_wizard" sequence="20"/>
 
     <menuitem id="menu_clientes_root" name="Clientes" sequence="10"/>
     <menuitem id="menu_clientes" name="Registros" parent="menu_clientes_root" action="action_clientes_model"/>

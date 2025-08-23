@@ -3,7 +3,7 @@
     <record id="action_ciclos" model="ir.actions.act_window">
         <field name="name">Ciclos Agrícolas</field>
         <field name="res_model">ciclos.ciclo</field>
-        <field name="view_mode">autorizacion,form</field>
+        <field name="view_mode">list,form</field>
         <field name="context">{'default_periodo': 'OI'}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Añade un Ciclo Agríciola</p>

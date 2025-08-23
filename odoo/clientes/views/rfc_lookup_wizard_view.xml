@@ -1,0 +1,33 @@
+<odoo>
+  <!-- Vista del wizard -->
+  <record id="view_rfc_lookup_wizard" model="ir.ui.view">
+    <field name="name">clientes.rfc_lookup_wizard.form</field>
+    <field name="model">clientes.rfc_lookup_wizard</field>
+    <field name="arch" type="xml">
+      <form string="Buscar persona por RFC">
+        <group>
+          <field name="rfc" placeholder="XAXX010101000"/>
+        </group>
+        <footer>
+          <button name="action_lookup" type="object" string="Buscar" class="btn-primary"/>
+          <button special="cancel" string="Cancelar" class="btn-secondary"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+
+  <!-- Acción para abrir el wizard en un modal -->
+  <record id="action_rfc_lookup_wizard" model="ir.actions.act_window">
+    <field name="name">Buscar persona por RFC</field>
+    <field name="res_model">clientes.rfc_lookup_wizard</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+  </record>
+
+  <!-- (Opcional) Menú directo al wizard, bajo Clientes -->
+  <menuitem id="menu_clientes_buscar_rfc"
+            name="Buscar persona por RFC"
+            parent="menu_clientes_root"
+            action="action_rfc_lookup_wizard"
+            sequence="20"/>
+</odoo>

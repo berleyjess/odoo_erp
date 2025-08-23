@@ -1,19 +1,13 @@
 <odoo>
 <!-- personas/views/persona.xml -->
-  <!-- Menú y acción base de Personas -->
-  <record id="action_personas" model="ir.actions.act_window">
-    <field name="name">Personas</field>
-    <field name="res_model">persona.persona</field>
-    <field name="view_mode">list,form</field>
-  </record>
-  <menuitem id="menu_personas_root" name="Personas"/>
-  <menuitem id="menu_personas" name="Personas" parent="menu_personas_root" action="action_personas"/>
 
   <record id="view_persona_form" model="ir.ui.view">
     <field name="name">persona.persona.form</field>
     <field name="model">persona.persona</field>
     <field name="arch" type="xml">
       <form string="Persona">
+      <header>
+      </header>
         <sheet>
           <group string="Identidad">
             <field name="name" required="1"/>
@@ -26,13 +20,16 @@
           <group string="Ubicación" colspan="4">
             <group>
               <field name="localidad_id"/>
+              <field name="codigop"/>
               <field name="colonia"/>
+              <field name="calle"/>
               <field name="numero_casa"/>
             </group>
           </group>
 
           <group string="Estado">
             <field name="active"/>
+            
           </group>
         </sheet>
       </form>
@@ -50,10 +47,21 @@
         <field name="telefono"/>
         <field name="localidad_id"/>
         <field name="colonia"/>
+        <field name="calle"/>
         <field name="numero_casa"/>
         <field name="active"/>
+        
       </list>
     </field>
   </record>
+
+  <!-- Menú y acción base de Personas -->
+  <record id="action_personas" model="ir.actions.act_window">
+    <field name="name">Personas</field>
+    <field name="res_model">persona.persona</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_personas_root" name="Personas"/>
+  <menuitem id="menu_personas" name="Personas" parent="menu_personas_root" action="action_personas"/>
 </odoo>
 

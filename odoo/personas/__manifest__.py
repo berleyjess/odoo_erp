@@ -1,17 +1,15 @@
 {
     'name': 'Personas',
-    'summary': 'Módulo para gestionar predios',
-    'description': 'Módulo para gestionar información de predios, incluyendo localidad, titular',
+    'summary': 'Personas base (identidad y contacto)',
+    'description': 'Modelo base de Personas; sin roles ni vínculos a otros módulos.',
     'version': '1.0',
     'depends': ['base'],
     'data': [
-        "views/menus.xml",
         'views/persona.xml',
-        'views/roles.xml',
     ],
+    'license': 'LGPL-3',
     'installable': True,
     'application': True,
+    'auto_install': False,
     'author': 'Grupo Safinsa',
-    'auto_install': True
-
 }

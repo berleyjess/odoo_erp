@@ -1,7 +1,7 @@
 {
     'name': "Contactos",
-    'summary': "Contactos de Clientes Y proveedores",
-    'description': """Modulo para gestionar los contactos de clientes""",
+    'summary': "Contactos de clientes y proveedores",
+    'description': "Módulo para gestionar contactos genéricos.",
     'author': "Grupo Safinsa",
     'version': '1.0',
     'depends': ['base'],
@@ -10,6 +10,6 @@
     ],
     'installable': True,
     'application': True,
-    'auto_install': True,
+    'auto_install': False,
+    'license': 'LGPL-3',
 }
-

@@ -21,7 +21,7 @@
     <!-- Clientes -->
     <record id="personas_action_clientes" model="ir.actions.act_window">
       <field name="name">Clientes</field>
-      <field name="res_model">persona.cliente</field>
+      <field name="res_model">clientes.cliente</field>
       <field name="view_mode">list,form</field>
     </record>
 
@@ -44,7 +44,7 @@
               action="personas_action_proveedores"
               sequence="30"/>
 
-    <!-- Empleados -->
+    <!-- Empleados
     <record id="personas_action_empleados" model="ir.actions.act_window">
       <field name="name">Empleados</field>
       <field name="res_model">persona.empleado</field>
@@ -55,7 +55,7 @@
               name="Empleados"
               parent="personas_menu_root"
               action="personas_action_empleados"
-              sequence="40"/>
+              sequence="40"/-->
 
   </data>
 </odoo>
