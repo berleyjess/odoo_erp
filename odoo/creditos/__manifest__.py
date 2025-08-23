@@ -1,5 +1,5 @@
 {
-    'name': "Solicitudes de Créditos",
+    'name': "Créditos",
     'summary': "Solicituds de créditos",
     'description': """Modulo para gestionar la asignación de contratos a clientes en el sistema.""",
     'author': "Grupo Safinsa",

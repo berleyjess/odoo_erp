@@ -5,6 +5,7 @@ class cargo(models.Model):
     _rec_name = 'concepto'
 
     concepto = fields.Char(string = "Concepto", required = True, store = True)
+    descripcion = fields.Char(string = "Descripción del concepto")
 
     tipo = fields.Selection(string = "Tipo de Cargo", selection = [
         ('0', "Costo x Superficie"),

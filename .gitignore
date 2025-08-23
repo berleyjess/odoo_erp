@@ -2,3 +2,7 @@
 # Python
 *.pyc
 __pycache__/
+odoo/creditos/models/solcredito_BACKUP_681.py
+odoo/creditos/models/solcredito_LOCAL_681.py
+odoo/creditos/models/solcredito_BASE_681.py
+odoo/creditos/models/solcredito_REMOTE_681.py
