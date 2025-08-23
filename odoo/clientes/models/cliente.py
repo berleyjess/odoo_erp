@@ -30,6 +30,7 @@ class cliente(models.Model):
     _name='clientes.cliente'  #Modelo.Cliente ("nombre del modulo"."nombre del modelo")
     _description='Cartera de clientes'
     _rec_name='nombre'  #Nombre del campo que se mostrará en las vistas de lista y búsqueda
+    _inherits = {'persona.persona': 'persona_id'}
     _order = 'codigo'  #Orden por defecto en las vistas de lista
     
     codigo = fields.Char( #Código interno del Cliente
@@ -42,9 +43,13 @@ class cliente(models.Model):
         help="Código interno autogenerado (ej. 000001). Controlado por la secuencia 'seq_client_code'."
     )
 
-    nombre = fields.Char(string="Nombre/Razón social", required=True,help="Nombre completo o razón social del cliente.")
+    persona_id = fields.Many2one('persona.persona', required=True, ondelete='restrict', index=True, string="Persona")
 
-    rfc = fields.Char(string="RFC",size=13, required=True, index=True, help="Registro Federal de Contribuyentes")
+    nombre = fields.Char(string="Nombre/Razón social", readonly=False, required=True,related='persona_id.name',store=False,help="Nombre completo o razón social del cliente.")
+
+    rfc = fields.Char(string="RFC",size=13, readonly=False, required=False,related='persona_id.rfc',store=False, index=True, help="Registro Federal de Contribuyentes")
+
+    #es_cliente = fields.Boolean(default=True, related='persona_id.es_cliente')
 
     # Constantes de validación de RFC
     # RFC_GENERICOS contiene RFCs genéricos que no deben ser validados estrictamente
@@ -73,17 +78,70 @@ class cliente(models.Model):
         help="Define si el cliente es Persona Física o Persona Moral. Afecta el dominio del campo Régimen Fiscal."
     )
 
+    # related editables (escriben en persona.persona)
+    email    = fields.Char(string="Email",readonly=False,related='persona_id.email', store=False)
+    telefono = fields.Char(string="Teléfono", readonly=False,related='persona_id.telefono', store=False)
+
+    rfc_has_existing_cliente = fields.Boolean(compute='_compute_rfc_has_existing', store=False)
+
+    def _compute_rfc_has_existing(self):
+        for rec in self:
+            r = (rec.rfc or '').strip().upper()
+            if not r:
+                rec.rfc_has_existing_cliente = False
+                continue
+            p = self.env['persona.persona'].sudo().search([('rfc', '=', r)], limit=1)
+            if not p:
+                rec.rfc_has_existing_cliente = False
+            else:
+                rec.rfc_has_existing_cliente = bool(
+                    self.env['clientes.cliente'].sudo().search_count([('persona_id', '=', p.id)])
+                )
+
+    def _get_contacto_ppal(self):
+        self.ensure_one()
+        # Preferir el marcado como principal; si no hay, toma el primero
+        return self.contacto.filtered(lambda c: c.es_principal)[:1] or self.contacto[:1]
+
+    @api.onchange('contacto')
+    def _onchange_contacto_autofill(self):
+        c = self._get_contacto_ppal()
+        if c:
+            self.email = c.email
+            self.telefono = c.telefono
+
+    def _sync_persona_from_contact(self):
+        """Rellena telefono/email de persona.persona tomando el contacto principal.
+           Solo completa si en persona están vacíos (no sobreescribe valores ya capturados)."""
+        for rec in self:
+            if not rec.persona_id:
+                continue
+            # usa el helper que ya tienes
+            c = rec._get_contacto_ppal()
+            if not c:
+                continue
+            updates = {}
+            if c.telefono and not rec.persona_id.telefono:
+                updates['telefono'] = c.telefono
+            if c.email and not rec.persona_id.email:
+                updates['email'] = (c.email or '').strip().lower()
+            if updates:
+                rec.persona_id.write(updates)
+
+
+
+
     regimen = fields.Many2one('clientes.c_regimenfiscal',
                               string = "Régimen Fiscal",
                               domain="[('tipo', 'in', [tipo == '0' and '0' or '1', '2'])]",
                               help="Régimen fiscal del cliente. El dominio se recalcula dinámicamente en _onchange_tipo."
     )
 
-    codigop = fields.Char(string="Código Postal", size=5)
-    localidad = fields.Many2one('localidades.localidad', string = "Ciudad/Localidad")
-    colonia = fields.Char(string = "Colonia", size = 32)
-    calle = fields.Char(string = "Calle", size = 32)
-    numero = fields.Char(string = "Número")
+    codigop = fields.Char(string="Código Postal", size=5, readonly=False,related='persona_id.codigop',store=False)
+    localidad = fields.Many2one('localidades.localidad', readonly=False,related='persona_id.localidad_id',store=False, string = "Ciudad/Localidad")
+    calle = fields.Char(string = "Calle", size = 32, readonly=False,related='persona_id.calle', store=False) #FALTA PONER EN PERSONAS.PERSONA
+    colonia      = fields.Char(string="Colonia", readonly=False,related='persona_id.colonia', store=False) #FALTA AGREGAR EN CLIENTE
+    numero = fields.Char(string = "Número", readonly=False,related='persona_id.numero_casa',store=False)
 
     # Campos de identificación / Estado civil
     ine = fields.Char(string="INE (Clave de Elector)", size=18, help="Ingrese solo la clave de lector del INE")
@@ -138,35 +196,57 @@ class cliente(models.Model):
             dict: dominio dinámico para el campo 'regimen' y un warning opcional.
     """
 
-    @api.onchange('tipo')
-    def _onchange_tipo(self):
-        """Actualiza dominio del campo regimen fiscal dinámicamente"""
-        if not self.tipo:
-            # Resetear el campo si tipo está vacío
-            self.regimen = False
-            return {'domain': {'regimen': []}}
-        
-        # Definir dominio basado en el tipo seleccionado
-        domain_map = {
-            '0': ['0', '2'],  # Persona Física
-            '1': ['1', '2']   # Persona Moral
-        }
-        return {
-            'domain': {
-                'regimen': [('tipo', 'in', domain_map.get(self.tipo, []))]
-            },
-            'warning': {
-                'title': "Cambio de Régimen Fiscal",
-                'message': "Verifique que el RFC coincida con el tipo seleccionado"
-            } if self.rfc else None
-        }
+    _sql_constraints = [
+    ('cliente_codigo_unique', 'unique(codigo)', 'El código de cliente debe ser único.'),
+    ('cliente_persona_unique','unique(persona_id)', 'Esta persona ya está registrada como cliente.'),
+    ]
 
-    @api.onchange('estado_civil')
-    def _onchange_estado_civil(self):
-        """Limpia el campo cónyuge si no está casado o en unión libre"""
-        if self.estado_civil not in ['casado', 'union_libre']:
-            self.conyugue = False
     
+    # -----------------------------
+    # Onchange: auto-rellenar por RFC
+    # -----------------------------
+    @api.onchange('rfc')
+    def _onchange_rfc_autofill(self):
+        """Si el RFC ya pertenece a una persona con cliente: NO enlazar persona y avisar.
+           Si existe persona SIN cliente: enlaza persona para que se autocompleten los related."""
+        r = (self.rfc or '').strip().upper()
+        if not r or self.persona_id:
+            return
+        Person = self.env['persona.persona'].sudo()
+        p = Person.search([('rfc', '=', r)], limit=1)
+        if not p:
+            return
+        if self.env['clientes.cliente'].sudo().search_count([('persona_id', '=', p.id)]):
+            return {
+                'warning': {
+                    'title': _('RFC ya registrado'),
+                    'message': _('Ya existe un cliente con este RFC. Usa el botón "Buscar persona por RFC" para abrirlo.')
+                }
+            }
+        self.persona_id = p.id
+
+
+
+    def action_open_existing_by_rfc(self):
+        self.ensure_one()
+        r = (self.rfc or '').strip().upper()
+        if not r:
+            raise UserError(_("Captura el RFC para buscar."))
+        p = self.env['persona.persona'].sudo().search([('rfc', '=', r)], limit=1)
+        if not p:
+            raise UserError(_("No existe una persona con el RFC %s.") % r)
+        existing = self.env['clientes.cliente'].sudo().search([('persona_id', '=', p.id)], limit=1)
+        if not existing:
+            raise UserError(_("No existe cliente con ese RFC."))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Cliente existente'),
+            'res_model': 'clientes.cliente',
+            'view_mode': 'form',
+            'res_id': existing.id,
+            'target': 'current',
+        }
+  
     # Logica de negocio / hooks.
 
     def _generate_code(self):
@@ -183,70 +263,90 @@ class cliente(models.Model):
     
     @api.model
     def create(self, vals):
-        """
-        Sobrescribe create para:
-        - Forzar a mayúsculas los campos de texto relevantes antes de crear el registro.
+        # normaliza RFC
+        r = (vals.get('rfc') or '').strip().upper()
+        Person = self.env['persona.persona']
+        # ---- Evitar duplicado antes del constraint ----
+        pid = vals.get('persona_id')
+        if pid and self.env['clientes.cliente'].sudo().search_count([('persona_id', '=', pid)]):
+            raise ValidationError(_("Esta persona ya está registrada como cliente. Usa el botón 'Buscar persona por RFC' para abrirlo."))
 
-        Args:
-            vals (dict): Valores a crear.
+        if not vals.get('persona_id'):
+            if r:
+                p = Person.search([('rfc', '=', r)], limit=1)
+                if p:
+                    # Reutiliza persona encontrada
+                    # Si la persona ya tiene cliente, no permitas crear otro
+                    if self.env['clientes.cliente'].sudo().search_count([('persona_id', '=', p.id)]):
+                        raise ValidationError(_("Esta persona ya está registrada como cliente. Usa el botón 'Buscar persona por RFC' para abrirlo."))
+                    vals['persona_id'] = p.id
 
-        Returns:
-            recordset: Registro creado.
-        """
-        # Convertir a mayúsculas antes de crear
-        if 'nombre' in vals:
-            vals['nombre'] = vals['nombre'].upper() if vals['nombre'] else False
-        if 'rfc' in vals:
-            vals['rfc'] = vals['rfc'].upper() if vals['rfc'] else False
-        if 'ine' in vals:
-            vals['ine'] = vals['ine'].upper() if vals['ine'] else False
-        if 'curp' in vals:
-            vals['curp'] = vals['curp'].upper() if vals['curp'] else False
-        if 'conyugue' in vals:
-            vals['conyugue'] = vals['conyugue'].upper() if vals['conyugue'] else False
-        return super().create(vals)
+                    # Opcional: completa SOLO vacíos en persona
+                    to_fill = {}
+                    for ck, pk in [
+                        ('nombre','name'), ('email','email'), ('telefono','telefono'),('calle','calle'),('codigop','codigop'),
+                        ('localidad','localidad_id'), ('colonia','colonia'), ('numero','numero_casa'),
+                    ]:
+                        if vals.get(ck) and not getattr(p, pk):
+                            to_fill[pk] = vals[ck]
+                    if to_fill:
+                        p.write(to_fill)
+                else:
+                    # Crea persona con lo que venga del form de cliente
+                    persona_vals = {
+                        'name': vals.get('nombre'),
+                        'rfc':  r,
+                        'email': (vals.get('email') or '').strip().lower() if vals.get('email') else False,
+                        'telefono': vals.get('telefono'),
+                        'localidad_id': vals.get('localidad'),
+                        'colonia': vals.get('colonia'),
+                        'numero_casa': vals.get('numero'),
+                        'calle': vals.get('calle'),
+                        'codigop': vals.get('codigop'),
+                        
+                    }
+                    vals['persona_id'] = Person.create(persona_vals).id
+            else:
+                # Sin RFC, crea persona mínima (si tu lógica lo permite)
+                persona_vals = {
+                    'name': vals.get('nombre'),
+                    'email': (vals.get('email') or '').strip().lower() if vals.get('email') else False,
+                    'telefono': vals.get('telefono'),
+                    'localidad_id': vals.get('localidad'),
+                    'colonia': vals.get('colonia'),
+                    'numero_casa': vals.get('numero'),
+                    'codigop': vals.get('codigop'),
+                    
+                }
+                vals['persona_id'] = Person.create(persona_vals).id
+
+        # Código por secuencia si no llegó
+        if not vals.get('codigo'):
+            seq = self.env['ir.sequence'].next_by_code('seq_client_code') or '/'
+            vals['codigo'] = (seq.split('/')[-1]).zfill(6)
+
+        rec = super().create(vals)
+        rec._sync_persona_from_contact()
+        return rec
 
     def write(self, vals):
-        """
-        Sobrescribe write para:
-        - Forzar a mayúsculas los campos de texto relevantes antes de actualizar el registro.
-
-        Args:
-            vals (dict): Valores a escribir.
-
-        Returns:
-            bool: True si la operación fue exitosa.
-        """
-
-        blocked_keys = {'localidad', 'localidad_id', 'regimen', 'regimen_id'}
-        if blocked_keys.intersection(vals):
-            raise UserError(_('No se permite modificar la Localidad ni el Régimen Fiscal.'))
-
-        # Convertir a mayúsculas antes de actualizar
-        if 'nombre' in vals:
-            vals['nombre'] = vals['nombre'].upper() if vals['nombre'] else False
-        if 'rfc' in vals:
-            vals['rfc'] = vals['rfc'].upper() if vals['rfc'] else False
-        if 'ine' in vals:
-            vals['ine'] = vals['ine'].upper() if vals['ine'] else False
-        if 'curp' in vals:
-            vals['curp'] = vals['curp'].upper() if vals['curp'] else False
-        if 'conyugue' in vals:
-            vals['conyugue'] = vals['conyugue'].upper() if vals['conyugue'] else False
-        return super().write(vals)
+        res = super().write(vals)
+        # Si cambiaron líneas del O2M, o si cambió persona_id, sincroniza.
+        if 'contacto' in vals or 'persona_id' in vals:
+            self._sync_persona_from_contact()
+        return res
     
     @api.constrains('rfc')
     def _check_unique_rfc(self):
         for rec in self:
             rfc = (rec.rfc or '').strip().upper()
-        if rfc:
-            es_generico = rfc in self.RFC_GENERICOS
+            if rfc:
+                es_generico = rfc in self.RFC_GENERICOS
+                if not es_generico and not self.RFC_REGEX.fullmatch(rfc):
+                    raise ValidationError("El RFC '%s' no cumple con el formato válido." % rfc)
+                if not es_generico and rec.search_count([('rfc', '=', rfc), ('id', '!=', rec.id)]):
+                    raise ValidationError("El RFC '%s' ya está registrado en otro cliente." % rfc)
 
-            if not es_generico and not self.RFC_REGEX.fullmatch(rfc):
-                raise ValidationError(("El RFC '%s' no cumple con el formato válido.") % rfc)
-
-            if not es_generico and rec.search_count([('rfc', '=', rfc), ('id', '!=', rec.id)]):
-                raise ValidationError(("El RFC '%s' ya está registrado en otro cliente.") % rfc)
 
 
     # ---------- CONSTRAINS ---------------------------------
@@ -299,6 +399,21 @@ class cliente(models.Model):
                 if not record.regimenconyugal:
                     raise ValidationError("¡El régimen conyugal es obligatorio!")
             
+    # ======= Tus onchanges/constraints originales que NO choquen con persona =======
+    @api.onchange('tipo')
+    def _onchange_tipo(self):
+        if not self.tipo:
+            self.regimen = False
+            return {'domain': {'regimen': []}}
+        domain_map = {'0': ['0','2'], '1': ['1','2']}
+        return {'domain': {'regimen': [('tipo','in', domain_map.get(self.tipo, []))]}}
+
+    @api.onchange('estado_civil')
+    def _onchange_estado_civil(self):
+        if self.estado_civil not in ['casado','union_libre']:
+            self.conyugue = False
+
+    CP_REGEX = re.compile(r'^\d{5}$')
     @api.constrains('codigop')
     def _check_cp(self):
         for rec in self:
@@ -306,13 +421,11 @@ class cliente(models.Model):
             if cp and not self.CP_REGEX.fullmatch(cp):
                 raise ValidationError(_("El Código Postal '%s' debe ser de 5 dígitos.") % cp)
 
-
     @api.constrains('numero')
     def _check_numero(self):
         for rec in self:
-            if isinstance(rec.numero, str):                 # solo si lo dejas como Char
-                if rec.numero and not rec.numero.isdigit():
-                    raise ValidationError(_("El número de calle solo puede contener dígitos."))
+            if isinstance(rec.numero, str) and rec.numero and not rec.numero.isdigit():
+                raise ValidationError(_("El número de calle solo puede contener dígitos."))
 
     def action_save(self):
         """
@@ -369,3 +482,34 @@ class cliente(models.Model):
             'target': 'current',
             'res_id': self.id,
         }
+    
+    def action_match_persona_by_rfc(self):
+        self.ensure_one()
+        r = (self.rfc or '').strip().upper()
+        if not r:
+            raise UserError(_("Captura el RFC para buscar."))
+
+        Person = self.env['persona.persona'].sudo()
+        p = Person.search([('rfc', '=', r)], limit=2)
+        if len(p) > 1:
+            raise UserError(_("Hay más de una persona con el RFC %s.") % r)
+        if not p:
+            raise UserError(_("No existe una persona con el RFC %s.") % r)
+
+        existing = self.env['clientes.cliente'].sudo().search([('persona_id', '=', p.id)], limit=1)
+        if existing:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Cliente existente'),
+                'res_model': 'clientes.cliente',
+                'view_mode': 'form',
+                'res_id': existing.id,
+                'target': 'current',
+            }
+        self.persona_id = p.id
+        return
+
+
+        # No existe: solo enlaza la persona para autorrellenar los related
+        self.persona_id = p.id
+        return

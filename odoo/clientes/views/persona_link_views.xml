@@ -1,0 +1,37 @@
+<odoo>
+  <record id="view_persona_form_clientes_buttons" model="ir.ui.view">
+    <field name="name">persona.persona.form.clientelink</field>
+    <field name="model">persona.persona</field>
+    <field name="inherit_id" ref="personas.view_persona_form"/>
+    <field name="arch" type="xml">
+
+      <!-- Inserta el button_box dentro del header -->
+      <xpath expr="//form/header" position="inside">
+      <!-- Debe estar presente en la vista para que invisible="..." funcione -->
+        <xpath expr="//form/sheet" position="inside">
+            <field name="es_cliente" invisible="1"/>
+        </xpath>
+
+        <div class="oe_button_box" name="button_box">
+
+          <!-- Smart button: visible solo si es_cliente -->
+          <button name="action_open_cliente"
+                  type="object"
+                  class="oe_stat_button"
+                  invisible="not es_cliente">
+            <span class="o_stat_text">Cliente</span>
+          </button>
+
+        </div>
+
+        <!-- Botón de verificación/creación por RFC (solo si NO es cliente) 
+        <button name="action_check_rfc_cliente"
+                type="object"
+                string="Crear/Buscar cliente por RFC"
+                class="oe_highlight"
+                invisible="es_cliente"/-->
+      </xpath>
+
+    </field>
+  </record>
+</odoo>

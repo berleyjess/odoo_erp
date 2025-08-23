@@ -1,8 +1,8 @@
 # personas/models/persona.py
 import re
-from datetime import date as pydate 
+from datetime import date as pydate
 from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 
 RFC_RE = re.compile(r'^([A-ZÑ&]{3,4})(\d{2})(\d{2})(\d{2})([A-Z0-9]{3})$')
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
@@ -24,6 +24,8 @@ class Persona(models.Model):
     localidad_id = fields.Many2one('localidades.localidad', string="Localidad")
     colonia = fields.Char(string="Colonia")
     numero_casa = fields.Char(string="Número de casa")
+    calle = fields.Char(string="Calle")
+    codigop = fields.Char(String="Codigo Postal", size=5)
 
     # Identificador fiscal
     rfc = fields.Char(string="RFC", index=True)
@@ -35,29 +37,10 @@ class Persona(models.Model):
         ('persona_rfc_unique', 'unique(rfc)', 'Ya existe una persona con este RFC.'),
     ]
 
-    # Relaciones a roles
-    cliente_ids   = fields.One2many('clientes.cliente',    'persona_id', string="Clientes (rol)")
-    proveedor_ids = fields.One2many('proveedores.proveedor','persona_id', string="Proveedores (rol)")
-    empleado_ids = fields.One2many('persona.empleado', 'persona_id', string="Empleados (roles)")
-
     # Booleans de rol (derivados)
-    es_cliente = fields.Boolean(compute='_compute_roles', store=True)
-    es_proveedor = fields.Boolean(compute='_compute_roles', store=True)
-    es_empleado = fields.Boolean(compute='_compute_roles', store=True)
-
-    _sql_constraints = [
-        ('persona_rfc_unique', 'unique(rfc)', 'Ya existe una persona con este RFC.'),
-        ('persona_curp_unique','unique(curp)', 'Ya existe una persona con esta CURP.'),
-        ('persona_numsoc_unique','unique(numero_social)','Ya existe una persona con este Número Social.'),
-    ]
-
-    @api.depends('cliente_ids', 'proveedor_ids', 'empleado_ids')
-    def _compute_roles(self):
-        for p in self:
-            p.es_cliente = bool(p.cliente_ids)
-            p.es_proveedor = bool(p.proveedor_ids)
-            p.es_empleado = bool(p.empleado_ids)
-
+    #es_cliente = fields.Boolean(string="✔️Cliente")
+    #es_proveedor = fields.Boolean(string="✔️Proveedor")
+    #es_empleado = fields.Boolean(string="✔️empleado")
     # -------------------------
     # Normalizaciones guardado
     # -------------------------
@@ -133,7 +116,7 @@ class Persona(models.Model):
             # Acepta 19xx y 20xx
             for century in (1900, 2000):
                 try:
-                    date(century + yy, mm, dd)
+                    pydate(century + yy, mm, dd)
                     valid_date = True
                     break
                 except ValueError:
