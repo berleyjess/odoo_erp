@@ -4,7 +4,7 @@ class transaccion_ext(models.Model):
     _inherit  = 'transacciones.transaccion'
 
     venta_id = fields.Many2one('ventas.venta', string = "Venta")
-    contrato_id = fields.Many2one('solcreditos.solcredito', string = "Contrato")
+    contrato_id = fields.Many2one('creditos.credito', string = "Contrato")
     cliente_id = fields.Many2one('clientes.cliente', string = "Cliente")
 
     @api.onchange('venta_id')

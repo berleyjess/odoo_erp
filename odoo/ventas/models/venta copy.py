@@ -10,7 +10,7 @@ class venta(models.Model):
     
     codigo = fields.Char(string="Código", required = False)
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required = True)
-    contrato = fields.Many2one('solcreditos.solcredito', string="Contrato", domain="['&',('cliente', '=', cliente), ('contratoactivo','=',True), ('vencimiento', '>', hoy)]" if cliente else "[('id', '=', 0)]")
+    contrato = fields.Many2one('creditos.credito', string="Contrato", domain="['&',('cliente', '=', cliente), ('contratoactivo','=',True), ('vencimiento', '>', hoy)]" if cliente else "[('id', '=', 0)]")
 
     # Calcula siempre la fecha actual sin depender de otros campos
     hoy = fields.Date(compute='_compute_hoy')
@@ -18,7 +18,7 @@ class venta(models.Model):
     def _compute_hoy(self):
         for record in self:
             record.hoy = date.today()
-    #contrato = fields.Many2one('solcreditos.solcredito', string="Contrato")#, domain="['&',('cliente', '=', cliente), ('contratoactivo','=',True), ('vencimiento' > context_today())]" if cliente else "[('id', '=', 0)]")
+    #contrato = fields.Many2one('creditos.credito', string="Contrato")#, domain="['&',('cliente', '=', cliente), ('contratoactivo','=',True), ('vencimiento' > context_today())]" if cliente else "[('id', '=', 0)]")
 
     observaciones = fields.Char(string = "Observaciones", size=32)
     fecha = fields.Date(string="Fecha", default=lambda self: date.today())
@@ -63,7 +63,7 @@ class venta(models.Model):
         self.env.context = {}
         if self.cliente:
             # Filtramos en el servidor para que use Python y no dependa de campos no stored
-            contratos_validos = self.env['solcreditos.solcredito'].search([
+            contratos_validos = self.env['creditos.credito'].search([
                 ('cliente', '=', self.cliente.id),
                 ('contratoactivo', '=', True),  # Aunque sea compute, aquí sí lo evalúa en Python
                 ('vencimiento', '>', fields.Date.today())

@@ -5,9 +5,9 @@
         <field name="name">transient.edocta.form</field>
         <field name="model">transient.edocta</field>
         <field name="arch" type="xml">
-            <form>
+            <form create="false" edit="false" delete="false" flags="{'form': {'action_buttons': false}}">
                 <header>
-                    <button name="_generar" string="Generar Estado de Cuenta" type="object" class="btn-primary"/>
+                    <button name="generar" string="Generar Estado de Cuenta" type="object" class="btn-primary"/>
                     <button string="Cerrar" class="btn-secondary" special="cancel"/>
                 </header>
                 <sheet>
@@ -21,8 +21,8 @@
                         </group>
                     </group>
                     
-                    <field name="lines">
-                        <tree editable="bottom">
+                    <field name="lines" create="false" delete="false" nolabel="1">
+                        <list>
                             <field name="fecha"/>
                             <field name="referencia"/>
                             <field name="concepto"/>
@@ -32,7 +32,7 @@
                             <field name="cargo"/>
                             <field name="abono"/>
                             <field name="balance"/>
-                        </tree>
+                        </list>
                     </field>
                 </sheet>
             </form>

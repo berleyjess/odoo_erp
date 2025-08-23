@@ -48,7 +48,6 @@ class producto(models.Model):
         required=True,
         ondelete='restrict'
     )
-    
   
     #----
     #Propiedades del Producto
@@ -57,6 +56,7 @@ class producto(models.Model):
     compra = fields.Boolean(string="Producto para compra", default = False)
     materiaprima = fields.Boolean(string="Producto para Materia Prima", default = False)
     consumible = fields.Boolean(string="Producto consumible (Envases, etiquetas, etc)", default = False)
+    servicio = fields.Boolean(string="Servicio", default=False, store = True)
     
     #----
     codigo = fields.Char( #Código interno del producto
@@ -117,9 +117,7 @@ class producto(models.Model):
         sequence = self.env['ir.sequence'].next_by_code('seq_prod_code') or '/'
         number = sequence.split('/')[-1]
         return f"{number.zfill(6)}"
-    
-    
-    
+        
     @api.model
     def create(self, vals):
         # Convertir a mayúsculas antes de crear
@@ -136,16 +134,3 @@ class producto(models.Model):
         if 'description' in vals:
             vals['description'] = vals['description'].upper() if vals['description'] else False
         return super().write(vals)
-
-    
-    # productos/models/producto.py
-    #precio = fields.Float(
-    #    string="Precio (compat)",
-    ##    compute="_compute_precio_compat",
-    #    store=False,
-    #)
-
-    #def _compute_precio_compat(self):
-    #    for p in self:
-    #        # elige tu prioridad
-    #        p.precio = p.costo or p.contado or p.credito or 0.0

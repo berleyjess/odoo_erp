@@ -1,0 +1,50 @@
+<odoo>
+    <!-- Acción menú -->
+    <record id="action_cargos" model="ir.actions.act_window">
+        <field name="name">cargos</field>
+        <field name="res_model">cargos.cargo</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Crea tu primer cargo</p>
+        </field>
+    </record>
+
+    <!-- Lista -->
+    <record id="view_cargos_tree" model="ir.ui.view">
+        <field name="name">cargo.tree</field>
+        <field name="model">cargos.cargo</field><!-- Nombre del modelo _name -->
+        <field name="arch" type="xml">
+            <list>
+                <field name="concepto"/>
+                <field name="producto_id"/>
+                <field name="tipo"/>
+                <field name="iva"/>
+                <field name ="ieps"/>
+                <field name="facturable"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_cargos_form" model="ir.ui.view">
+        <field name="name">cargo.form</field>
+        <field name="model">cargos.cargo</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="concepto"/>
+                        <field name="producto_id"/>
+                        <field name="tipo"/>
+                        <field name="facturable"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Menús -->
+    <menuitem id="menu_root" name="Cargos"/>
+    <menuitem id="menu_action" name="Lista de cargos" parent="menu_root" action="action_cargos"/>
+    <!--        <menuitem id="menu_final" name="cargos" parent="menu_action" action="action_cargos"/>-->
+</odoo>
+

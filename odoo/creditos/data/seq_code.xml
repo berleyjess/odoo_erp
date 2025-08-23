@@ -1,9 +1,9 @@
-<!-- solcreditos-data-seq_code.xml -->
+<!-- creditos-data-seq_code.xml -->
 <odoo>
     <data noupdate="1">
-        <record id="seq_solcredito_folio" model="ir.sequence">
+        <record id="seq_credito_folio" model="ir.sequence">
             <field name="name">Secuencia de Folios Solicitud Crédito</field>
-            <field name="code">solcreditos.folio</field>
+            <field name="code">creditos.folio</field>
             <field name="prefix">SOL-%(year)s-</field>
             <field name="padding">5</field>
             <field name="number_next">1</field>

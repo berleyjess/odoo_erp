@@ -1,9 +1,9 @@
-# solcreditos/models/solcredito_autorizacion_ext.py
+# creditos/models/credito_autorizacion_ext.py
 from odoo import models, fields, api
 
 class autorizados(models.Model):
-    _name = 'solcreditos.autorizacion'
-    #_inherit = 'solcreditoautorizaciones.autorizacion'  # Hereda del modelo de autorizaciones
+    _name = 'creditos.autorizacion'
+    #_inherit = 'creditoautorizaciones.autorizacion'  # Hereda del modelo de autorizaciones
 
     status = fields.Selection(string = "Dictamen", selection=[
         ('1', 'Aprobado'),
@@ -22,8 +22,8 @@ class autorizados(models.Model):
 
     )
 
-    solcredito_id = fields.Many2one(
-        'solcreditos.solcredito',
+    credito_id = fields.Many2one(
+        'creditos.credito',
         string='Solicitud',
         ondelete='cascade'
     )

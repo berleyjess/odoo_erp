@@ -1,9 +1,9 @@
-# solcreditos/models/wizard_cancelar_activo.py
+# creditos/models/wizard_cancelar_activo.py
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 
 class WizardCancelarActivo(models.TransientModel):
-    _name = 'solcreditos.wizard.cancelar.activo'
+    _name = 'creditos.wizard.cancelar.activo'
     _description = 'Wizard para cancelar activos con motivo'
 
     activo_id = fields.Many2one(

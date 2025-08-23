@@ -1,13 +1,13 @@
 <odoo>
   <data>
-    <record id="solcredito_form_add_print_btn" model="ir.ui.view">
-      <field name="name">solcredito.form.add.print.btn</field>
-      <field name="model">solcreditos.solcredito</field>
+    <record id="credito_form_add_print_btn" model="ir.ui.view">
+      <field name="name">credito.form.add.print.btn</field>
+      <field name="model">creditos.credito</field>
       <!-- usa tu id real de vista form -->
-      <field name="inherit_id" ref="solcreditos.view_solcredito_detail"/>
+      <field name="inherit_id" ref="creditos.view_credito_detail"/>
       <field name="arch" type="xml">
         <xpath expr="//header" position="inside">
-          <button name="%(solcreditos.action_report_solcredito)d"
+          <button name="%(creditos.action_report_credito)d"
                   string="Generar solicitud"
                   type="action"
                   class="oe_highlight"

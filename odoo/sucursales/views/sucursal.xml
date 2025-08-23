@@ -6,11 +6,12 @@
             <list string="Sucursales">
                 <field name="codigo"/>
                 <field name="nombre"/>
+                <field name="serie"/>
+                <field name="tiposucursal"/>
                 <field name="empresa"/>
                 <field name="localidad"/>
                 <field name="cp"/>
                 <field name="activa"/>
-                <field name="serie"/>
             </list>
         </field>
     </record>
@@ -31,6 +32,7 @@
                         <field name="cp"/>
                         <field name="activa"/>
                         <field name="serie"/>
+                        <field name="tiposucursal"/>
                     </group>
                 </sheet>
             </form>

@@ -25,6 +25,13 @@ class Sucursal(models.Model):
 
     serie = fields.Char(string='Serie', required=True, size=2, index=True)
 
+    tiposucursal = fields.Selection(
+        selection=[("0", "Insumos"), ("1", "Granos"),("2", "Ferretería")],
+        string="Categoría del Producto",
+        required=True,
+        default='0'
+    )
+
     _sql_constraints = [
         ("sucursal_codigo_uniq", "unique(codigo)", "El código de la sucursal debe ser único."),
         # Unicidad global de la serie (tras normalizar a MAYÚSCULAS)

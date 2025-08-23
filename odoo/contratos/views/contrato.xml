@@ -41,6 +41,16 @@
                             invisible="tipocredito == '2'"/>
                     </group>
                     <notebook>
+                        <page string="Cargos a contratos">
+                            <field name="cargos">
+                                <list editable="bottom">
+                                    <field name="cargo"/>
+                                    <field name = "tipocargo"/>
+                                    <field name ="porcentaje" invisible = "tipocargo != '1'"/>
+                                    <field name="costo" invisible = "tipocargo == '1'"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="Límite de Insumos por Hectárea" invisible="tipocredito == '2'">
                             <field name="limiteinsumos">
                                 <list editable="bottom">
@@ -54,6 +64,22 @@
             </form>
         </field>
     </record>
+
+    <!--record id="view_contratoscargos_form" model="ir.ui.view">
+        <field name="name">cargo.form</field>
+        <field name="model">contratos.cargo</field>
+        <field name="arch" type="xml">
+            <form autosave = "false" string="Agregar Cargo">
+                <field name = "cargo"/>
+                <field name = "tipocargo" readonly = "true"/>
+                <field name = "iva" readonly = "true"/>
+                <field name = "ieps" readonly = "true"/>
+                <field name ="porcentaje" invisible = "tipocargo != '1'"/>
+                <field name="costo" invisible = "tipocargo == '1'"/>
+            </form>
+        </field>
+    </record-->
+
 
     <!-- Menús -->
     <menuitem id="menu_root" name="contratos"/>

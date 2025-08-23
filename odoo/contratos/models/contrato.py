@@ -23,6 +23,8 @@ class contrato(models.Model):
     
     display_name = fields.Char(compute='_compute_display_name', store=True, string="Contrato")
 
+    cargos = fields.One2many('cargosdetail.cargodetail', 'contrato_id', string = "Cargos")
+
     @api.onchange('tipocredito')
     def _cambiotipo(self):
         self.cultivo = False
