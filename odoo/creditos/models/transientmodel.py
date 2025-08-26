@@ -10,6 +10,8 @@ class TransientEdocta(models.TransientModel):
     desde = fields.Date(string='Desde', default=fields.Date.today)
     hasta = fields.Date(string='Hasta', default=fields.Date.today)
 
+    justcalc = fields.Boolean(string ="Sólo calcular", default = False)
+
     generado_automaticamente = fields.Boolean(default=False)
 
     @api.model
@@ -98,7 +100,9 @@ class TransientEdocta(models.TransientModel):
 
         # Escribir las líneas
         self.write({'lines': lineas})
-        return self._show_results()
+
+        if not self.justcalc:
+            return self._show_results()
     
     def _show_results(self):
         return {
