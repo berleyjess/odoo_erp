@@ -4,6 +4,9 @@ from datetime import date as pydate
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError, UserError
 
+PHONE_DIGITS = re.compile(r'\D')
+GENERIC_RFC = 'XAXX010101000'   # RFC genérico SAT
+
 RFC_RE = re.compile(r'^([A-ZÑ&]{3,4})(\d{2})(\d{2})(\d{2})([A-Z0-9]{3})$')
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
@@ -34,13 +37,23 @@ class Persona(models.Model):
     active = fields.Boolean(default=True)
 
     _sql_constraints = [
-        ('persona_rfc_unique', 'unique(rfc)', 'Ya existe una persona con este RFC.'),
+        ('persona_tel_norm_unique', 'unique(telefono_idx)',
+        'Este teléfono ya está registrado en otra persona.'),
     ]
 
-    # Booleans de rol (derivados)
-    #es_cliente = fields.Boolean(string="✔️Cliente")
-    #es_proveedor = fields.Boolean(string="✔️Proveedor")
-    #es_empleado = fields.Boolean(string="✔️empleado")
+    telefono_idx = fields.Char(
+        string="Tel (índice)",
+        compute="_compute_tel_idx",
+        store=True,
+        index=True,
+        help="Teléfono solo con dígitos, para búsquedas/índices."
+    )
+
+    @api.depends('telefono')
+    def _compute_tel_idx(self):
+        for r in self:
+            digits = re.sub(PHONE_DIGITS, '', r.telefono or '')
+            r.telefono_idx = digits[-10:] if digits else False
     # -------------------------
     # Normalizaciones guardado
     # -------------------------
@@ -89,6 +102,15 @@ class Persona(models.Model):
                 raise ValidationError(_(
                     "Teléfono inválido. Usa 10 dígitos (nacional) o +52 seguido de 10 dígitos."
                 ))
+
+    @api.constrains('rfc')
+    def _check_rfc_unico_no_generico(self):
+        """Unicidad de RFC solo si NO es el genérico del SAT."""
+        for rec in self:
+            if rec.rfc and rec.rfc != GENERIC_RFC:
+                dup = rec.search_count([('rfc', '=', rec.rfc), ('id', '!=', rec.id)])
+                if dup:
+                    raise ValidationError(_("Ya existe una persona con este RFC."))
 
     @api.constrains('email')
     def _check_email_format(self):

@@ -1,1 +1,1 @@
-from . import contacto
+from . import contacto, persona_link_contact, phone_lookup_wizard
