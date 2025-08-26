@@ -91,7 +91,7 @@
                                     <button name="%(contactos.action_phone_lookup_wizard)d" type="action" string="Buscar por teléfono" icon="fa-search"/>
                                 </list>
 
-                                <!-- (Opcional) mini-form para editar una línea del O2M -->
+                                <!-- mini-form para editar una línea del O2M -->
                                 <form>
                                     <group>
                                         <field name="persona_id" invisible="1"/>

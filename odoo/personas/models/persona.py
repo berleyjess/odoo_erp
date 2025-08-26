@@ -1,9 +1,23 @@
 # personas/models/persona.py
+# Personas: modelo base sin roles.
+# Guarda identidad, contacto y ubicación. Válida RFC/Email/Teléfono y
+# normaliza mayúsculas/minúsculas en create/write.
+"""Modelo base 'persona.persona'.
+- No maneja roles (cliente/proveedor) ni lógica cruzada.
+- Exponer campos mínimos reutilizables por otros módulos vía _inherits/_inherit.
+- 'name' es el rec_name mostrado en listas/búsquedas.
+"""
+
 import re
 from datetime import date as pydate
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError, UserError
 
+# --- Constantes de validación/normalización ---
+# PHONE_DIGITS: regex para extraer solo dígitos de teléfonos.
+# GENERIC_RFC: RFC genérico permitido por SAT (no se fuerza unicidad).
+# RFC_RE: patrón general (moral/física) para validar estructura y fecha YYMMDD.
+# EMAIL_RE: formato básico de emails.
 PHONE_DIGITS = re.compile(r'\D')
 GENERIC_RFC = 'XAXX010101000'   # RFC genérico SAT
 
@@ -28,7 +42,7 @@ class Persona(models.Model):
     colonia = fields.Char(string="Colonia")
     numero_casa = fields.Char(string="Número de casa")
     calle = fields.Char(string="Calle")
-    codigop = fields.Char(String="Codigo Postal", size=5)
+    codigop = fields.Char(string="Codigo Postal", size=5)
 
     # Identificador fiscal
     rfc = fields.Char(string="RFC", index=True)
@@ -57,6 +71,11 @@ class Persona(models.Model):
     # -------------------------
     # Normalizaciones guardado
     # -------------------------
+
+    # Normalización al guardar:
+# - RFC -> mayúsculas; Email -> minúsculas; Teléfono -> trim.
+# Se realiza tanto en create como en write para mantener consistencia.
+
     @api.model
     def create(self, vals):
         if vals.get('rfc'):
@@ -80,6 +99,8 @@ class Persona(models.Model):
     # Validaciones
     # -------------------------
 
+# Valida variantes aceptadas en MX:
+# 10 dígitos, +52 + 10, y prefijo legacy 521 (WhatsApp). Rechaza otros formatos.
     @api.constrains('telefono')
     def _check_telefono_mx(self):
         """
@@ -103,6 +124,8 @@ class Persona(models.Model):
                     "Teléfono inválido. Usa 10 dígitos (nacional) o +52 seguido de 10 dígitos."
                 ))
 
+# Enforce unicidad de RFC solo si NO es el genérico SAT (GENERIC_RFC).
+# (Se usa constraint Python en lugar de SQL para permitir repetición del genérico). :contentReference[oaicite:3]{index=3}
     @api.constrains('rfc')
     def _check_rfc_unico_no_generico(self):
         """Unicidad de RFC solo si NO es el genérico del SAT."""
@@ -112,12 +135,15 @@ class Persona(models.Model):
                 if dup:
                     raise ValidationError(_("Ya existe una persona con este RFC."))
 
+# Valida formato básico de email (regex simple).
     @api.constrains('email')
     def _check_email_format(self):
         for rec in self:
             if rec.email and not EMAIL_RE.match(rec.email):
                 raise ValidationError(_("Email inválido: verifique el formato."))
 
+# Valida estructura del RFC (12/13) y que YYMMDD represente una fecha válida
+# en siglo 19xx o 20xx. Lanza error si la fecha es inválida.
     @api.constrains('rfc')
     def _check_rfc_sat(self):
         """
@@ -146,9 +172,10 @@ class Persona(models.Model):
             if not valid_date:
                 raise ValidationError(_("RFC inválido: fecha YYMMDD no válida en el RFC."))
 
-
-
-
+    # -------------------------
+    # Cálculos automáticos
+# Calcula fecha de nacimiento solo para personas físicas (RFC 13).
+# Usa fields.Date.context_today() para decidir el siglo (2000/1900) de forma TZ-safe. :contentReference[oaicite:4]{index=4}
     @api.depends('rfc')
     def _compute_fecha_nac_from_rfc(self):
         """Extrae YYMMDD del RFC y calcula la fecha de nacimiento.

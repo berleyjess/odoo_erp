@@ -1,10 +1,10 @@
 <odoo>
-  <!-- Vista del wizard clientes/views/rfc_lookup_wizard_view.xml-->
+  <!-- Vista del wizard  proveedores/views/rfc_lookup_wizard_view.xml-->
   <record id="view_rfc_lookup_wizard" model="ir.ui.view">
-    <field name="name">clientes.rfc_lookup_wizard.form</field>
-    <field name="model">clientes.rfc_lookup_wizard</field>
+    <field name="name">proveedores.rfc_lookup_wizard.form</field>
+    <field name="model">proveedores.rfc_lookup_wizard</field>
     <field name="arch" type="xml">
-    <!-- Wizard transitorio: pide RFC, busca persona y redirige a cliente existente o crea borrador con persona prellenada. -->
+      <!-- Wizard modal para localizar persona por RFC y abrir/crear Proveedor -->
       <form string="Buscar persona por RFC">
         <group>
           <field name="rfc" placeholder="XAXX010101000"/>
@@ -20,15 +20,15 @@
   <!-- Acción para abrir el wizard en un modal -->
   <record id="action_rfc_lookup_wizard" model="ir.actions.act_window">
     <field name="name">Buscar persona por RFC</field>
-    <field name="res_model">clientes.rfc_lookup_wizard</field>
+    <field name="res_model">proveedores.rfc_lookup_wizard</field>
     <field name="view_mode">form</field>
     <field name="target">new</field>
   </record>
 
-  <!-- (Opcional) Menú directo al wizard, bajo Clientes -->
-  <menuitem id="menu_clientes_buscar_rfc"
+  <!-- (Opcional) Menú directo al wizard, bajo proveedores -->
+  <menuitem id="menu_proveedores_buscar_rfc"
             name="Buscar persona por RFC"
-            parent="menu_clientes_root"
+            parent="menu_proveedores_root"
             action="action_rfc_lookup_wizard"
             sequence="20"/>
 </odoo>

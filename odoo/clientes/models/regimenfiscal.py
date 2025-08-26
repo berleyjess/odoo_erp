@@ -1,6 +1,7 @@
 from odoo import fields, models, api
 import csv, os
 #clientes/models/regismenfiscal.py
+# Catálogo de régimen fiscal consumido por 'regimen'. Se carga desde CSV del módulo.
 class regimenfiscal(models.Model):
     _name = 'clientes.c_regimenfiscal'
     _description = 'Catálogo de Régimen Fiscal'

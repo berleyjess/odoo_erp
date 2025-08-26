@@ -1,4 +1,5 @@
 # clientes/models/contacto_ext.py
+# Extiende contactos.contacto para añadir relación con Cliente y marcar un contacto principal (único).
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
 
