@@ -5,7 +5,7 @@ class cargodetail(models.Model):
     _name = 'cargosdetail.cargodetail'
 
     cargo = fields.Many2one('cargos.cargo', string = "Cargo", required = True)
-    #contrato_id = fields.Many2one('contratos.contrato', string = "Contrato")
+    contrato_id = fields.Many2one('contratos.contrato', string = "Contrato")
 
     costo = fields.Float(string = "Costo", default = 0.0)
     porcentaje = fields.Float(string ="Porcentaje", default = 0.0)
@@ -18,13 +18,15 @@ class cargodetail(models.Model):
         store = True, related='cargo.tipo', string="Tipo de Cargo"
     )
 
+    descripcion = fields.Char(string = "Descripción", related='cargo.descripcion')
+
     iva = fields.Float(string = "Iva %", related='cargo.iva')
     ieps = fields.Float(string = "Ieps %", related='cargo.ieps')
 
     @api.constrains('cargo')
     def _check_superficie_required(self):
         for record in self:
-            if record.contrato:
+            if record.contrato_id:
                 if record.cargo.tipo == '0': # Costo por superficie
                     if not record.costo:
                         raise ValidationError("Debe capturar un costo por Hectárea.")

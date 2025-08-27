@@ -8,7 +8,6 @@ class venta(models.Model):
     _name = 'ventas.venta'
     _description = 'Venta de artículos'
     
-    codigo = fields.Char(string="Código", required = False)
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required = True)
     contrato = fields.Many2one('creditos.credito', string="Contrato", domain="[('cliente', '=', cliente), ('contratoactivo','=',True), ('vencimiento', '>', context_today())]" if cliente else "[('id', '=', 0)]")
 
@@ -31,7 +30,7 @@ class venta(models.Model):
 
     detalle = fields.One2many('transacciones.transaccion', 'venta_id', string="Venta")
 
-        # Relación con Sucursal (obligatoria para prefijar el código)
+    # Relación con Sucursal (obligatoria para prefijar el código)
     sucursal_id = fields.Many2one(
         'sucursales.sucursal', string="Sucursal",
         required=True, ondelete='restrict', index=True

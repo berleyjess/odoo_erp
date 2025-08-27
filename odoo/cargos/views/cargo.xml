@@ -34,6 +34,7 @@
                     <group>
                         <field name="concepto"/>
                         <field name="producto_id"/>
+                        <field name="descripcion"/>
                         <field name="tipo"/>
                         <field name="facturable"/>
                     </group>

@@ -6,5 +6,5 @@
     'data':['views/cargo.xml'],
     'installable':True,
     'application':True,
-    'auto_install':False,
+    'auto_install':True,
 }

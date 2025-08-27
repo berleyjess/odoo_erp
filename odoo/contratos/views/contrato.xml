@@ -46,6 +46,7 @@
                                 <list editable="bottom">
                                     <field name="cargo"/>
                                     <field name = "tipocargo"/>
+                                    <field name="descripcion"/>
                                     <field name ="porcentaje" invisible = "tipocargo != '1'"/>
                                     <field name="costo" invisible = "tipocargo == '1'"/>
                                 </list>
