@@ -1,1 +1,1 @@
-from . import stock,compra_inherit
+from . import stock

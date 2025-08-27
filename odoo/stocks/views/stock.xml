@@ -38,6 +38,4 @@
     <menuitem id="menu_stk_root" name="Inventario (Sucursales)"/>
     <menuitem id="menu_stock_sucursal_producto" name="Existencias" parent="menu_stk_root" action="action_stock_sucursal_producto"/>
 
-
-
 </odoo>
