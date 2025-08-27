@@ -4,9 +4,11 @@
     'description': "Módulo para gestionar contactos genéricos.",
     'author': "Grupo Safinsa",
     'version': '1.0',
-    'depends': ['base'],
+    'depends': ['base', 'personas'],
     'data': [
+        'views/phone_lookup_wizard_view.xml',
         'views/contacto.xml',
+        'views/persona_link_contacts.xml',
     ],
     'installable': True,
     'application': True,

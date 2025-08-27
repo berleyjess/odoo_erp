@@ -1,8 +1,7 @@
 # clientes/models/persona_link.py
 
-"""
+# Añade rol "Cliente" a persona.persona: smart button y flag es_cliente (compute).
 
-"""
 from odoo import api, fields, models
 from odoo import _
 from odoo.exceptions import UserError

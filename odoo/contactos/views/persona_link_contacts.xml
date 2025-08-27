@@ -1,0 +1,25 @@
+<!-- contactos/views/persona_link_contacts.xml -->
+<odoo>
+  <record id="view_persona_form_contactlink" model="ir.ui.view">
+    <field name="name">persona.persona.form.contactlink</field>
+    <field name="model">persona.persona</field>
+    <field name="inherit_id" ref="personas.view_persona_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//form/header" position="inside">
+        <field name="es_contacto" invisible="1"/>
+        <div class="oe_button_box" name="button_box">
+          <button name="action_open_contacto"
+                  type="object"
+                  class="oe_stat_button"
+                  invisible="not es_contacto">
+            <span class="o_stat_text">Contacto</span>
+          </button>
+          <button name="action_check_tel_contacto"
+                  type="object"
+                  class="oe_highlight"
+                  string="Crear/Buscar contacto por teléfono"/>
+        </div>
+      </xpath>
+    </field>
+  </record>
+</odoo>

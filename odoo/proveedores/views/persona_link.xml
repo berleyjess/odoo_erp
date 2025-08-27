@@ -1,0 +1,24 @@
+<odoo>
+  <record id="view_persona_form_proveedores_buttons" model="ir.ui.view">
+    <field name="name">persona.persona.form.proveedorlink</field>
+    <field name="model">persona.persona</field>
+    <field name="inherit_id" ref="personas.view_persona_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//form/header" position="inside">
+        <!-- para invisibility -->
+        <xpath expr="//form/sheet" position="inside">
+          <!-- Campo cálculo (store) para gobernar visibilidad del smart button -->
+          <field name="es_proveedor" invisible="1"/>
+        </xpath>
+        <div class="oe_button_box" name="button_box">
+          <button name="action_open_proveedor"
+                  type="object"
+                  class="oe_stat_button"
+                  invisible="not es_proveedor">
+            <span class="o_stat_text">Proveedor</span>
+          </button>
+        </div>
+      </xpath>
+    </field>
+  </record>
+</odoo>

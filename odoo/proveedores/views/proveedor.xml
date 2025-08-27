@@ -1,69 +1,122 @@
 <odoo>
-    <!-- Acción de Menú (DEBE IR PRIMERO) -->
-    <record id="action_proveedors" model="ir.actions.act_window">
-        <field name="name">Proveedores</field>
-        <field name="res_model">proveedores.proveedor</field>
-        <field name="view_mode">list,form</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Agrega proveedores para hacer tu primera compra!</p>
-        </field>
-    </record>
+  <!-- Acción principal del listado de Proveedores -->
+  <record id="action_proveedores" model="ir.actions.act_window">
+    <field name="name">Proveedores</field>
+    <field name="res_model">proveedores.proveedor</field>
+    <field name="view_mode">list,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">Agrega proveedores para hacer tu primera compra!</p>
+    </field>
+  </record>
 
-    <!-- Vista árbol -->
-    <record id="view_proveedor_list" model="ir.ui.view">
-        <field name="name">proveedor.tree</field>
-        <field name="model">proveedores.proveedor</field>
-        <field name="arch" type="xml">
-            <list>
-                <field name="codigo"/>
-                <field name="nombre"/>
-                <field name="rfc"/>
-                <field name="descripcion"/>
-            </list>
-        </field>
-    </record>
+  <!-- List -->
+  <record id="view_proveedor_list" model="ir.ui.view">
+    <field name="name">proveedores.proveedor.tree</field>
+    <field name="model">proveedores.proveedor</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="codigo"/>
+        <field name="nombre"/>
+        <field name="rfc"/>
+        <field name="descripcion"/>
+        <field name="email"/>
+        <field name="telefono"/>
+      </list>
+    </field>
+  </record>
 
-    <!-- Vista formulario -->
-    <record id="view_proveedor_form" model="ir.ui.view">
-        <field name="name">proveedor.form</field>
-        <field name="model">proveedores.proveedor</field>
-        <field name="arch" type="xml">
-            <form autosave="False">
-                <xpath expr="//div[contains(@class, 'o_control_panel_main')]" position="replace"/>
-                
-                <!-- Elimina componentes específicos por si acaso -->
-                <xpath expr="//div[contains(@class, 'o_control_panel_breadcrumbs')]" position="replace"/>
-                <xpath expr="//div[contains(@class, 'o_control_panel_actions')]" position="replace"/>
-                <xpath expr="//div[contains(@class, 'o_control_panel_navigation')]" position="replace"/>
+  <!-- Form -->
+  <record id="view_proveedor_form" model="ir.ui.view">
+    <field name="name">proveedores.proveedor.form</field>
+    <field name="model">proveedores.proveedor</field>
+    <field name="arch" type="xml">
+      <form autosave="False">
+        <sheet>
+        <!-- Clave de delegación (_inherits) hacia persona; mantener oculta -->
+          <field name="persona_id" invisible="1"/>
+          <group>
+            <group string="Identidad">
+              <field name="nombre"/>
+              <field name="rfc"/>
+            </group>
+            <group string="Dirección">
+              <field name="localidad"/>
+              <field name="codigop"/>
+              <field name="colonia"/>
+              <field name="calle"/>
+              <field name="numero"/>
+            </group>
+          </group>
 
-                <sheet>
-                    <group>
-                        <field name="nombre"/>
-                        <field name="rfc"/>
-                        <field name="localidad"/>
-                        <field name="codigop"/>
-                        <field name="calle"/>
-                        <field name="numero"/>
-                        <field name="descripcion"/>
-                    </group>
-                    <notebook>
-                        <page string="Contactos">
-                            <field name="contacto">
-                                <list editable="bottom">
-                                    <field name="nombre"/>
-                                    <field name="descripcion"/>
-                                    <field name="telefono"/>
-                                    <field name="email"/>
-                                </list>
-                            </field>
-                        </page>
-                    </notebook>
-                </sheet>
-            </form>
-        </field>
-    </record>
+          <group string="Contacto">
+            <field name="email"/>
+            <field name="telefono"/>
+          </group>
 
-    <!-- Menús -->
-    <menuitem id="menu_root" name="Proveedores" sequence="10"/>
-    <menuitem id="menu_action" name="Catálogo de proveedores" parent="menu_root" action="action_proveedors"/>
+          <group string="Proveedor">
+            <field name="codigo" readonly="1"/>
+            <field name="descripcion"/>
+          </group>
+<!-- Contactos externos extendidos: uniqueness persona↔proveedor en SQL constraint -->
+          <notebook>
+            <page string="Contactos">
+              <field name="contacto">
+                <list editable="bottom">
+                  <field name="persona_id" invisible="1"/>
+                  <field name="nombre" placeholder="Nombre"/>
+                  <field name="descripcion"/>
+                  <field name="telefono" placeholder="10 dígitos"/>
+                  <field name="email" placeholder="correo@dominio"/>
+                </list>
+                <form>
+                  <group>
+                    <field name="persona_id" invisible="1"/>
+                    <field name="nombre"/>
+                    <field name="telefono"/>
+                    <field name="email"/>
+                    <field name="descripcion"/>
+                  </group>
+                </form>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <!-- Menús -->
+  <menuitem id="menu_proveedores_root" name="Proveedores" sequence="10"/>
+  <menuitem id="menu_proveedores_list" name="Catálogo de proveedores"
+            parent="menu_proveedores_root" action="action_proveedores"/>
+
+  <!-- Wizard buscar RFC -->
+  <record id="view_rfc_lookup_wizard_proveedores" model="ir.ui.view">
+    <field name="name">proveedores.rfc_lookup_wizard.form</field>
+    <field name="model">proveedores.rfc_lookup_wizard</field>
+    <field name="arch" type="xml">
+      <form string="Buscar persona por RFC">
+        <group>
+          <field name="rfc" placeholder="XAXX010101000"/>
+        </group>
+        <footer>
+          <button name="action_lookup" type="object" string="Buscar" class="btn-primary"/>
+          <button special="cancel" string="Cancelar" class="btn-secondary"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_rfc_lookup_wizard_proveedores" model="ir.actions.act_window">
+    <field name="name">Buscar persona por RFC</field>
+    <field name="res_model">proveedores.rfc_lookup_wizard</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+  </record>
+
+  <menuitem id="menu_proveedores_buscar_rfc"
+            name="Buscar persona por RFC"
+            parent="menu_proveedores_root"
+            action="action_rfc_lookup_wizard_proveedores"
+            sequence="20"/>
 </odoo>

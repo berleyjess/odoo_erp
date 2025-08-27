@@ -1,11 +1,10 @@
-#clientes/models/rfc_lookup_wizard.py
-# -*- coding: utf-8 -*-
+# proveedores/models/rfc_lookup_wizard.py
 from odoo import models, fields, _
 from odoo.exceptions import UserError
 
-class RfcLookupWizard(models.TransientModel):
-    _name = 'clientes.rfc_lookup_wizard'
-    _description = 'Buscar persona por RFC'
+class RfcLookupWizardProveedor(models.TransientModel):
+    _name = 'proveedores.rfc_lookup_wizard'
+    _description = 'Buscar persona por RFC (Proveedor)'
 
     rfc = fields.Char(string="RFC", required=True)
 
@@ -22,22 +21,24 @@ class RfcLookupWizard(models.TransientModel):
         if not p:
             raise UserError(_("No existe una persona con el RFC %s.") % r)
 
-        Cliente = self.env['clientes.cliente'].sudo()
-        existing = Cliente.search([('persona_id', '=', p.id)], limit=1)
+        Prov = self.env['proveedores.proveedor'].with_context(active_test=False).sudo()
+        existing = Prov.search([('persona_id', '=', p.id)], limit=1)
         if existing:
+            if not existing.active:
+                existing.sudo().write({'active': True})
             return {
                 'type': 'ir.actions.act_window',
-                'name': _('Cliente'),
-                'res_model': 'clientes.cliente',
+                'name': _('Proveedor'),
+                'res_model': 'proveedores.proveedor',
                 'view_mode': 'form',
                 'res_id': existing.id,
                 'target': 'current',
             }
-        # abrir creación prellenando persona
+
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Nuevo Cliente'),
-            'res_model': 'clientes.cliente',
+            'name': _('Nuevo Proveedor'),
+            'res_model': 'proveedores.proveedor',
             'view_mode': 'form',
             'target': 'current',
             'context': {
@@ -46,4 +47,3 @@ class RfcLookupWizard(models.TransientModel):
                 'default_nombre': p.name,
             },
         }
-

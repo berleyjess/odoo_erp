@@ -41,7 +41,7 @@
                     <group>
                         <group>
                             <field name="tipo" widget="radio" options="{'horizontal': true}"/>
-                            <field name="nombre"/>
+                            <field name="nombre" />
                             <field name="regimen"/>
                             <field name="rfc"/>
                         </group>
@@ -81,12 +81,26 @@
                         <page string="Contactos">
                             <field name="contacto">
                                 <list editable="bottom">
-                                    <field name="nombre"/>
+                                    <!-- persona_id puede ir oculto si no quieres mostrarlo -->
+                                    <field name="persona_id" invisible="1"/>
+                                    <field name="nombre"    placeholder="Nombre"/>
                                     <field name="descripcion"/>
-                                    <field name="telefono"/>
-                                    <field name="email"/>
-                                    <field name="es_principal" widget="boolean_toggle"/>
+                                    <field name="telefono"  placeholder="10 dígitos"/>
+                                    <field name="email"     placeholder="correo@dominio"/>
+                                    <!-- Botón del wizard de búsqueda por teléfono (opcional) -->
+                                    <button name="%(contactos.action_phone_lookup_wizard)d" type="action" string="Buscar por teléfono" icon="fa-search"/>
                                 </list>
+
+                                <!-- mini-form para editar una línea del O2M -->
+                                <form>
+                                    <group>
+                                        <field name="persona_id" invisible="1"/>
+                                        <field name="nombre"/>
+                                        <field name="telefono"/>
+                                        <field name="email"/>
+                                        <field name="descripcion"/>
+                                    </group>
+                                </form>
                             </field>
                         </page>
                     </notebook>
@@ -152,12 +166,26 @@
                         <page string="Contactos">
                             <field name="contacto">
                                 <list editable="bottom">
-                                    <field name="nombre"/>
+                                    <!-- persona_id puede ir oculto si no quieres mostrarlo -->
+                                    <field name="persona_id" invisible="1"/>
+                                    <field name="nombre"    placeholder="Nombre"/>
                                     <field name="descripcion"/>
-                                    <field name="telefono"/>
-                                    <field name="email"/>
-                                    <field name="es_principal" widget="boolean_toggle"/>
+                                    <field name="telefono"  placeholder="10 dígitos"/>
+                                    <field name="email"     placeholder="correo@dominio"/>
+                                    <!-- Botón del wizard de búsqueda por teléfono (opcional) -->
+                                    <button name="%(contactos.action_phone_lookup_wizard)d" type="action" string="Buscar por teléfono" icon="fa-search"/>
                                 </list>
+
+                                <!-- (Opcional) mini-form para editar una línea del O2M -->
+                                <form>
+                                    <group>
+                                        <field name="persona_id" invisible="1"/>
+                                        <field name="nombre"/>
+                                        <field name="telefono"/>
+                                        <field name="email"/>
+                                        <field name="descripcion"/>
+                                    </group>
+                                </form>
                             </field>
                         </page>
                     </notebook>
@@ -212,11 +240,26 @@
                         <page string="Contactos">
                             <field name="contacto">
                                 <list editable="bottom">
-                                    <field name="nombre"/>
+                                    <!-- persona_id puede ir oculto si no quieres mostrarlo -->
+                                    <field name="persona_id" invisible="1"/>
+                                    <field name="nombre"    placeholder="Nombre"/>
                                     <field name="descripcion"/>
-                                    <field name="telefono"/>
-                                    <field name="email"/>
+                                    <field name="telefono"  placeholder="10 dígitos"/>
+                                    <field name="email"     placeholder="correo@dominio"/>
+                                    <!-- Botón del wizard de búsqueda por teléfono (opcional) -->
+                                    <button name="%(contactos.action_phone_lookup_wizard)d" type="action" string="Buscar por teléfono" icon="fa-search"/>
                                 </list>
+
+                                <!-- (Opcional) mini-form para editar una línea del O2M -->
+                                <form>
+                                    <group>
+                                        <field name="persona_id" invisible="1"/>
+                                        <field name="nombre"/>
+                                        <field name="telefono"/>
+                                        <field name="email"/>
+                                        <field name="descripcion"/>
+                                    </group>
+                                </form>
                             </field>
                         </page>
                     </notebook>
