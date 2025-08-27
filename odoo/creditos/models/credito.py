@@ -101,7 +101,7 @@ class credito(models.Model):
         string='Cargos al Contrato',
         readonly=True
     )
-    ventas_ids = fields.One2many('ventas.venta', 'contrato', string = "Ventas al crédito")
+    #ventas_ids = fields.One2many('ventas.venta', 'contrato', string = "Ventas al crédito")
 
     contratoaprobado = fields.Boolean(string="Estado de Solicitud", readonly = True, compute='_checkautorizacionstatus', store = True)
     contratoactivo = fields.Boolean(string = "Estatus", readonly = True, compute='_checkcontratoactivo', store = True)
@@ -117,7 +117,7 @@ class credito(models.Model):
             ("1", "No")
         ], required = True, string="El cliente es responsable del crédito?", default="0"
     )
-
+    """
     saldoejercido = fields.Float(string = "Saldo ejercito", store = False, compute = 'calc_saldosalidas')
 
     @api.depends('venta_ids.total', 'venta_ids.state')
@@ -126,7 +126,7 @@ class credito(models.Model):
             # Suma el total de todas las ventas confirmadas ligadas a este crédito
             total = sum(venta.total for venta in record.venta_ids if venta.state in ('confirmed', 'invoiced'))
             record.saldo_ejercido = total
-
+    """
     """edodecuenta = fields.One2many('cuentasxcobrar.cuentaxcobrar', 'contrato_id', string="Estado de cuenta")
     intereses = fields.Float(string = "Intereses", compute = '_calc_intereses', store = False)
 

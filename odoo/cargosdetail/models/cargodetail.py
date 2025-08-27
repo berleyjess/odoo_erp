@@ -6,7 +6,7 @@ class cargodetail(models.Model):
 
     cargo = fields.Many2one('cargos.cargo', string = "Cargo", required = True)
     contrato_id = fields.Many2one('contratos.contrato', string = "Contrato")
-
+    credito_id = fields.Many2one('creditos.credito', string = "Crédito")
     costo = fields.Float(string = "Costo", default = 0.0)
     porcentaje = fields.Float(string ="Porcentaje", default = 0.0)
     tipocargo = fields.Selection(

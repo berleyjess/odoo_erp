@@ -277,7 +277,7 @@
         <!-- Aquí se fuerza que la primera vista sea la de lista -->
     </record>
 
-    <menuitem id="menu_clientes_buscar_rfc" name="Buscar persona por RFC" parent="menu_clientes_root" action="action_rfc_lookup_wizard" sequence="20"/>
+    <!--menuitem id="menu_clientes_buscar_rfc" name="Buscar persona por RFC" parent="menu_clientes_root" action="action_rfc_lookup_wizard" sequence="20"/-->
 
     <menuitem id="menu_clientes_root" name="Clientes" sequence="10"/>
     <menuitem id="menu_clientes" name="Registros" parent="menu_clientes_root" action="action_clientes_model"/>
