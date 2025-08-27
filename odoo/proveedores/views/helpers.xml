@@ -1,0 +1,22 @@
+<odoo>
+  <data>
+    <record id="action_open_persona_modal_from_warning" model="ir.actions.server">
+      <field name="name">Abrir Persona (modal)</field>
+      <field name="model_id" ref="personas.model_persona_persona"/>
+      <field name="state">code</field>
+      <field name="code"><![CDATA[
+persona_id = env.context.get('active_id')
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Persona',
+    'res_model': 'persona.persona',
+    'view_mode': 'form',
+    'views': [(env.ref('personas.view_persona_form').id, 'form')],
+    'res_id': persona_id,
+    'target': 'new',  # modal
+    'context': dict(env.context, form_view_initial_mode='edit'),
+}
+      ]]></field>
+    </record>
+  </data>
+</odoo>

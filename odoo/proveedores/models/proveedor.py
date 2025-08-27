@@ -6,6 +6,7 @@
 import re
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError, UserError
+from odoo.exceptions import ValidationError, UserError, RedirectWarning
 
 # RFCs genéricos SAT (si los usas para crear persona mínima).  ← (ver “Depurar” abajo)
 RFC_GENERICS = ('XAXX010101000', 'XEXX010101000')
@@ -206,10 +207,14 @@ class Proveedor(models.Model):
             vals.pop(k, None)
 
         if blocked_any:
-            blocked_any = sorted(set(blocked_any))
-            raise ValidationError(_(
-                "No puedes editar desde Proveedor los campos ya definidos en Personas: %s. "
-                "Rellena aquí solo los vacíos; para cambiar un valor existente, edítalo en Personas."
-            ) % ", ".join(blocked_any))
-
+            ctx = {'active_id': self[:1].persona_id.id}  # usa el primero si viene un conjunto
+            raise RedirectWarning(
+                _(
+                    "No puedes editar desde Proveedor los campos ya definidos en Personas: %s. "
+                    "Rellena aquí solo los vacíos; para cambiar un valor existente, edítalo en Personas."
+                ) % ", ".join(sorted(set(blocked_any))),
+                self.env.ref('proveedores.action_open_persona_modal_from_warning').id,
+                _("Editar en Personas"),
+                additional_context=ctx,
+            )
         return super().write(vals)

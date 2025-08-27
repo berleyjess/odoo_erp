@@ -7,6 +7,7 @@
     'depends': ['base', 'contactos', 'personas'],
     'data': [
         'views/persona_link.xml',
+        'views/helpers.xml',
         'views/proveedor.xml',
         'views/rfc_lookup_wizard_view.xml',
         'data/seq_code.xml', # Carga secuencia, luego vistas. Si dejas el wizard en archivo separado.
