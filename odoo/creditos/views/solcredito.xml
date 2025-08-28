@@ -99,7 +99,6 @@
                             <field name="ultimaactivacion_descripcion" readonly = "1"/>
                         </sheet>
                         <field name="cliente"/>
-                        <field name="ciclo"/>
                         <field name="contrato"/>
                         <field name="titularr" widget="radio" options="{'horizontal': true}" readonly="not cliente or not contrato"/>
                         <field name="monto" readonly="not cliente or not contrato" widget = "monetary"/>
@@ -129,6 +128,18 @@
                     <!-- CORREGIDO: Agregar campo tipocredito_val oculto para que funcione la condición -->
                     <field name="tipocredito_val" invisible="1"/>
 
+                    <group name="cargos" string="Cargos">
+                            <field name="cargos">
+                                <list editable="bottom">
+                                    <field name="fecha"/>
+                                    <field name = "cargo"/>
+                                    <field name = "tipocargo"/>
+                                    <field name ="porcentaje" invisible = "tipocargo != '1'"/>
+                                    <field name="costo" invisible = "tipocargo == '1'"/>
+                                    <field name="importe"/>
+                                </list>
+                            </field>
+                    </group>
                     <!-- CORREGIDO: Mostrar predios solo para tipo AVIO (tipocredito == '0') -->
                     <group name="predios" string="Predios" invisible="tipocredito_val != '0'">
                         <field name="predios" readonly="not cliente or not contrato">

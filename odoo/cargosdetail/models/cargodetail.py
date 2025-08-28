@@ -4,9 +4,10 @@ from odoo.exceptions import ValidationError
 class cargodetail(models.Model):
     _name = 'cargosdetail.cargodetail'
 
+    fecha = fields.Date(string = "Fecha", default=fields.Date.context_today, required = True)
     cargo = fields.Many2one('cargos.cargo', string = "Cargo", required = True)
     contrato_id = fields.Many2one('contratos.contrato', string = "Contrato")
-    credito_id = fields.Many2one('creditos.credito', string = "Crédito")
+    #credito_id = fields.Many2one('creditos.credito', string = "Crédito")
     costo = fields.Float(string = "Costo", default = 0.0)
     porcentaje = fields.Float(string ="Porcentaje", default = 0.0)
     tipocargo = fields.Selection(
@@ -22,6 +23,15 @@ class cargodetail(models.Model):
 
     iva = fields.Float(string = "Iva %", related='cargo.iva')
     ieps = fields.Float(string = "Ieps %", related='cargo.ieps')
+
+    cargocontrato = fields.Boolean(string = "Cargo del contrato", default = False, compute = '_cargo_contrato')
+
+    @api.depends('contrato_id')
+    def _cargo_contrato(self):
+        for i in self:
+            i.cargocontrato =  bool(i.contrato_id)
+
+
 
     @api.constrains('cargo')
     def _check_superficie_required(self):

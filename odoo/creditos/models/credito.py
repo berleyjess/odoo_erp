@@ -96,11 +96,7 @@ class credito(models.Model):
 
 
     cargos = fields.One2many('cargosdetail.cargodetail', 'credito_id',string = "Cargos al Crédito")
-    cargos_contrato = fields.One2many(
-        related='contrato.cargos',
-        string='Cargos al Contrato',
-        readonly=True
-    )
+
     #ventas_ids = fields.One2many('ventas.venta', 'contrato', string = "Ventas al crédito")
 
     contratoaprobado = fields.Boolean(string="Estado de Solicitud", readonly = True, compute='_checkautorizacionstatus', store = True)
@@ -109,7 +105,7 @@ class credito(models.Model):
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
     cliente_estado_civil = fields.Selection(related='cliente.estado_civil', string="Estado Civil", readonly=True)
     cliente_conyugue = fields.Char(related='cliente.conyugue', string="Cónyuge", readonly=True)
-    ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)
+    #ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)
     contrato = fields.Many2one('contratos.contrato', string="Contrato", required=True)
     titularr = fields.Selection(
         selection=[
@@ -117,6 +113,7 @@ class credito(models.Model):
             ("1", "No")
         ], required = True, string="El cliente es responsable del crédito?", default="0"
     )
+
     """
     saldoejercido = fields.Float(string = "Saldo ejercito", store = False, compute = 'calc_saldosalidas')
 
@@ -231,6 +228,7 @@ class credito(models.Model):
         #self.ensure_one()
         """Asegura que siempre haya fecha de vencimiento y monto al crear"""
         #vals['is_editing'] = True
+        
         if vals.get('folio', _('Nuevo')) == _('Nuevo'):
             vals['folio'] = self.env['ir.sequence'].next_by_code('creditos.folio') or _('Nuevo')
         # Manejo de fecha de vencimiento
@@ -321,9 +319,9 @@ class credito(models.Model):
         total_superficie = sum(predio.superficiecultivable or 0.0 for predio in self.predios)
         self.superficie = total_superficie
 
-    @api.onchange('ciclo')
+    """@api.onchange('ciclo')
     def _onchange_ciclo(self):
-        """Maneja cambios en el ciclo"""
+        #Maneja cambios en el ciclo
         if self.ciclo:
             # Asigna fecha de vencimiento si hay ciclo
             if self.ciclo.ffinal:
@@ -339,19 +337,19 @@ class credito(models.Model):
             self.contrato = False
             self.vencimiento = False
             return {'domain': {'contrato': []}}
-
+    """
     @api.onchange('contrato')
     def _onchange_contrato(self):
         """Maneja cambios en el contrato"""
         if self.contrato:
             # Si no hay ciclo seleccionado, lo asigna automáticamente
-            if not self.ciclo and hasattr(self.contrato, 'ciclo') and self.contrato.ciclo:
-                self.ciclo = self.contrato.ciclo
+            #if not self.ciclo and hasattr(self.contrato, 'ciclo') and self.contrato.ciclo:
+            #    self.ciclo = self.contrato.ciclo
             
             # Asigna la fecha de vencimiento basada en el ciclo del contrato
             if hasattr(self.contrato, 'ciclo') and self.contrato.ciclo and self.contrato.ciclo.ffinal:
                 self.vencimiento = self.contrato.ciclo.ffinal
-            elif self.ciclo and self.ciclo.ffinal:
+            elif self.ciclo.ffinal:#elif self.ciclo and self.ciclo.ffinal:
                 self.vencimiento = self.ciclo.ffinal
 
     @api.constrains('cliente', 'contrato')
