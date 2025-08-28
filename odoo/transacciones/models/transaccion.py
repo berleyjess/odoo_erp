@@ -1,43 +1,53 @@
-from odoo import models, fields, api
+#transacciones/models/transaccion.py
+from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError
 from datetime import date
 
-class transaccion(models.Model):
+class Transaccion(models.Model):
     _name = 'transacciones.transaccion'
     _description = 'Detalles/Conceptos de Compra/Venta/Traspasos/Devoluciones'
 
-    fecha = fields.Date(string = "Fecha", store = True, default = date.today())
+    fecha = fields.Date(string="Fecha", default=lambda self: fields.Date.context_today(self), store=True)
 
-    sucursal_id = fields.Many2one('sucursales.sucursal', string = "Origen")
-    sucursal_d_id = fields.Many2one('sucursales.sucursal', string = "Destino")
-    producto_id = fields.Many2one('productos.producto', string = "Producto", store = True, required = True)
-    referencia = fields.Char(string = "Referencia", store = True)
-    cantidad = fields.Float(string ="Cantidad", default = 0.0)
-    precio = fields.Float(string  = "Precio", store = True, required = True, default = 0.0)
-    iva = fields.Float(string = "Iva %", store = True, readonly = True, default = 0.0, compute = '_calc_montos')
-    ieps = fields.Float(string = "Ieps %", store = True, readonly = True, default = 0.0, compute = '_calc_montos')
-    iva_amount = fields.Float(string = "Iva", store = True, readonly = True, default = 0.0, compute = '_calc_montos')
-    ieps_amount = fields.Float(string = "ieps", store = True, readonly = True, default = 0.0, compute = '_calc_montos')
-    subtotal = fields.Float(string = "Subtotal", store = True, readonly = True, default = 0.0, compute = '_calc_montos')
-    importe = fields.Float(string = "Importe", store = True, readonly = True, default = 0.0, compute = '_calc_montos')
-    stock = fields.Selection(string = "Tipo", store = True, readonly = True, default = '0', selection = [
+
+    # Para ventas: origen = sucursal de la venta; destino se usa en traspasos
+    sucursal_id = fields.Many2one('sucursales.sucursal', string="Origen")
+    sucursal_d_id = fields.Many2one('sucursales.sucursal', string="Destino")
+
+    producto_id = fields.Many2one('productos.producto', string="Producto", required=True, index=True)
+    referencia = fields.Char(string="Referencia", store=True)
+    cantidad = fields.Float(string="Cantidad", default=0.0)
+    precio = fields.Float(string="Precio", default=0.0, required=True)
+
+    iva = fields.Float(string="Iva %", readonly=True, store=True, compute='_calc_montos')
+    ieps = fields.Float(string="Ieps %", readonly=True, store=True, compute='_calc_montos')
+    iva_amount = fields.Float(string="Iva", readonly=True, store=True, compute='_calc_montos')
+    ieps_amount = fields.Float(string="Ieps", readonly=True, store=True, compute='_calc_montos')
+    subtotal = fields.Float(string="Subtotal", readonly=True, store=True, compute='_calc_montos')
+    importe = fields.Float(string="Importe", readonly=True, store=True, compute='_calc_montos')
+
+    stock = fields.Selection(string="Tipo", default='0', readonly=True, selection=[
         ('0', "Sin efecto"),
         ('1', "Entrada"),
         ('2', "Salida"),
-    ])
-    tipo = fields.Selection(string ="Tipo de Transacción", store = True,
-                            selection = [
-                                ('0', "Compra"), # Entrada - Provisión de Factura
-                                ('1', "Venta"), # Salida - Factura de Cliente
-                                ('2', "Recepción"), # Entrada - Traspado de Sucursal
-                                ('3', "Envío"), # Salida - Traspaso a Sucursal
-                                ('4', "Producción"), # Entrada - Generación de Producto
-                                ('5', "Costo"), # Salida - Costo de Producción
-                                ('6', "Dev de Cliente"), # Entrada - NC a Cliente
-                                ('7', "Dev a Proveedor"), # Salida - NC de Proveedor
-                                ('8', "Excedente"), # Entrada - Excedente de Inventario
-                                ('9', "Pérdida"), # Salida - Pérdida de Inventario
-                                ('10', "Preventa") # No genera Movimiento de Stock
-                            ])
+    ], compute='_stock_tipo', store=True)
+
+    tipo = fields.Selection(string="Tipo de Transacción", selection=[
+        ('0', "Compra"),         # Entrada
+        ('1', "Venta"),          # Salida
+        ('2', "Recepción"),      # Entrada
+        ('3', "Envío"),          # Salida
+        ('4', "Producción"),     # Entrada
+        ('5', "Costo"),          # Salida
+        ('6', "Dev de Cliente"), # Entrada
+        ('7', "Dev a Proveedor"),# Salida
+        ('8', "Excedente"),      # Entrada
+        ('9', "Pérdida"),        # Salida
+        ('10', "Preventa"),      # Sin efecto
+    ], default='1', store=True)
+
+    # Enlace con venta (One2many en ventas.venta -> venta_id aquí)
+    venta_id = fields.Many2one('ventas.venta', string="Venta", ondelete='cascade', index=True)
 
     @api.depends('producto_id', 'cantidad', 'precio')
     def _calc_montos(self):
@@ -45,20 +55,51 @@ class transaccion(models.Model):
             if i.producto_id:
                 i.iva = i.producto_id.iva
                 i.ieps = i.producto_id.ieps
-                i.subtotal = i.cantidad * i.precio
-                i.iva_amount = i.iva * i.importe
-                i.ieps_amount = i.ieps * i.importe
-                i.importe = i.subtotal + i.iva_amount + i.ieps_amount
+            sub = (i.cantidad or 0.0) * (i.precio or 0.0)
+            iva_amt = (i.iva or 0.0) * sub
+            ieps_amt = (i.ieps or 0.0) * sub
+            i.subtotal = sub
+            i.iva_amount = iva_amt
+            i.ieps_amount = ieps_amt
+            i.importe = sub + iva_amt + ieps_amt
 
     @api.depends('tipo')
     def _stock_tipo(self):
+        ENTRADA = {'0', '2', '4', '6', '8'}
         for i in self:
-            if i.tipo:
-                if i.tipo == '10':
-                    i.stock = '0'
-                elif i.tipo % 2 == 0:
-                    i.stock = '1'
-                else:
-                    i.stock = '2'
-                    
+            if i.tipo == '10':
+                i.stock = '0'
+            elif i.tipo in ENTRADA:
+                i.stock = '1'
+            else:
+                i.stock = '2'
 
+    @api.onchange('venta_id')
+    def _onchange_venta_id(self):
+        for i in self:
+            if i.venta_id and i.venta_id.sucursal_id:
+                i.sucursal_id = i.venta_id.sucursal_id
+
+    @api.constrains('venta_id', 'sucursal_id')
+    def _constrain_sucursal_venta(self):
+        for i in self:
+            if i.venta_id and i.venta_id.sucursal_id and i.sucursal_id and i.venta_id.sucursal_id != i.sucursal_id:
+                raise ValidationError(_("La sucursal de la línea debe coincidir con la sucursal de la venta."))
+
+    @api.onchange('producto_id', 'venta_id', 'venta_id.metododepago')
+    def _onchange_precio_por_metodo(self):
+        for line in self:
+            if not line.producto_id:
+                continue
+            metodo = (line.venta_id.metododepago or 'PPD') if line.venta_id else 'PPD'
+            line.precio = line.producto_id.contado if metodo == 'PUE' else line.producto_id.credito
+
+    @api.model
+    def create(self, vals):
+        # set precio por defecto si viene vacío
+        if not vals.get('precio') and vals.get('producto_id'):
+            venta = self.env['ventas.venta'].browse(vals.get('venta_id')) if vals.get('venta_id') else False
+            metodo = venta.metododepago if venta and venta.metododepago else 'PPD'
+            prod = self.env['productos.producto'].browse(vals['producto_id'])
+            vals['precio'] = prod.contado if metodo == 'PUE' else prod.credito
+        return super().create(vals)

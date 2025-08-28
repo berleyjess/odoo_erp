@@ -44,6 +44,13 @@
                 <header>
                     <!-- Botón Volver a la lista -->
                     <button name="%(ventas.action_ventas)d" type="action" string="Volver" class="btn-secondary"/>
+
+                    <!-- NEW: flujo de estado / inventario -->
+                    <button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary" invisible="state not in ['confirmed','invoiced']"/>
+
+                    <!-- NEW: statusbar del estado -->
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,invoiced,cancelled"/>
                 </header>
 
                 <sheet>
@@ -52,16 +59,16 @@
                         <field name="cliente"/>
                         <field name="sucursal_id"/>
                         <field name="codigo" readonly="1"/>
+                        <!-- Puedes quitar este state si no quieres duplicar con el statusbar -->
                         <field name="state" readonly="1"/>
 
                         <field name="metododepago" widget="radio" options="{'horizontal': true}"/>
 
-                        <!-- Solo si PUE -->
+                        <!-- Conservado tal cual lo tenías -->
                         <field name="formadepago"
                                required="metododepago == 'PUE'"
                                invisible="metododepago != 'PUE'"/>
 
-                        <!-- Si NO es PUE (PPD/Crédito) -->
                         <field name="contrato"
                                required="metododepago != 'PUE'"
                                invisible="metododepago == 'PUE'"/>
@@ -71,14 +78,20 @@
 
                     <notebook>
                         <page string="Detalles de Venta">
+                            <!-- NEW: context para fijar defaults de línea -->
                             <field name="detalle" widget="one2many_list">
                                 <list editable="bottom">
                                     <field name="producto_id"/>
                                     <field name="cantidad"/>
                                     <field name="precio"/>
+                                    <!-- Tus columnas originales -->
                                     <field name="iva"/>
                                     <field name="ieps"/>
                                     <field name="importe"/>
+                                    <!-- (Opcional) si existe en tu modelo y no quieres mostrarlo:
+                                    <field name="stock" invisible="1"/>
+                                    <field name="sucursal_id" invisible="1"/>
+                                    -->
                                 </list>
                             </field>
                         </page>
@@ -104,11 +117,18 @@
         <field name="arch" type="xml">
             <form string="Ventas" edit="false" create="false" delete="false">
                 <header>
+                    <!-- NEW: puedes confirmar/cancelar sin entrar a edición -->
+                   <button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary" invisible="state not in ['confirmed','invoiced']"/>
+
                     <!-- Abrir el mismo registro en la vista EDIT -->
                     <button name="action_open_edit" type="object" string="Editar"
                             class="btn-primary"
-                            confirm="¿Estás seguro que quieres editar el registro?"/>
+                            confirm="¿Estás seguro que quieres editar el registro?" invisible="state == 'cancelled'"/>
                     <button name="%(ventas.action_ventas)d" type="action" string="Volver" class="btn-secondary"/>
+
+                    <!-- NEW: statusbar del estado -->
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,invoiced,cancelled"/>
                 </header>
 
                 <sheet>
@@ -117,6 +137,7 @@
                         <field name="cliente" readonly="1" options="{'no_open': True}"/>
                         <field name="sucursal_id" readonly="1" options="{'no_open': True}"/>
                         <field name="codigo" readonly="1"/>
+                        <!-- Puedes ocultar este si ya confías en el statusbar -->
                         <field name="state" readonly="1"/>
 
                         <field name="metododepago" readonly="1" widget="radio" options="{'horizontal': true}"/>
@@ -128,7 +149,7 @@
                         <field name="observaciones" readonly="1"/>
                     </group>
 
-                    <!-- One2many bloqueado con opciones (sin usar editable="false") -->
+                    <!-- One2many bloqueado con opciones (como lo tenías) -->
                     <field name="detalle"
                            widget="one2many_list"
                            readonly="1"
@@ -197,4 +218,3 @@
     <menuitem id="menu_action_new" name="Nueva venta" parent="menu_root" action="action_ventas_new"/>
 
 </odoo>
-

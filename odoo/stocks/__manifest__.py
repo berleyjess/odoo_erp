@@ -8,12 +8,12 @@
     "depends": [
         "base",
         "sucursales",
-        "compras",
-        "productos"
+        #"compras",
+        "productos",
     ],
     "data": [
         "views/stock.xml",
-        "views/compra.xml",
+        #"views/compra.xml",
     ],
     "application": True,
     "installable": True,
