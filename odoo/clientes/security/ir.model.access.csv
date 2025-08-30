@@ -1,4 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_venta_user,access_venta_user,model_ventas_venta,base.group_user,1,1,1,1
-access_transaccion_user,access_transaccion_user,model_transacciones_transaccion,base.group_user,1,1,1,1
-access_clientes_user,clientes.cliente user,clientes.model_clientes_cliente,base.group_user,1,0,0,0

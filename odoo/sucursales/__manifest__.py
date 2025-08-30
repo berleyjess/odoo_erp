@@ -7,7 +7,7 @@
     "category": "Tools",
     "depends": ["base","localidades","empresas"],
     "data": [
-        'security/ir.model.access.csv',
+        #'security/ir.model.access.csv',
         "data/sequence.xml",
         "views/empresa_inherit.xml",
         "views/sucursal.xml",

@@ -58,7 +58,8 @@
                         <field name="fecha"/>
                         <field name="cliente"/>
                         <field name="empresa_id"/>
-                        <field name="sucursal_id" domain="[('empresa','=', empresa_id)]" options="{'no_create_edit': True}"/>                        <field name="codigo" readonly="1"/>
+                        <field name="sucursal_id" domain="[('empresa','=', empresa_id)]" options="{'no_create_edit': True}"/>                        
+                        <field name="codigo" readonly="1"/>
 
                         <field name="metododepago" widget="radio" options="{'horizontal': true}"/>
 

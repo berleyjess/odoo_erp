@@ -1,3 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_sucursal_user,access_sucursales_sucursal_user,sucursales.model_sucursales_sucursal,base.group_user,1,0,0,0
-access_sucursal_admin,access_sucursales_sucursal_admin,sucursales.model_sucursales_sucursal,base.group_system,1,1,1,1

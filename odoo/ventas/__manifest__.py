@@ -6,7 +6,7 @@
     'version': '1.0',
     'depends': ['base', 'clientes', 'creditos', 'transacciones','usuarios'],
     'data': [
-        'security/ir.model.access.csv',
+        #'security/ir.model.access.csv',
         'reports/venta_report.xml',
         #'views/venta_button_print.xml',
         'data/ir_sequence_ventas.xml',
