@@ -28,9 +28,35 @@ class venta(models.Model):
 
     detalle = fields.One2many('transacciones.transaccion', 'venta_id', string="Venta")
 
-    # Sucursal de la venta
-    sucursal_id = fields.Many2one('sucursales.sucursal', string="Sucursal",
-                                  required=True, ondelete='restrict', index=True)
+    # Empresa con default por ID
+    empresa_id = fields.Many2one(
+        'empresas.empresa', string='Empresa', required=True,
+        default=lambda self: self.env.user.empresa_actual_id.id,
+    )
+
+    # Sucursal con default por ID
+    sucursal_id = fields.Many2one(
+        'sucursales.sucursal', string='Sucursal', required=True,
+        default=lambda self: self.env.user.sucursal_actual_id.id,
+    )
+
+    @api.onchange('empresa_id')
+    def _onchange_empresa_id(self):
+        # Si la sucursal elegida no pertenece a la empresa, límpiala
+        if self.sucursal_id and self.sucursal_id.empresa != self.empresa_id:
+            self.sucursal_id = False
+        # No devuelvas dominios aquí (en v14+ está deprecado). :contentReference[oaicite:1]{index=1}
+
+    @api.onchange('sucursal_id')
+    def _onchange_sucursal(self):
+        if self.sucursal_id:
+            self.empresa_id = self.sucursal_id.empresa
+
+    @api.constrains('sucursal_id', 'empresa_id')
+    def _check_sucursal_empresa(self):
+        for r in self:
+            if r.sucursal_id and r.sucursal_id.empresa != r.empresa_id:
+                raise ValidationError(_("La sucursal no pertenece a la empresa seleccionada."))
 
     # Folio
     codigo = fields.Char(string="Folio", readonly=True, copy=False, index=True)
@@ -208,4 +234,34 @@ class venta(models.Model):
     def write(self, vals):
         if any(r.state == 'cancelled' for r in self):
             raise ValidationError(_("Venta cancelada: no se permite editar."))
+        return super().write(vals)
+
+    
+    def _check_user_company_branch(self, vals=None):
+        user = self.env.user
+        for rec in (self if self else self.browse()):
+            empresa_id = (vals or {}).get('empresa_id', rec.empresa_id.id)
+            sucursal_id = (vals or {}).get('sucursal_id', rec.sucursal_id.id)
+
+            if empresa_id and empresa_id not in user.empresas_ids.ids:
+                raise ValidationError(_("No tienes permiso para usar la empresa seleccionada."))
+
+            if sucursal_id and sucursal_id not in user.sucursales_ids.ids:
+                raise ValidationError(_("No tienes permiso para usar la sucursal seleccionada."))
+
+            if empresa_id and sucursal_id:
+                suc = self.env['sucursales.sucursal'].browse(sucursal_id)
+                if suc.empresa.id != empresa_id:
+                    raise ValidationError(_("La sucursal '%s' no pertenece a la empresa seleccionada.") % (suc.display_name,))
+
+    @api.model
+    def create(self, vals):
+        vals.setdefault('empresa_id', self.env.user.empresa_actual_id.id)
+        vals.setdefault('sucursal_id', self.env.user.sucursal_actual_id.id)
+        self._check_user_company_branch(vals=vals)
+        return super().create(vals)
+
+    def write(self, vals):
+        for rec in self:
+            rec._check_user_company_branch(vals=vals)
         return super().write(vals)

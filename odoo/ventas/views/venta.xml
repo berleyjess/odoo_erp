@@ -57,10 +57,8 @@
                     <group>
                         <field name="fecha"/>
                         <field name="cliente"/>
-                        <field name="sucursal_id"/>
-                        <field name="codigo" readonly="1"/>
-                        <!-- Puedes quitar este state si no quieres duplicar con el statusbar -->
-                        <field name="state" readonly="1"/>
+                        <field name="empresa_id"/>
+                        <field name="sucursal_id" domain="[('empresa','=', empresa_id)]" options="{'no_create_edit': True}"/>                        <field name="codigo" readonly="1"/>
 
                         <field name="metododepago" widget="radio" options="{'horizontal': true}"/>
 
@@ -213,7 +211,7 @@
     <!-- =============================
          MENÚS
          ============================= -->
-    <menuitem id="menu_root" name="Ventas" sequence="10"/>
+    <menuitem id="menu_root" name="Ventas" sequence="10" groups="base.group_user"/>
     <menuitem id="menu_action" name="Listado de Ventas" parent="menu_root" action="action_ventas"/>
     <menuitem id="menu_action_new" name="Nueva venta" parent="menu_root" action="action_ventas_new"/>
 

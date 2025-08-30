@@ -1,24 +1,76 @@
 <odoo>
-    <record id="view_empresa_form_inherit_sucursales" model="ir.ui.view">
-        <field name="name">empresas.empresa.form.inherit.sucursales</field>
-        <field name="model">empresas.empresa</field>
-        <field name="inherit_id" ref="empresas.view_empresa_form"/>
-        <field name="arch" type="xml">
-            <xpath expr="//form/sheet" position="inside">
-                <notebook>
-                    <page string="Sucursales">
-                        <field name="sucursales">
-                            <list editable="bottom">
-                                <field name="codigo"/>
-                                <field name="nombre"/>
-                                <field name="localidad"/>
-                                <field name="cp"/>
-                                <field name="activa"/>
-                            </list>
-                        </field>
-                    </page>
-                </notebook>
-            </xpath>
-        </field>
-    </record>
+  <!-- Inherit del formulario de empresas para añadir la pestaña de sucursales -->
+  <record id="view_empresa_form_inherit_sucursales" model="ir.ui.view">
+    <field name="name">empresas.empresa.form.inherit.sucursales</field>
+    <field name="model">empresas.empresa</field>
+    <field name="inherit_id" ref="empresas.view_empresa_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//form/sheet" position="inside">
+        <notebook>
+          <page string="Sucursales">
+            <field name="sucursal_ids">
+              <list editable="bottom">
+                <field name="codigo"/>
+                <field name="nombre"/>
+                <field name="localidad"/>
+                <field name="cp"/>
+                <field name="activa"/>
+              </list>
+            </field>
+          </page>
+        </notebook>
+      </xpath>
+    </field>
+  </record>
+
+  <!-- Vistas propias de sucursales -->
+  <record id="view_sucursal_list" model="ir.ui.view">
+    <field name="name">sucursales.sucursal.list</field>
+    <field name="model">sucursales.sucursal</field>
+    <field name="arch" type="xml">
+      <list string="Sucursales">
+        <field name="codigo"/>
+        <field name="nombre"/>
+        <field name="serie"/>
+        <field name="tiposucursal"/>
+        <field name="empresa"/>
+        <field name="localidad"/>
+        <field name="cp"/>
+        <field name="activa"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_sucursal_form" model="ir.ui.view">
+    <field name="name">sucursales.sucursal.form</field>
+    <field name="model">sucursales.sucursal</field>
+    <field name="arch" type="xml">
+      <form string="Sucursal">
+        <sheet>
+          <group>
+            <field name="codigo" readonly="1"/>
+            <field name="nombre"/>
+            <field name="empresa"/>
+            <field name="localidad"/>
+            <field name="calle"/>
+            <field name="numero"/>
+            <field name="cp"/>
+            <field name="activa"/>
+            <field name="serie"/>
+            <field name="tiposucursal"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_sucursales" model="ir.actions.act_window">
+    <field name="name">Sucursales</field>
+    <field name="res_model">sucursales.sucursal</field>
+    <field name="view_mode">list,form</field>
+    <field name="view_id" ref="view_sucursal_list"/>
+  </record>
+
+  <menuitem id="menu_suc_root" name="Sucursales"/>
+  <menuitem id="menu_suc_action" name="Catálogo de sucursales" parent="menu_suc_root" action="action_sucursales"/>
 </odoo>

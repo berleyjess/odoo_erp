@@ -1,3 +1,4 @@
+# sucursales/models/sucursal.py
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 import re
@@ -15,7 +16,11 @@ class Sucursal(models.Model):
         string="Código", required=True, readonly=True, copy=False,
         default=lambda self: self.env["ir.sequence"].next_by_code("seq_sucursal_code") or "/",
     )
-    empresa = fields.Many2one('empresas.empresa', string="Empresa", ondelete='restrict', index=True)
+    empresa = fields.Many2one('empresas.empresa', string="Empresa", required=True, ondelete='restrict', index=True)
+
+    # (Puedes mantener usuario_id si quieres registrar “quién la creó”)
+    usuario_id = fields.Many2one('res.users', string='Usuario', required=True, ondelete='restrict', index=True,
+                                 default=lambda self: self.env.user.id)
 
     calle = fields.Char("Calle")
     numero = fields.Char("Número")
@@ -26,7 +31,7 @@ class Sucursal(models.Model):
     serie = fields.Char(string='Serie', required=True, size=2, index=True)
 
     tiposucursal = fields.Selection(
-        selection=[("0", "Insumos"), ("1", "Granos"),("2", "Ferretería")],
+        selection=[("0", "Insumos"), ("1", "Granos"), ("2", "Ferretería")],
         string="Categoría del Producto",
         required=True,
         default='0'
@@ -34,11 +39,9 @@ class Sucursal(models.Model):
 
     _sql_constraints = [
         ("sucursal_codigo_uniq", "unique(codigo)", "El código de la sucursal debe ser único."),
-        # Unicidad global de la serie (tras normalizar a MAYÚSCULAS)
         ("sucursal_serie_uniq", "unique(serie)", "La serie ya está en uso por otra sucursal."),
     ]
 
-    # --- Normalización a MAYÚSCULAS y sin espacios ---
     @api.model
     def create(self, vals):
         serie = vals.get('serie')
@@ -52,10 +55,9 @@ class Sucursal(models.Model):
             vals['serie'] = serie.strip().upper()
         return super().write(vals)
 
-    # --- Validación: exactamente 2 letras ---
     @api.constrains('serie')
     def _check_serie(self):
-        regex = re.compile(r'^[A-Z]{2}$')  # exactamente 2 letras A-Z
+        regex = re.compile(r'^[A-Z]{2}$')
         for rec in self:
             if rec.serie and not regex.match(rec.serie):
                 raise ValidationError("La serie debe tener exactamente 2 letras (A–Z).")

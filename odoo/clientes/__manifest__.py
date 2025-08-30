@@ -10,6 +10,7 @@
     'depends': ['base', 'localidades', 'contactos', 'personas'],
     'license': 'LGPL-3',
     'data': [
+        #'security/ir.model.access.csv',
         'data/seq_code.xml',#ir.sequence 'seq_client_code' para campo codigo. :contentReference[oaicite:0]{index=0}
 
         'views/persona_link_views.xml',

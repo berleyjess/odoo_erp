@@ -1,3 +1,4 @@
+# empresas/models/empresa.py
 from odoo import fields, models, api
 
 class empresa(models.Model):
@@ -5,50 +6,36 @@ class empresa(models.Model):
     _description = "Modelo de Empresa, almacena el catálogo de empresas."
     _rec_name = 'nombre'
 
-    nombre = fields.Char(string = "Nombre", required = True, size = 50)
-    descripcion = fields.Char(string = "Descripción", size = 50)
-    telefono = fields.Char(string = "Teléfono", size = 10)
-    razonsocial = fields.Char(string = "Razón Social", required = True)
-    rfc = fields.Char(string = "RFC", required = True, size = 14)
-    cp = fields.Char(string = "Código Postal", required = True, size=5)
-    calle = fields.Char(string = "Calle", size = 20)
-    numero = fields.Char(string = "Número", size = 32)
-    #sucursales = fields.One2many('sucursal', 'empresa', string = "Sucursales")
-    #bodegas = fields.One2many('bodega', 'empresa', string="Bodegas", ondelete='cascade')
+    nombre = fields.Char(string="Nombre", required=True, size=50)
+    descripcion = fields.Char(string="Descripción", size=50)
+    telefono = fields.Char(string="Teléfono", size=10)
+    razonsocial = fields.Char(string="Razón Social", required=True)
+    rfc = fields.Char(string="RFC", required=True, size=14)
+    cp = fields.Char(string="Código Postal", required=True, size=5)
+    calle = fields.Char(string="Calle", size=20)
+    numero = fields.Char(string="Número", size=32)
+
+    # (opcional conservar)
+    usuario_id = fields.Many2one('res.users', string='Usuario', required=True, ondelete='restrict', index=True,
+                                 default=lambda self: self.env.user.id)
+
     codigo = fields.Char(
-        string='Código',
-        size=10,
-        required=True,
-        readonly=True,
-        copy=False,
+        string='Código', size=10, required=True, readonly=True, copy=False,
         default=lambda self: self._generate_code(),
-        #help="Código único autogenerado con formato COD-000001"
     )
-    
-    @api.depends('sucursales.bodegas')
-    def _compute_bodegas(self):
-        for empresa in self:
-            empresa.bodegas = empresa.sucursals.mapped('bodegas')
+
 
     @api.model
     def create(self, vals):
-        # Convertir a mayúsculas antes de crear
-        if 'nombre' in vals:
-            vals['nombre'] = vals['nombre'].upper() if vals['nombre'] else False
-        if 'razonsocial' in vals:
-            vals['razonsocial'] = vals['razonsocial'].upper() if vals['razonsocial'] else False
-        if 'rfc' in vals:
-            vals['rfc'] = vals['rfc'].upper() if vals['rfc'] else False
+        for k in ('nombre', 'razonsocial', 'rfc'):
+            if k in vals and vals[k]:
+                vals[k] = vals[k].upper()
         return super().create(vals)
 
     def write(self, vals):
-        # Convertir a mayúsculas antes de actualizar
-        if 'nombre' in vals:
-            vals['nombre'] = vals['nombre'].upper() if vals['nombre'] else False
-        if 'razonsocial' in vals:
-            vals['razonsocial'] = vals['razonsocial'].upper() if vals['razonsocial'] else False
-        if 'rfc' in vals:
-            vals['rfc'] = vals['rfc'].upper() if vals['rfc'] else False
+        for k in ('nombre', 'razonsocial', 'rfc'):
+            if k in vals and vals[k]:
+                vals[k] = vals[k].upper()
         return super().write(vals)
 
     def _generate_code(self):
