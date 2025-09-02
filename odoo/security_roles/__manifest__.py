@@ -18,7 +18,7 @@
         #"personas",       # persona.persona
         "localidades",   # localidades.localidad
         "contratos",     # contratos.contrato
-        "stocks",         # stock.sucursal.producto (tu modelo custom)
+        "stocks",         # stocks.stock
     ],
     'data': [
         "security/roles_groups.xml",         # 1) grupos

@@ -164,6 +164,12 @@ class cliente(models.Model):
             ('1', "Alquiler")
         ]
     )
+
+    usar_rfc_generico = fields.Boolean(
+        string="Usar RFC genérico (XAXX010101000)",
+        default=False,
+        help="Marca esto SOLO si quieres registrar al cliente con RFC genérico."
+    )
     
     #Referencias Laborales
     empresa = fields.Char(string = "Empresa donde labora", store = True, size = 32)
@@ -250,14 +256,13 @@ class cliente(models.Model):
         Person = self.env['persona.persona'].sudo()
         r = (vals.get('rfc') or '').strip().upper()
 
-    # 1) Asegurar persona_id
+        # 1) Asegurar persona_id
         if not vals.get('persona_id'):
             if r:
                 p = Person.search([('rfc', '=', r)], limit=1)
                 if p:
                     vals['persona_id'] = p.id
                 else:
-                # crea persona mínima con el RFC capturado
                     vals['persona_id'] = Person.create({
                         'name': vals.get('nombre') or _('SIN NOMBRE'),
                         'rfc': r,
@@ -270,21 +275,24 @@ class cliente(models.Model):
                         'codigop': vals.get('codigop') or False,
                     }).id
             else:
-            # sin RFC y sin persona → persona mínima con RFC genérico
-                vals['persona_id'] = Person.create({
-                    'name': vals.get('nombre') or _('SIN NOMBRE'),
-                    'rfc': RFC_GENERICOS[0],
-                    'email': (vals.get('email') or '').strip().lower() or False,
-                    'telefono': vals.get('telefono') or False,
-                    'localidad_id': vals.get('localidad') or False,
-                    'colonia': vals.get('colonia') or False,
-                    'numero_casa': vals.get('numero') or False,
-                    'calle': vals.get('calle') or False,
-                    'codigop': vals.get('codigop') or False,
-                }).id
-
+                if vals.get('usar_rfc_generico'):
+                    vals['persona_id'] = Person.create({
+                        'name': vals.get('nombre') or _('SIN NOMBRE'),
+                        'rfc': self.RFC_GENERICOS[0],  # XAXX010101000
+                        'email': (vals.get('email') or '').strip().lower() or False,
+                        'telefono': vals.get('telefono') or False,
+                        'localidad_id': vals.get('localidad') or False,
+                        'colonia': vals.get('colonia') or False,
+                        'numero_casa': vals.get('numero') or False,
+                        'calle': vals.get('calle') or False,
+                        'codigop': vals.get('codigop') or False,
+                    }).id
+                else:
+                    # Pide explícitamente el RFC o marcar el checkbox
+                    raise ValidationError(_("RFC obligatorio para crear cliente. "
+                                            "Usa 'Crear y editar…' y captura el RFC, "
+                                            "o marca 'Usar RFC genérico' en el formulario."))
         pid = vals['persona_id']
-
     # 2) NO duplicar cliente para la misma persona (incluye archivados)
         if self.with_context(active_test=False).search_count([('persona_id', '=', pid)]):
             raise ValidationError(_("Esta persona ya está registrada como cliente (validado por RFC/persona)."))

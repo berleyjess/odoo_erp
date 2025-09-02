@@ -2,6 +2,7 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 from datetime import date
+from odoo import SUPERUSER_ID
 
 class venta(models.Model):
     _name = 'ventas.venta'
@@ -18,8 +19,13 @@ class venta(models.Model):
         for record in self:
             record.hoy = date.today()
 
+    def action_noop(self):
+        """Usado por los tiles de cabecera: no hace nada."""
+        return False
+
+
     observaciones = fields.Char(string="Observaciones", size=48)
-    fecha = fields.Date(string="Fecha", default=lambda self: date.today())
+    fecha = fields.Date(string="Fecha", readonly=True, copy=False, index=True)
     importe = fields.Float(string="Importe", readonly=True, store=True, compute='_add_detalles')
     iva = fields.Float(string="iva", readonly=True, store=True, compute='_add_detalles')
     ieps = fields.Float(string="ieps", readonly=True, store=True, compute='_add_detalles')
@@ -220,7 +226,17 @@ class venta(models.Model):
                 raise ValidationError(_("Solo se puede confirmar desde Borrador."))
         self._check_stock_before_confirm()
         self._apply_stock_on_confirm()
-        self.write({'state': 'confirmed'})
+
+        today = fields.Date.context_today(self)
+        for sale in self:
+            vals = {'state': 'confirmed'}
+            if not sale.fecha:
+                vals['fecha'] = today
+            if not sale.codigo:
+                vals['codigo'] = sale._next_folio()
+            sale.sudo().write(vals)
+            #sale.write(vals)  # escribe con el usuario real
+
         return True
 
     def action_cancel(self):
@@ -232,8 +248,14 @@ class venta(models.Model):
         return True
 
     def write(self, vals):
-        if any(r.state == 'cancelled' for r in self):
-            raise ValidationError(_("Venta cancelada: no se permite editar."))
+        for rec in self:
+            if rec.state == 'cancelled':
+                raise ValidationError(_("Venta cancelada: no se permite editar."))
+
+            # ✅ Solo valida permisos si se intenta cambiar empresa/sucursal
+            if 'empresa_id' in vals or 'sucursal_id' in vals:
+                rec._check_user_company_branch(vals=vals)
+
         return super().write(vals)
 
     
@@ -261,7 +283,40 @@ class venta(models.Model):
         self._check_user_company_branch(vals=vals)
         return super().create(vals)
 
-    def write(self, vals):
-        for rec in self:
-            rec._check_user_company_branch(vals=vals)
-        return super().write(vals)
+
+    def _next_folio(self):
+        """Intenta usar una secuencia; ajusta el código si la tuya se llama distinto."""
+        # Cambia 'ventas.venta.folio' por el código real de tu secuencia si ya existe
+        seq_code_candidates = ['ventas.venta.folio', 'ventas.venta', 'seq.ventas.venta']
+        IrSeq = self.env['ir.sequence']
+        for code in seq_code_candidates:
+            nxt = IrSeq.next_by_code(code)
+            if nxt:
+                return nxt
+        # Si no hay secuencia configurada, arma un folio simple y único como fallback
+        return self.env['ir.sequence'].next_by_code('base.sequence_mixin') or self._generate_default_folio()
+
+    def _generate_default_folio(self):
+        # Fallback ultra simple (no depende de data extra)
+        return f"V-{fields.Datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    def _check_user_company_branch(self, vals=None):
+        # No validar para superusuario
+        if self.env.uid == SUPERUSER_ID:
+            return
+
+        user = self.env.user
+        for r in (self if self else self.browse()):
+            empresa_id  = (vals or {}).get('empresa_id',  r.empresa_id.id)
+            sucursal_id = (vals or {}).get('sucursal_id', r.sucursal_id.id)
+
+            if empresa_id and empresa_id not in user.empresas_ids.ids:
+                raise ValidationError(_("No tienes permiso para usar la empresa seleccionada."))
+            if sucursal_id and sucursal_id not in user.sucursales_ids.ids:
+                raise ValidationError(_("No tienes permiso para usar la sucursal seleccionada."))
+
+            # Consistencia empresa–sucursal
+            if empresa_id and sucursal_id:
+                suc = self.env['sucursales.sucursal'].browse(sucursal_id)
+                if suc.empresa.id != empresa_id:
+                    raise ValidationError(_("La sucursal '%s' no pertenece a la empresa seleccionada.") % (suc.display_name,))

@@ -22,12 +22,16 @@
         <field name="name">venta.list</field>
         <field name="model">ventas.venta</field>
         <field name="arch" type="xml">
-            <list string="Ventas">
+            <list string="Ventas"
+              decoration-success="state == 'confirmed'"
+              decoration-danger="state == 'cancelled'"
+              decoration-muted="state == 'draft'">
+                <field name="codigo" string="Folio"/>
                 <field name="fecha"/>
                 <field name="cliente"/>
                 <field name="contrato"/>
                 <field name="sucursal_id"/>
-                <field name="codigo"/>
+                <!--<field name="total" sum="Total"/-->
                 <field name="state"/>
             </list>
         </field>
@@ -42,70 +46,97 @@
         <field name="arch" type="xml">
             <form string="Ventas">
                 <header>
-                    <!-- Botón Volver a la lista -->
                     <button name="%(ventas.action_ventas)d" type="action" string="Volver" class="btn-secondary"/>
-
-                    <!-- NEW: flujo de estado / inventario -->
                     <button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/>
-                    <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary" invisible="state not in ['confirmed','invoiced']"/>
-
-                    <!-- NEW: statusbar del estado -->
+                    <button name="action_cancel"  type="object" string="Cancelar" class="btn-secondary" invisible="state not in ['confirmed','invoiced']"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,invoiced,cancelled"/>
                 </header>
 
                 <sheet>
-                    <group>
-                        <field name="fecha"/>
-                        <field name="cliente"/>
-                        <field name="empresa_id"/>
-                        <field name="sucursal_id" domain="[('empresa','=', empresa_id)]" options="{'no_create_edit': True}"/>                        
-                        <field name="codigo" readonly="1"/>
 
-                        <field name="metododepago" widget="radio" options="{'horizontal': true}"/>
+                    <!-- Tiles arriba a la derecha -->
+                    <div class="oe_button_box" name="venta_header_stats">
+                        <button type="object" name="action_noop" class="oe_stat_button" icon="fa-hashtag">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value"><field name="codigo" readonly="1"/></span>
+                                <span class="o_stat_text">Folio</span>
+                            </div>
+                        </button>
+                        <button type="object" name="action_noop" class="oe_stat_button" icon="fa-calendar">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value"><field name="fecha" readonly="1"/></span>
+                                <span class="o_stat_text">Fecha</span>
+                            </div>
+                        </button>
+                    </div>
 
-                        <!-- Conservado tal cual lo tenías -->
-                        <field name="formadepago"
-                               required="metododepago == 'PUE'"
-                               invisible="metododepago != 'PUE'"/>
+                    <!-- Cuerpo -->
+                    <group string="Datos de la Venta" colspan="4">
+                        <group colspan="2">
+                            <field name="cliente"/>
+                            <field name="empresa_id"/>
+                            <field name="sucursal_id" domain="[('empresa','=', empresa_id)]" options="{'no_create_edit': True}"/>
+                            <field name="metododepago" widget="radio" options="{'horizontal': true}"/>
+                            <field name="formadepago" required="metododepago == 'PUE'" invisible="metododepago != 'PUE'"/>
+                            <field name="contrato" required="metododepago != 'PUE'" invisible="metododepago == 'PUE'"/>
+                            <field name="observaciones"/>
+                        </group>
 
-                        <field name="contrato"
-                               required="metododepago != 'PUE'"
-                               invisible="metododepago == 'PUE'"/>
+                    <!-- Totales grandes y a la derecha -->
+                        <group string="Totales" colspan="2" class="oe_subtotal_footer o_right" style="min-width:280px; margin-left:auto; text-align:right;">
 
-                        <field name="observaciones"/>
+                            <!-- Subtotal -->
+                            <label for="importe" string="Subtotal" class="o_form_label"/>
+                            <field name="importe" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                            <!-- IVA -->
+                            <label for="iva" string="IVA" class="o_form_label"/>
+                            <field name="iva" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                            <!-- IEPS -->
+                            <label for="ieps" string="IEPS" class="o_form_label"/>
+                            <field name="ieps" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                            <separator string="TOTAL" colspan="2"/>
+                            <field name="total" readonly="1" nolabel="1" style="font-size:22px; font-weight:700; text-align:right;"/>
+                        </group>
+
                     </group>
 
                     <notebook>
-                        <page string="Detalles de Venta">
-                            <!-- NEW: context para fijar defaults de línea -->
-                            <field name="detalle" widget="one2many_list">
-                                <list editable="bottom">
-                                    <field name="producto_id"/>
-                                    <field name="cantidad"/>
-                                    <field name="precio"/>
-                                    <!-- Tus columnas originales -->
-                                    <field name="iva"/>
-                                    <field name="ieps"/>
-                                    <field name="importe"/>
-                                    <!-- (Opcional) si existe en tu modelo y no quieres mostrarlo:
-                                    <field name="stock" invisible="1"/>
-                                    <field name="sucursal_id" invisible="1"/>
-                                    -->
-                                </list>
-                            </field>
-                        </page>
+                     <page string="Detalles de Venta">
+                        <field name="detalle" widget="one2many_list">
+                         <list editable="bottom" string="Detalles">
+                            <field name="producto_id"/>
+                            <field name="cantidad" sum="Cant."/>
+                            <field name="precio"/>
+                            <field name="iva"/>
+                            <field name="ieps"/>
+                            <field name="importe" sum="Importe"/>
+                         </list>
+                        </field>
+                     </page>
+
+                     <page string="Buenas prácticas">
+                        <group>
+                            <p><b>Checklist antes de confirmar:</b></p>
+                            <ul style="margin-top:0;">
+                                <li>Cliente validado (datos completos y contrato vigente si es PPD).</li>
+                                <li>Stock suficiente en la <i>sucursal</i> seleccionada.</li>
+                                <li>Precios correctos según método: <b>PUE</b> (contado) vs <b>PPD</b> (crédito).</li>
+                                <li>Impuestos (IVA/IEPS) revisados en cada línea.</li>
+                                <li>Observaciones claras (lugar de entrega, condiciones especiales, etc.).</li>
+                            </ul>
+                            <p style="color:#666;">Tip: <i>La Fecha y el Folio se generan automáticamente al confirmar.</i></p>
+                        </group>
+                     </page>
                     </notebook>
 
-                    <group string="Totales">
-                        <field name="importe"/>
-                        <field name="iva"/>
-                        <field name="ieps"/>
-                        <field name="total"/>
-                    </group>
                 </sheet>
             </form>
         </field>
     </record>
+
 
     <!-- =============================
          FORM SOLO LECTURA (DETALLE)
@@ -116,63 +147,73 @@
         <field name="arch" type="xml">
             <form string="Ventas" edit="false" create="false" delete="false">
                 <header>
-                    <!-- NEW: puedes confirmar/cancelar sin entrar a edición -->
-                   <button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/>
-                    <button name="action_cancel" type="object" string="Cancelar" class="btn-secondary" invisible="state not in ['confirmed','invoiced']"/>
-
-                    <!-- Abrir el mismo registro en la vista EDIT -->
-                    <button name="action_open_edit" type="object" string="Editar"
-                            class="btn-primary"
-                            confirm="¿Estás seguro que quieres editar el registro?" invisible="state == 'cancelled'"/>
+                    <button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_cancel"  type="object" string="Cancelar" class="btn-secondary" invisible="state not in ['confirmed','invoiced']"/>
+                    <button name="action_open_edit" type="object" string="Editar" class="btn-primary" confirm="¿Editar este registro?" invisible="state == 'cancelled'"/>
                     <button name="%(ventas.action_ventas)d" type="action" string="Volver" class="btn-secondary"/>
-
-                    <!-- NEW: statusbar del estado -->
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,invoiced,cancelled"/>
                 </header>
 
                 <sheet>
-                    <group>
-                        <field name="fecha" readonly="1"/>
+                    <!-- Tiles -->
+                    <div class="oe_button_box" name="venta_header_stats">
+                        <button type="object" name="action_noop" class="oe_stat_button" icon="fa-hashtag">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value"><field name="codigo" readonly="1"/></span>
+                                <span class="o_stat_text">Folio</span>
+                            </div>
+                        </button>
+                        <button type="object" name="action_noop" class="oe_stat_button" icon="fa-calendar">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value"><field name="fecha" readonly="1"/></span>
+                                <span class="o_stat_text">Fecha</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <group string="Datos" colspan="4">
+                      <group colspan="2">
                         <field name="cliente" readonly="1" options="{'no_open': True}"/>
+                        <field name="empresa_id" readonly="1"/>
                         <field name="sucursal_id" readonly="1" options="{'no_open': True}"/>
-                        <field name="codigo" readonly="1"/>
-                        <!-- Puedes ocultar este si ya confías en el statusbar -->
-                        <field name="state" readonly="1"/>
-
                         <field name="metododepago" readonly="1" widget="radio" options="{'horizontal': true}"/>
-
-                        <!-- Mostrar condicionados pero siempre readonly -->
                         <field name="formadepago" readonly="1" invisible="metododepago != 'PUE'"/>
                         <field name="contrato" readonly="1" invisible="metododepago == 'PUE'" options="{'no_open': True}"/>
-
                         <field name="observaciones" readonly="1"/>
+                      </group>
+
+                      <group string="Totales" colspan="2" class="oe_subtotal_footer o_right" style="min-width:280px; margin-left:auto; text-align:right;">
+
+                        <label for="importe" string="Subtotal" class="o_form_label"/>
+                        <field name="importe" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                        <label for="iva" string="IVA" class="o_form_label"/>
+                        <field name="iva" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                        <label for="ieps" string="IEPS" class="o_form_label"/>
+                        <field name="ieps" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                        <separator string="TOTAL" colspan="2"/>
+                        <field name="total" readonly="1" nolabel="1" style="font-size:22px; font-weight:700; text-align:right;"/>
+                      </group>
+
                     </group>
 
-                    <!-- One2many bloqueado con opciones (como lo tenías) -->
-                    <field name="detalle"
-                           widget="one2many_list"
-                           readonly="1"
-                           options="{'no_create': True, 'no_edit': True, 'no_open': True, 'no_create_edit': True}">
+                    <field name="detalle" widget="one2many_list" readonly="1" options="{'no_create': True, 'no_edit': True, 'no_open': True, 'no_create_edit': True}">
                         <list string="Detalles de Venta">
                             <field name="producto_id" readonly="1"/>
-                            <field name="cantidad" readonly="1"/>
-                            <field name="precio" readonly="1"/>
-                            <field name="iva" readonly="1"/>
-                            <field name="ieps" readonly="1"/>
-                            <field name="importe" readonly="1"/>
+                                <field name="cantidad" readonly="1" sum="Cant."/>
+                                <field name="precio" readonly="1"/>
+                                <field name="iva" readonly="1"/>
+                                <field name="ieps" readonly="1"/>
+                                <field name="importe" readonly="1" sum="Importe"/>
                         </list>
                     </field>
-
-                    <group string="Totales">
-                        <field name="importe" readonly="1"/>
-                        <field name="iva" readonly="1"/>
-                        <field name="ieps" readonly="1"/>
-                        <field name="total" readonly="1"/>
-                    </group>
                 </sheet>
             </form>
         </field>
     </record>
+
 
     <!-- =============================
          BINDINGS: forzar que el FORM por defecto sea el DETALLE
@@ -207,6 +248,15 @@
         <field name="view_mode">form</field>
         <field name="view_id" ref="view_venta_form"/>
         <field name="act_window_id" ref="action_ventas_new"/>
+    </record>
+
+
+    <record id="seq_ventas_folio" model="ir.sequence">
+        <field name="name">Folio Ventas</field>
+        <field name="code">ventas.venta.folio</field>
+        <field name="prefix">V%(y)s%(month)s-</field>
+        <field name="padding">5</field>
+        <field name="company_id" eval="False"/>
     </record>
 
     <!-- =============================
