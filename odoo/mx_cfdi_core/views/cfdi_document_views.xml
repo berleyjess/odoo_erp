@@ -1,0 +1,32 @@
+<odoo>
+  <record id="view_cfdi_document_tree" model="ir.ui.view">
+    <field name="name">mx.cfdi.document.tree</field>
+    <field name="model">mx.cfdi.document</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="uuid"/>
+        <field name="tipo"/>
+        <field name="origin_model"/>
+        <field name="origin_id"/>
+        <field name="state"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_cfdi_document_form" model="ir.ui.view">
+    <field name="name">mx.cfdi.document.form</field>
+    <field name="model">mx.cfdi.document</field>
+    <field name="arch" type="xml">
+      <form string="CFDI">
+        <group>
+          <field name="uuid" readonly="1"/>
+          <field name="tipo"/>
+          <field name="origin_model"/>
+          <field name="origin_id"/>
+          <field name="state"/>
+          <field name="xml" filename="uuid" readonly="1"/>
+        </group>
+      </form>
+    </field>
+  </record>
+</odoo>

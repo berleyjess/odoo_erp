@@ -50,6 +50,10 @@
                     <button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/>
                     <button name="action_cancel"  type="object" string="Cancelar" class="btn-secondary" invisible="state not in ['confirmed','invoiced']"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,invoiced,cancelled"/>
+                    <button name="action_open_cfdi_wizard" type="object" string="Facturar (CFDI)" class="btn-primary" invisible="state not in ['confirmed','invoiced']"/>
+                    <field name="cfdi_uuid" readonly="1" class="oe_inline" invisible="cfdi_uuid == False"/>
+                    <button name="action_download_cfdi" type="object" string="Descargar XML" class="btn-secondary" invisible="cfdi_uuid == False"/>
+
                 </header>
 
                 <sheet>
@@ -68,6 +72,14 @@
                                 <span class="o_stat_text">Fecha</span>
                             </div>
                         </button>
+
+                        <button type="object" name="action_open_attachments" class="oe_stat_button" icon="fa-paperclip" invisible="attachment_count == 0">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value"><field name="attachment_count"/></span>
+                                <span class="o_stat_text">Adjuntos</span>
+                            </div>
+                        </button>
+
                     </div>
 
                     <!-- Cuerpo -->
@@ -131,7 +143,7 @@
                         </group>
                      </page>
                     </notebook>
-
+                  
                 </sheet>
             </form>
         </field>
@@ -152,6 +164,8 @@
                     <button name="action_open_edit" type="object" string="Editar" class="btn-primary" confirm="¿Editar este registro?" invisible="state == 'cancelled'"/>
                     <button name="%(ventas.action_ventas)d" type="action" string="Volver" class="btn-secondary"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,invoiced,cancelled"/>
+                    <button name="action_open_cfdi_wizard" type="object" string="Facturar (CFDI)" class="btn-primary" invisible="state not in ['confirmed','invoiced']"/>              
+
                 </header>
 
                 <sheet>

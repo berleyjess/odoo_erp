@@ -320,3 +320,139 @@ class venta(models.Model):
                 suc = self.env['sucursales.sucursal'].browse(sucursal_id)
                 if suc.empresa.id != empresa_id:
                     raise ValidationError(_("La sucursal '%s' no pertenece a la empresa seleccionada.") % (suc.display_name,))
+
+    # Estado/folio CFDI
+    cfdi_state = fields.Selection([
+        ('none', 'Sin CFDI'),
+        ('to_stamp', 'Por timbrar'),
+        ('stamped', 'Timbrado'),
+        ('to_cancel', 'Por cancelar'),
+        ('canceled', 'Cancelado'),
+    ], default='none', string="Estado CFDI", copy=False)
+
+    cfdi_uuid = fields.Char(string="UUID", copy=False, readonly=True)
+    cfdi_tipo = fields.Selection([('I','Ingreso'),('E','Egreso'),('P','Pago')], string="Tipo CFDI", copy=False)
+    cfdi_relacion_tipo = fields.Selection([
+        ('01','Nota de crédito de los documentos relacionados'),
+        ('02','Nota de débito de los documentos relacionados'),
+        ('03','Devolución de mercancía sobre facturas o traslados previos'),
+        ('04','Sustitución de los CFDI previos'),
+        ('05','Traslados de mercancias facturados previamente'),
+        ('06','Factura generada por los traslados previos'),
+        ('07','CFDI por aplicación de anticipo'),
+    ], string="Tipo de relación", copy=False)
+    cfdi_relacion_ventas_ids = fields.Many2many('ventas.venta', 'venta_cfdi_rel_m2m', 'venta_id', 'rel_id',
+                                                string="CFDIs relacionados", copy=False)
+
+    def action_open_cfdi_wizard(self):
+        """Abre el wizard para capturar Uso CFDI / Método / Relación, etc."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Generar CFDI'),
+            'res_model': 'ventas.cfdi.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_sale_id': self.id,
+                'default_metodo_pago': self.metododepago or 'PPD',
+                'default_forma_pago': self.formadepago or False,
+            },
+        }
+    
+    def _to_cfdi_conceptos(self):
+     """Convierte líneas de venta a conceptos CFDI (placeholder simple)."""
+     conceptos = []
+     for l in self.detalle:
+        if not l.producto_id:
+            continue
+        clave_prod_serv = getattr(l.producto_id, 'sat_clave_prod_serv', None) or '01010101'
+        clave_unidad = getattr(l.producto_id, 'sat_clave_unidad', None) or 'H87'
+        no_ident = getattr(l.producto_id, 'default_code', None) or str(l.producto_id.id)
+        descripcion = getattr(l.producto_id, 'name', 'Producto')
+        cantidad = l.cantidad or 1.0
+        precio = l.precio or 0.0
+        subtotal = getattr(l, 'subtotal', cantidad * precio)
+        iva_amt = getattr(l, 'iva_amount', 0.0)
+        ieps_amt = getattr(l, 'ieps_amount', 0.0)
+        impuestos = {'traslados': []}
+        if iva_amt:
+            impuestos['traslados'].append({
+                'impuesto': '002',      # IVA
+                'tipo_factor': 'Tasa',
+                'tasa_cuota': 0.16,     # ajusta según tu línea
+                'base': subtotal,
+                'importe': iva_amt,
+            })
+        if ieps_amt:
+            impuestos['traslados'].append({
+                'impuesto': '003',      # IEPS
+                'tipo_factor': 'Tasa',
+                'tasa_cuota': 0.08,     # ejemplo
+                'base': subtotal,
+                'importe': ieps_amt,
+            })
+
+        conceptos.append({
+            'clave_sat': clave_prod_serv,
+            'clave_unidad': clave_unidad,
+            'no_identificacion': no_ident,
+            'descripcion': descripcion,
+            'cantidad': cantidad,
+            'valor_unitario': precio,
+            'importe': subtotal + iva_amt + ieps_amt,
+            'objeto_imp': '02',  # gravado
+            'impuestos': impuestos,
+        })
+     return conceptos
+
+     # Contador de adjuntos (smart button)
+    attachment_count = fields.Integer(compute='_compute_attachment_count')
+
+    def _compute_attachment_count(self):
+        Att = self.env['ir.attachment']
+        for r in self:
+            r.attachment_count = Att.search_count([('res_model', '=', r._name), ('res_id', '=', r.id)])
+
+    def action_open_attachments(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Adjuntos'),
+            'res_model': 'ir.attachment',
+            'view_mode': 'list,form',  # <- IMPORTANTE
+            'domain': [('res_model', '=', self._name), ('res_id', 'in', self.ids)],
+            'context': {
+                'default_res_model': self._name,
+                'default_res_id': self.id,
+            },
+            'target': 'current',
+        }
+
+    def action_download_cfdi(self):
+        self.ensure_one()
+        att = self.env['ir.attachment'].search([
+            ('res_model', '=', 'ventas.venta'),
+            ('res_id', '=', self.id),
+            ('mimetype', '=', 'application/xml'),
+        ], limit=1, order='id desc')
+        if not att:
+            # Busca por doc de tu engine como fallback
+            att = self.env['ir.attachment'].search([
+                ('res_model', '=', 'mx.cfdi.document'),
+                ('res_id', 'in', self.env['mx.cfdi.document'].search([
+                    ('origin_model', '=', 'ventas.venta'),
+                    ('origin_id', '=', self.id),
+                    ('uuid', '=', self.cfdi_uuid),
+                ]).ids),
+                ('mimetype', '=', 'application/xml'),
+            ], limit=1, order='id desc')
+        if not att:
+            raise ValidationError(_("No hay XML adjunto para esta venta."))
+
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{att.id}?download=true',
+            'target': 'self',
+        }
+

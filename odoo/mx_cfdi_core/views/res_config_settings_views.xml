@@ -1,0 +1,23 @@
+<!-- mx_cfdi_core/views/res_config_settings_views.xml -->
+<odoo>
+  <record id="view_res_config_settings_cfdi" model="ir.ui.view">
+    <field name="name">res.config.settings.view.form.cfdi</field>
+    <field name="model">res.config.settings</field>
+    <!-- 👇 en 17/18 esta es la vista usual de ajustes -->
+    <field name="inherit_id" ref="base_setup.res_config_settings_view_form"/>
+    <field name="arch" type="xml">
+      <!-- Inserta dentro del contenedor de settings -->
+      <xpath expr="//div[contains(@class, 'o_settings_container')]" position="inside">
+        <div class="col-12 col-lg-6 o_setting_box">
+          <div class="o_setting_left_pane">
+            <field name="mx_cfdi_provider"/>
+          </div>
+          <div class="o_setting_right_pane">
+            <label for="mx_cfdi_provider"/>
+            <div class="text-muted">Proveedor usado para timbrar (dummy por defecto).</div>
+          </div>
+        </div>
+      </xpath>
+    </field>
+  </record>
+</odoo>
