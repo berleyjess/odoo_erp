@@ -3,7 +3,6 @@ from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 from datetime import date
 from odoo import SUPERUSER_ID
-from ..services.invoicing_bridge import create_invoice_from_sale
 
 class venta(models.Model):
     _name = 'ventas.venta'
@@ -72,9 +71,6 @@ class venta(models.Model):
         [('draft', 'Borrador'), ('confirmed', 'Confirmada'), ('cancelled', 'Cancelada'), ('invoiced', 'Facturada')],
         string="Estado", default='draft', required=True, index=True
     )
-
-    # Enlace con la factura generada (OCA/Enterprise)
-    move_id = fields.Many2one('account.move', string='Factura', copy=False, readonly=True)
 
     is_editing = fields.Boolean(default=False, store=True)
 
@@ -435,35 +431,14 @@ class venta(models.Model):
 
     def action_download_cfdi(self):
         self.ensure_one()
-        Att = self.env['ir.attachment']
-        att = False
-        # 1) Preferir adjuntos del account.move
-        if self.move_id:
-            att = Att.search([
-                ('res_model', '=', 'account.move'),
-                ('res_id', '=', self.move_id.id),
-                ('mimetype', '=', 'application/xml'),
-            ], limit=1, order='id desc')
-        # 2) Complemento de pagos: buscar XML en movimientos de pago ligados a la factura
-        if not att and self.move_id:
-            Pay = self.env['account.payment']
-            payments = Pay.search([('reconciled_invoice_ids', 'in', self.move_id.id), ('state', '=', 'posted')], limit=5)
-            if payments:
-                att = Att.search([
-                    ('res_model', '=', 'account.move'),
-                    ('res_id', 'in', payments.mapped('move_id').ids),
-                    ('mimetype', '=', 'application/xml'),
-                ], limit=1, order='id desc')
-        # 3) Fallback a adjuntos en la propia venta (legacy dummy)
-        if not att:
-            att = Att.search([
-                ('res_model', '=', 'ventas.venta'),
-                ('res_id', '=', self.id),
-                ('mimetype', '=', 'application/xml'),
-            ], limit=1, order='id desc')
+        att = self.env['ir.attachment'].search([
+            ('res_model', '=', 'ventas.venta'),
+            ('res_id', '=', self.id),
+            ('mimetype', '=', 'application/xml'),
+        ], limit=1, order='id desc')
         if not att:
             # Busca por doc de tu engine como fallback
-            att = Att.search([
+            att = self.env['ir.attachment'].search([
                 ('res_model', '=', 'mx.cfdi.document'),
                 ('res_id', 'in', self.env['mx.cfdi.document'].search([
                     ('origin_model', '=', 'ventas.venta'),
@@ -481,43 +456,4 @@ class venta(models.Model):
             'target': 'self',
         }
 
-    def action_cancel_cfdi(self):
-        self.ensure_one()
-        if not self.cfdi_uuid:
-            raise ValidationError(_('No hay UUID a cancelar.'))
-        self.env['mx.cfdi.engine'].cancel_cfdi(origin_model=self._name, origin_id=self.id, uuid=self.cfdi_uuid)
-        self.write({'cfdi_state': 'canceled'})
-        return True
-
-    def action_create_invoice_and_stamp(self):
-        """Crea y publica una factura directa (Ingreso) usando los datos de la venta.
-        Usa el bridge. Útil para flujos sin wizard.
-        """
-        for sale in self:
-            if sale.state not in ('confirmed', 'invoiced'):
-                raise ValidationError(_('La venta debe estar Confirmada para facturar.'))
-            uso = 'G03'
-            metodo = sale.metododepago or 'PPD'
-            forma = sale.formadepago if metodo == 'PUE' else False
-            move = create_invoice_from_sale(sale, tipo='I', uso_cfdi=uso, metodo=metodo, forma=forma)
-            move.action_post()
-            vals = {'state': 'invoiced', 'move_id': move.id}
-            uuid_val = getattr(move, 'l10n_mx_edi_cfdi_uuid', False) or False
-            if uuid_val:
-                vals.update({'cfdi_uuid': uuid_val, 'cfdi_state': 'stamped'})
-            sale.write(vals)
-        return True
-
-    def action_open_invoice(self):
-        self.ensure_one()
-        if not getattr(self, 'move_id', False):
-            raise ValidationError(_('No hay factura vinculada a esta venta.'))
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Factura'),
-            'res_model': 'account.move',
-            'res_id': self.move_id.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
 

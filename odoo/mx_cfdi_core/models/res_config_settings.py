@@ -7,6 +7,7 @@ class ResConfigSettings(models.TransientModel):
     mx_cfdi_provider = fields.Selection(
         selection=[
             ('mx.cfdi.engine.provider.dummy', 'Dummy (pruebas)'),
+            ('mx.cfdi.engine.provider.sw', 'SW Sapien (REST)'),
             ('mx.cfdi.engine.provider.base', 'Base (personalizado)'),
         ],
         string='Proveedor CFDI',

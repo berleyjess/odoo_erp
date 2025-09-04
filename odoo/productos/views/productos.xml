@@ -46,6 +46,9 @@
                         context="{'show_code': True, 'show_description': True}"/>
                         <field name="linea"/>
                         <field name="unidad"/>
+                        <field name="sat_uom_id"/>
+                        <field name="sat_unspsc_id"/>
+                        <field name="product_id" readonly="1"/>
                         <field name="costo" options="{'force_input': True}" placeholder="0.00"/>
                         <field name="contado" options="{'force_input': True}" placeholder="0.00"/>
                         <field name="credito" options="{'force_input': True}" placeholder="0.00"/>

@@ -53,10 +53,13 @@
                     <button name="action_open_cfdi_wizard" type="object" string="Facturar (CFDI)" class="btn-primary" invisible="state not in ['confirmed','invoiced']"/>
                     <field name="cfdi_uuid" readonly="1" class="oe_inline" invisible="cfdi_uuid == False"/>
                     <button name="action_download_cfdi" type="object" string="Descargar XML" class="btn-secondary" invisible="cfdi_uuid == False"/>
+                    <button name="action_cancel_cfdi" type="object" string="Cancelar CFDI" class="btn-danger" invisible="cfdi_uuid == False or cfdi_state == 'canceled'"/>
 
                 </header>
 
                 <sheet>
+
+                    <field name="move_id" invisible="1"/>
 
                     <!-- Tiles arriba a la derecha -->
                     <div class="oe_button_box" name="venta_header_stats">
@@ -70,6 +73,12 @@
                             <div class="o_stat_info">
                                 <span class="o_stat_value"><field name="fecha" readonly="1"/></span>
                                 <span class="o_stat_text">Fecha</span>
+                            </div>
+                        </button>
+
+                        <button type="object" name="action_open_invoice" class="oe_stat_button" icon="fa-file-text" invisible="not move_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Factura</span>
                             </div>
                         </button>
 

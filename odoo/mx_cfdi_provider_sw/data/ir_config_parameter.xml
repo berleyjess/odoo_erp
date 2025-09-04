@@ -1,0 +1,8 @@
+<odoo>
+  <data noupdate="1">
+    <record id="param_sw_sandbox" model="ir.config_parameter">
+      <field name="key">mx_cfdi_sw.sandbox</field>
+      <field name="value">1</field>
+    </record>
+  </data>
+</odoo>

@@ -1,0 +1,24 @@
+Ventas → Facturación (CFDI) con OCA
+
+Resumen
+- Este módulo crea facturas de cliente (account.move) a partir de ventas.venta y delega el timbrado en los módulos EDI de México si están instalados (OCA o Enterprise). Si no están, la factura se crea y queda lista para timbrar una vez que se agregue el stack EDI.
+
+Requisitos
+- Odoo 18 Community
+- Instalados: account, account_edi, l10n_mx
+- Para timbrar: instalar los módulos EDI de México (OCA 18.0) y configurar CSD/PAC. Campos EDI se escriben solo si el stack los provee (no son obligatorios para crear la factura).
+
+Probar el flujo
+1) Confirmar una ventas.venta y pulsar “Facturar (CFDI)”.
+2) Elegir Tipo (Ingreso/Egreso/Pago) y Uso/Metodo/Forma de pago.
+3) Al confirmar:
+   - Ingreso/Egreso: se crea account.move y se postea. Si EDI está activo, se timbra y se adjunta XML al move.
+   - Pago: registra pago sobre las facturas relacionadas (PPD) y genera complemento 2.0 si EDI está activo.
+4) “Descargar XML” busca adjuntos XML en la factura vinculada.
+
+Notas técnicas
+- El bridge está en ventas/services/invoicing_bridge.py
+- Si no existe res.partner para el cliente, se crea uno mínimo (name y VAT). Ajusta la lógica si necesitas enlazar con tus modelos de contactos.
+- Los impuestos se asignan buscando account.tax de ventas por porcentaje. Configura al menos IVA 16% si lo usas.
+
+

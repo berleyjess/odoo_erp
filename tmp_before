@@ -57,13 +57,6 @@ class producto(models.Model):
     materiaprima = fields.Boolean(string="Producto para Materia Prima", default = False)
     consumible = fields.Boolean(string="Producto consumible (Envases, etiquetas, etc)", default = False)
     servicio = fields.Boolean(string="Servicio", default=False, store = True)
-
-    # Enlace con product.product estándar (para facturación/account.move)
-    product_id = fields.Many2one('product.product', string='Producto Odoo', copy=False)
-
-    # Datos SAT opcionales (catálogos estándar si están instalados)
-    sat_unspsc_id = fields.Many2one('product.unspsc.category', string='Clave ProdServ (UNSPSC)', help='Usado por EDI MX si está disponible')
-    sat_uom_id = fields.Many2one('uom.uom', string='Unidad SAT (UoM)')
     
     #----
     codigo = fields.Char( #Código interno del producto
@@ -124,69 +117,6 @@ class producto(models.Model):
         sequence = self.env['ir.sequence'].next_by_code('seq_prod_code') or '/'
         number = sequence.split('/')[-1]
         return f"{number.zfill(6)}"
-
-    # --- Helpers EDI/Facturación ---
-    def _find_tax(self, percent):
-        Tax = self.env['account.tax']
-        return Tax.search([
-            ('type_tax_use', '=', 'sale'),
-            ('amount_type', '=', 'percent'),
-            ('amount', '=', percent),
-            ('company_id', '=', self.env.company.id),
-            ('active', '=', True),
-        ], limit=1)
-
-    def ensure_product_product(self):
-        """Crea o enlaza un product.product para este registro.
-        - Busca por default_code == codigo, o por nombre.
-        - Si no existe, crea un product.template/product.product con
-          impuestos por IVA/IEPS, uom y UNSPSC si están disponibles.
-        Devuelve product.product.
-        """
-        self.ensure_one()
-        if self.product_id:
-            return self.product_id
-        Product = self.env['product.product']
-        tmpl_model = self.env['product.template']
-
-        p = Product.search([('default_code', '=', str(self.codigo))], limit=1)
-        if not p:
-            p = Product.search([('name', '=', self.name)], limit=1)
-        if not p:
-            # UoM defaults
-            uom_unit = self.env.ref('uom.product_uom_unit', raise_if_not_found=False)
-            uom_id = (self.sat_uom_id and self.sat_uom_id.id) or (uom_unit and uom_unit.id) or False
-
-            # Taxes
-            taxes = []
-            if self.iva:
-                t = self._find_tax(round(self.iva * 100, 2))
-                if t:
-                    taxes.append(t.id)
-            if self.ieps:
-                t = self._find_tax(round(self.ieps * 100, 2))
-                if t:
-                    taxes.append(t.id)
-
-            t_vals = {
-                'name': self.name,
-                'default_code': str(self.codigo or ''),
-                'type': 'service' if self.servicio else 'consu',
-                'list_price': self.contado or 0.0,
-                'standard_price': self.costo or 0.0,
-                'uom_id': uom_id,
-                'uom_po_id': uom_id,
-                'taxes_id': [(6, 0, taxes)] if taxes else False,
-            }
-            # UNSPSC si existe el campo en template
-            if 'unspsc_code_id' in tmpl_model._fields and self.sat_unspsc_id:
-                t_vals['unspsc_code_id'] = self.sat_unspsc_id.id
-
-            pt = tmpl_model.create(t_vals)
-            p = pt.product_variant_id
-
-        self.product_id = p.id
-        return p
         
     @api.model
     def create(self, vals):
