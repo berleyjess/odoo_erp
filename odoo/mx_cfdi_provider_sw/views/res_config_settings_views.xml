@@ -1,36 +1,64 @@
 ﻿<odoo>
+<!-- mx_cfdi_provider_sw/views/res_config_settings_views.xml -->
   <record id="view_res_config_settings_cfdi_sw" model="ir.ui.view">
     <field name="name">res.config.settings.view.form.cfdi.sw</field>
     <field name="model">res.config.settings</field>
-    <field name="inherit_id" ref="base_setup.res_config_settings_view_form"/>
+    <field name="inherit_id" ref="base.res_config_settings_view_form"/>
     <field name="arch" type="xml">
       <xpath expr="//form" position="inside">
-        <group string="CFDI MX (SW)" col="2" name="cfdi_sw_group">
+        <block title="CFDI MX (SW®)">
+          <setting string="Proveedor">
+            <field name="mx_cfdi_provider"/>
+          </setting>
 
-          <separator string="Conexión" colspan="2"/>
-          <!-- Si tienes el campo proveedor, déjalo; si no, quítalo -->
-          <!-- <field name="mx_cfdi_provider"/> -->
-          <field name="mx_cfdi_sw_sandbox"/>
-          <field name="mx_cfdi_sw_base_url" placeholder="https://services.test.sw.com.mx"/>
+          <setting string="Sandbox">
+            <field name="mx_cfdi_sw_sandbox"/>
+          </setting>
 
-          <button name="action_test_sw" type="object" string="Probar conexión" class="btn-primary" colspan="2"/>
+          <setting string="Base URL">
+            <field name="mx_cfdi_sw_base_url" placeholder="https://services.test.sw.com.mx"/>
+          </setting>
 
-          <separator string="Credenciales" colspan="2"/>
-          <field name="mx_cfdi_sw_token" password="True" placeholder="Bearer token" colspan="2"/>
+          <setting string="Probar conexión">
+            <button name="action_test_sw" type="object" string="Probar conexión" class="btn-primary"/>
+          </setting>
 
-          <!-- Ocultar user/pass cuando HAYA token -->
-          <field name="mx_cfdi_sw_user" invisible="mx_cfdi_sw_token"/>
-          <field name="mx_cfdi_sw_password" password="True" invisible="mx_cfdi_sw_token"/>
+          <setting string="Token (Bearer)">
+            <field name="mx_cfdi_sw_token" password="True"/>
+          </setting>
 
-          <separator string="CSD (PEM)" colspan="2"/>
-          <field name="mx_cfdi_sw_rfc"/>
-          <field name="mx_cfdi_sw_key_password" password="True"/>
-          <field name="mx_cfdi_sw_cer_pem" widget="text" colspan="2"
-                 style="min-height:160px; white-space:pre; font-family:monospace;"/>
-          <field name="mx_cfdi_sw_key_pem" widget="text" colspan="2"
-                 style="min-height:160px; white-space:pre; font-family:monospace;"/>
+          <!-- Oculta user/pass cuando HAYA token -->
+          <setting string="Usuario" invisible="mx_cfdi_sw_token">
+            <field name="mx_cfdi_sw_user"/>
+          </setting>
+          <setting string="Password" invisible="mx_cfdi_sw_token">
+            <field name="mx_cfdi_sw_password" password="True"/>
+          </setting>
 
-        </group>
+          <setting string="RFC Emisor">
+            <field name="mx_cfdi_sw_rfc"/>
+          </setting>
+
+          <setting string="CSD Key Password">
+            <field name="mx_cfdi_sw_key_password" password="True"/>
+          </setting>
+
+          <setting string="Cargar CSD en SW">
+            <button name="action_sw_upload_csd" type="object" string="Cargar CSD" class="btn-secondary"/>
+          </setting>
+          <setting string="Verificar CSD en SW">
+            <button name="action_sw_check_cert" type="object" string="Verificar CSD" class="btn-secondary"/>
+          </setting>
+
+
+          <setting string="CSD Cert (PEM)">
+            <field name="mx_cfdi_sw_cer_pem" style="min-height:160px; white-space:pre; font-family:monospace;"/>
+          </setting>
+
+          <setting string="CSD Key (PEM)">
+            <field name="mx_cfdi_sw_key_pem" style="min-height:160px; white-space:pre; font-family:monospace;"/>
+          </setting>
+        </block>
       </xpath>
     </field>
   </record>

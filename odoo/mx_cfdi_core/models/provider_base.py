@@ -11,7 +11,7 @@ class CfdiProviderBase(models.AbstractModel):
         raise UserError(_("Implementa _stamp_xml en un módulo proveedor."))
 
     @api.model
-    def _cancel(self, uuid, rfc=None, cer_pem=None, key_pem=None, password=None):
+    def _cancel(self, uuid, rfc=None, cer_pem=None, key_pem=None, password=None, **kwargs):
         raise UserError(_("Implementa _cancel en un proveedor."))
 
     @api.model

@@ -1,9 +1,7 @@
-# mx_cfdi_engine/models/engine.py
 from odoo import models, api, _, fields
 from odoo.exceptions import UserError
 import base64
 from xml.etree.ElementTree import Element, SubElement, tostring
-
 
 class CfdiEngine(models.AbstractModel):
     _name = "mx.cfdi.engine"
@@ -15,7 +13,6 @@ class CfdiEngine(models.AbstractModel):
                            relacion_tipo=None, relacion_moves=None,
                            conceptos=None, moneda="MXN", serie=None, folio=None,
                            fecha=None, extras=None):
-
         xml = self._build_xml(tipo=tipo, receptor_id=receptor_id, conceptos=conceptos,
                               uso_cfdi=uso_cfdi, metodo=metodo, forma=forma,
                               relacion_tipo=relacion_tipo, relacion_moves=relacion_moves,
@@ -47,11 +44,22 @@ class CfdiEngine(models.AbstractModel):
         forma = kw.get('forma') or None
         moneda = kw.get('moneda') or 'MXN'
         fecha = kw.get('fecha') or fields.Datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+        relacion_tipo = kw.get('relacion_tipo') or None
+        relacion_moves = kw.get('relacion_moves') or None
+        related_uuids_kw = kw.get('related_uuids') or []
 
         company = self.env.company
         cpostal = getattr(company, 'zip', None) or getattr(company, 'postal_code', None) or '00000'
-        emisor_rfc = (getattr(company, 'vat', None) or '').upper() or 'EKU9003173C9'
+        emisor_rfc = (getattr(company, 'vat', None) or '').upper()
+        if not emisor_rfc:
+            raise UserError(_("Configura el RFC de la compañía (company.vat)."))
+        rfc_cfg = self.env['ir.config_parameter'].sudo().get_param('mx_cfdi_sw.rfc') or emisor_rfc
+        if rfc_cfg and rfc_cfg != emisor_rfc:
+            raise UserError(_("El RFC de la compañía (%s) y el de Ajustes (%s) no coinciden.")
+                % (emisor_rfc, rfc_cfg))
+
         emisor_nombre = (getattr(company, 'name', None) or 'EMISOR').upper()
+        emisor_regimen = getattr(company, 'l10n_mx_edi_fiscal_regime', None) or '601'
 
         total = 0.0
         subtotal = 0.0
@@ -62,6 +70,7 @@ class CfdiEngine(models.AbstractModel):
             subtotal += qty * pu
             total += imp
 
+        # >>> Emisión Timbrado: Sello/Certificado/NoCertificado VACÍOS
         comprobante = Element('cfdi:Comprobante', {
             'Version': '4.0',
             'Fecha': fecha,
@@ -71,43 +80,111 @@ class CfdiEngine(models.AbstractModel):
             'SubTotal': f"{subtotal:.2f}",
             'Total': f"{total:.2f}",
             'LugarExpedicion': cpostal,
+            'Sello': '',
+            'Certificado': '',
+            'NoCertificado': '',
             'xmlns:cfdi': 'http://www.sat.gob.mx/cfd/4',
         })
         SubElement(comprobante, 'cfdi:Emisor', {
             'Rfc': emisor_rfc,
             'Nombre': emisor_nombre,
-            'RegimenFiscal': '601',
+            'RegimenFiscal': str(emisor_regimen),
         })
 
         receptor = self.env['res.partner'].browse(receptor_id) if receptor_id else False
         rec_rfc = (receptor.vat or 'XAXX010101000').upper()
         rec_nombre = receptor.name or 'PUBLICO EN GENERAL'
         rec_cp = receptor.zip or '00000'
+        rec_regimen = getattr(receptor, 'l10n_mx_edi_fiscal_regime', None) or ('616' if rec_rfc == 'XAXX010101000' else '601')
         SubElement(comprobante, 'cfdi:Receptor', {
             'Rfc': rec_rfc,
             'Nombre': rec_nombre,
             'UsoCFDI': uso_cfdi,
             'DomicilioFiscalReceptor': rec_cp,
-            'RegimenFiscalReceptor': '601',
+            'RegimenFiscalReceptor': str(rec_regimen),
         })
+
+        # >>> BLOQUE NUEVO: reglas CFDI 4.0 para RFC genérico
+        if rec_rfc in ('XAXX010101000', 'XEXX010101000'):
+            uso_cfdi = 'S01'                # Sin obligaciones fiscales
+            rec_regimen = '616'             # Sin obligaciones fiscales
+            rec_nombre = 'PUBLICO EN GENERAL'
+            rec_cp = cpostal                 # CP receptor = LugarExpedicion del emisor (requerido en global)
+        
+        SubElement(comprobante, 'cfdi:Receptor', {
+            'Rfc': rec_rfc,
+            'Nombre': rec_nombre,
+            'UsoCFDI': uso_cfdi,
+            'DomicilioFiscalReceptor': rec_cp,
+            'RegimenFiscalReceptor': str(rec_regimen),
+        })
+
+        # Relaciones CFDI (egresos/sustitución/etc.)
+        related_uuids = list(related_uuids_kw)
+        if relacion_moves:
+            for rm in relacion_moves:
+                if getattr(rm, 'l10n_mx_edi_cfdi_uuid', False):
+                    related_uuids.append(rm.l10n_mx_edi_cfdi_uuid)
+        if relacion_tipo and related_uuids:
+            rel = SubElement(comprobante, 'cfdi:CfdiRelacionados', {'TipoRelacion': relacion_tipo})
+            for u in related_uuids:
+                SubElement(rel, 'cfdi:CfdiRelacionado', {'UUID': u})
 
         if tipo in ('I', 'E'):
             if metodo:
                 comprobante.set('MetodoPago', metodo)
+            # Para PPD la forma suele ser '99' (por definir); para PUE, la forma real (01,03,...), si la envías.
             if forma:
                 comprobante.set('FormaPago', forma)
 
             cs = SubElement(comprobante, 'cfdi:Conceptos')
+            tot_tras = 0.0
             for c in conceptos:
-                SubElement(cs, 'cfdi:Concepto', {
+                imp_obj = c.get('objeto_imp', '01')  # 01=No objeto, 02=Sí objeto, 03=Sí objeto y no obligado
+                qty = float(c.get('cantidad', 1.0))
+                vu = float(c.get('valor_unitario', 0.0))
+                imp = float(c.get('importe', qty * vu))
+                nodo = SubElement(cs, 'cfdi:Concepto', {
                     'ClaveProdServ': c.get('clave_sat', '01010101'),
                     'NoIdentificacion': str(c.get('no_identificacion', '1')),
-                    'Cantidad': f"{float(c.get('cantidad', 1.0)):.2f}",
+                    'Cantidad': f"{qty:.2f}",
                     'ClaveUnidad': c.get('clave_unidad', 'H87'),
                     'Descripcion': c.get('descripcion', 'Producto'),
-                    'ValorUnitario': f"{float(c.get('valor_unitario', 0.0)):.2f}",
-                    'Importe': f"{float(c.get('importe', 0.0)):.2f}",
-                    'ObjetoImp': c.get('objeto_imp', '01'),
+                    'ValorUnitario': f"{vu:.2f}",
+                    'Importe': f"{imp:.2f}",
+                    'ObjetoImp': imp_obj,
+                })
+                if imp_obj in ('02', '03'):
+                    iva = float(c.get('iva', 0.0) or 0.0)   # ratio 0.160000 etc.
+                    ieps = float(c.get('ieps', 0.0) or 0.0)
+                    if iva or ieps:
+                        imps = SubElement(nodo, 'cfdi:Impuestos')
+                        tras = SubElement(imps, 'cfdi:Traslados')
+                        if iva:
+                            base = imp
+                            imp_monto = round(base * iva, 2)
+                            tot_tras += imp_monto
+                            SubElement(tras, 'cfdi:Traslado', {
+                                'Base': f"{base:.2f}",
+                                'Impuesto': '002',
+                                'TipoFactor': 'Tasa',
+                                'TasaOCuota': f"{iva:.6f}",
+                                'Importe': f"{imp_monto:.2f}",
+                            })
+                        if ieps:
+                            base = imp
+                            imp_monto = round(base * ieps, 2)
+                            tot_tras += imp_monto
+                            SubElement(tras, 'cfdi:Traslado', {
+                                'Base': f"{base:.2f}",
+                                'Impuesto': '003',
+                                'TipoFactor': 'Tasa',
+                                'TasaOCuota': f"{ieps:.6f}",
+                                'Importe': f"{imp_monto:.2f}",
+                            })
+            if tot_tras:
+                SubElement(comprobante, 'cfdi:Impuestos', {
+                    'TotalImpuestosTrasladados': f"{tot_tras:.2f}"
                 })
 
         xml_bytes = tostring(comprobante, encoding='utf-8', xml_declaration=True)
@@ -137,7 +214,7 @@ class CfdiEngine(models.AbstractModel):
         })
 
     @api.model
-    def cancel_cfdi(self, *, origin_model, origin_id, uuid):
+    def cancel_cfdi(self, *, origin_model, origin_id, uuid, motivo='02', folio_sustitucion=None):
         provider = self._get_provider()
         params = self.env['ir.config_parameter'].sudo()
         rfc = params.get_param('mx_cfdi_sw.rfc') or (self.env.company.vat or '')
@@ -146,7 +223,8 @@ class CfdiEngine(models.AbstractModel):
         password = params.get_param('mx_cfdi_sw.key_password')
         if not (uuid and rfc and cer_pem and key_pem):
             raise UserError(_('Faltan parámetros para cancelar: uuid/rfc/certificados.'))
-        res = provider._cancel(uuid, rfc=rfc, cer_pem=cer_pem, key_pem=key_pem, password=password)
+        res = provider._cancel(uuid, rfc=rfc, cer_pem=cer_pem, key_pem=key_pem,
+                               password=password, motivo=motivo, folio_sustitucion=folio_sustitucion)
         doc = self.env['mx.cfdi.document'].search([('uuid', '=', uuid)], limit=1)
         if doc:
             doc.write({'state': 'canceled'})
@@ -165,4 +243,3 @@ class CfdiEngine(models.AbstractModel):
                 'description': _('Acuse de cancelación %s') % (uuid,),
             })
         return res
-

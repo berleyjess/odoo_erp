@@ -1,3 +1,4 @@
+#ventas/services/invoicing_bridge.py
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError, UserError
 
@@ -86,17 +87,24 @@ def _map_mx_edi_fields(move, *, uso_cfdi=None, metodo=None, forma=None, relacion
 
 
 def _find_income_account(env):
-    """Find a generic income account for invoice lines when no product mapping exists."""
     Account = env['account.account']
     company = env.company
-    acc = Account.search([
-        ('company_id', '=', company.id),
-        ('internal_group', '=', 'income'),
+    # En v18+ seleccionar por tipo de cuenta de ingresos
+    domain = [
+        ('account_type', 'in', ('income', 'income_other')),
         ('deprecated', '=', False),
-    ], limit=1)
+    ]
+    # Ser compatible con distintas versiones/esquemas
+    if 'company_ids' in Account._fields:
+        domain.append(('company_ids', 'in', [company.id]))
+    elif 'company_id' in Account._fields:
+        domain.append(('company_id', '=', company.id))
+    acc = Account.search(domain, limit=1)
     if not acc:
-        raise ValidationError(_('No se encontró una cuenta de ingresos para la empresa. Configura el plan contable.'))
+        from odoo.exceptions import ValidationError
+        raise ValidationError(_('No se encontró una cuenta de ingresos. Revisa el plan contable.'))
     return acc
+
 
 
 def _tax_by_percent(env, percent):
@@ -193,6 +201,9 @@ def create_invoice_from_sale(sale, *, tipo='I', uso_cfdi=None, metodo=None, form
             pt = Term.search([('name', 'ilike', '30')], limit=1) or Term.search([('name', 'ilike', 'Credito')], limit=1)
             payment_term_id = pt.id or False
 
+    # Si es PPD y no se conoce forma, usar '99' (por definir) como indica la guía de pagos. :contentReference[oaicite:14]{index=14}
+    if (metodo or '').upper() == 'PPD' and not forma:
+        forma = '99'
     vals = {
         'move_type': move_type,
         'partner_id': partner.id,

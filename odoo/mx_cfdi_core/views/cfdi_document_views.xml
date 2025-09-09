@@ -1,4 +1,5 @@
 <odoo>
+<!-- mx_cfdi_core/views/cfdi_document_views.xml -->
   <record id="view_cfdi_document_tree" model="ir.ui.view">
     <field name="name">mx.cfdi.document.tree</field>
     <field name="model">mx.cfdi.document</field>

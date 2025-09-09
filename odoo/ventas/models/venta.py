@@ -223,6 +223,36 @@ class venta(models.Model):
                 Stock.add_stock(sale.sucursal_id, prod, qty)
             sale.stock_aplicado = False
 
+    def action_open_payments(self):
+        """Smart button: abre pagos ligados a la factura."""
+        self.ensure_one()
+        if not self.move_id:
+            raise ValidationError(_('No hay factura vinculada para ver pagos.'))
+        payments = self.env['account.payment'].search([('reconciled_invoice_ids', 'in', self.move_id.id)])
+        action = {
+            'type': 'ir.actions.act_window',
+            'name': _('Pagos'),
+            'res_model': 'account.payment',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', payments.ids)],
+            'target': 'current',
+        }
+        return action
+
+    def action_open_contrato(self):
+        """Smart button: abre el contrato (crédito) relacionado."""
+        self.ensure_one()
+        if not self.contrato:
+            raise ValidationError(_('No hay contrato relacionado.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Contrato'),
+            'res_model': self.contrato._name,
+            'view_mode': 'form',
+            'res_id': self.contrato.id,
+            'target': 'current',
+        }
+
     # Acciones de workflow
     def action_confirm(self):
         for sale in self:
@@ -485,28 +515,74 @@ class venta(models.Model):
         self.ensure_one()
         if not self.cfdi_uuid:
             raise ValidationError(_('No hay UUID a cancelar.'))
-        self.env['mx.cfdi.engine'].cancel_cfdi(origin_model=self._name, origin_id=self.id, uuid=self.cfdi_uuid)
+        # Tomar motivo/folio de context o usar '02' (errores sin sustitución)
+        motivo = (self.env.context.get('cancel_reason') or '02').strip()
+        folio_sub = (self.env.context.get('replace_uuid') or False) or None
+        self.env['mx.cfdi.engine'].cancel_cfdi(
+            origin_model=self._name, origin_id=self.id, uuid=self.cfdi_uuid,
+            motivo=motivo, folio_sustitucion=folio_sub
+        )
         self.write({'cfdi_state': 'canceled'})
         return True
 
     def action_create_invoice_and_stamp(self):
-        """Crea y publica una factura directa (Ingreso) usando los datos de la venta.
-        Usa el bridge. Útil para flujos sin wizard.
-        """
         for sale in self:
             if sale.state not in ('confirmed', 'invoiced'):
                 raise ValidationError(_('La venta debe estar Confirmada para facturar.'))
+
             uso = 'G03'
             metodo = sale.metododepago or 'PPD'
-            forma = sale.formadepago if metodo == 'PUE' else False
+            forma = sale.formadepago if metodo == 'PUE' else '99'  # por definir en PPD
+
             move = create_invoice_from_sale(sale, tipo='I', uso_cfdi=uso, metodo=metodo, forma=forma)
             move.action_post()
-            vals = {'state': 'invoiced', 'move_id': move.id}
-            uuid_val = getattr(move, 'l10n_mx_edi_cfdi_uuid', False) or False
-            if uuid_val:
-                vals.update({'cfdi_uuid': uuid_val, 'cfdi_state': 'stamped'})
+
+            # --- Timbrar vía engine (Emisión Timbrado) ---
+            conceptos = []
+            for l in move.invoice_line_ids:
+                price = l.price_unit
+                qty = l.quantity
+                importe = round(price * qty, 2)
+                iva_ratio = 0.0
+                ieps_ratio = 0.0
+                for t in l.tax_ids.filtered(lambda t: t.amount_type == 'percent'):
+                    if t.type_tax_use == 'sale':
+                        if int(t.l10n_mx_tax_type or 0) == 0:  # si no existe, mapear por impuesto
+                            pass
+                    if str(int(t.amount)) in ('16',):  # simple: IVA 16
+                        iva_ratio = float(t.amount) / 100.0
+                    if str(int(t.amount)) in ('8', '26', '30', '45', '53'):  # ejemplo IEPS
+                        ieps_ratio = float(t.amount) / 100.0
+
+                conceptos.append({
+                    'clave_sat': '01010101',
+                    'no_identificacion': l.product_id.default_code or l.id,
+                    'cantidad': qty,
+                    'clave_unidad': 'H87',
+                    'descripcion': l.name or (l.product_id.display_name or 'Producto'),
+                    'valor_unitario': price,
+                    'importe': importe,
+                    'objeto_imp': '02' if (iva_ratio or ieps_ratio) else '01',
+                    'iva': iva_ratio,
+                    'ieps': ieps_ratio,
+                })
+
+            engine = self.env['mx.cfdi.engine']
+            stamped = engine.generate_and_stamp(
+                origin_model='account.move',
+                origin_id=move.id,
+                tipo='I',
+                receptor_id=move.partner_id.id,
+                uso_cfdi=uso, metodo=metodo, forma=forma,
+                conceptos=conceptos,
+            )
+
+            vals = {'state': 'invoiced', 'move_id': move.id, 'cfdi_state': 'stamped', 'cfdi_uuid': stamped.get('uuid')}
+            if hasattr(move, 'l10n_mx_edi_cfdi_uuid') and stamped.get('uuid'):
+                move.l10n_mx_edi_cfdi_uuid = stamped['uuid']
             sale.write(vals)
         return True
+
 
     def action_open_invoice(self):
         self.ensure_one()

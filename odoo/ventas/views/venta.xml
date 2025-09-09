@@ -72,8 +72,15 @@
                         <button type="object" name="action_noop" class="oe_stat_button" icon="fa-calendar">
                             <div class="o_stat_info">
                                 <span class="o_stat_value"><field name="fecha" readonly="1"/></span>
-                                <span class="o_stat_text">Fecha</span>
+                                <span class="o_stat_text"></span>
                             </div>
+                        </button>
+                        <button type="object" name="action_open_contrato" class="oe_stat_button" icon="fa-handshake-o" invisible="not contrato">
+                            <div class="o_stat_info"><span class="o_stat_text">Contrato</span></div>
+                        </button>
+
+                        <button type="object" name="action_open_payments" class="oe_stat_button" icon="fa-credit-card" invisible="not move_id">
+                            <div class="o_stat_info"><span class="o_stat_text">Pagos</span></div>
                         </button>
 
                         <button type="object" name="action_open_invoice" class="oe_stat_button" icon="fa-file-text" invisible="not move_id">
@@ -103,27 +110,6 @@
                             <field name="observaciones"/>
                         </group>
 
-                    <!-- Totales grandes y a la derecha -->
-                        <group string="Totales" colspan="2" class="oe_subtotal_footer o_right" style="min-width:280px; margin-left:auto; text-align:right;">
-
-                            <!-- Subtotal -->
-                            <label for="importe" string="Subtotal" class="o_form_label"/>
-                            <field name="importe" readonly="1" nolabel="1" style="text-align:right;"/>
-
-                            <!-- IVA -->
-                            <label for="iva" string="IVA" class="o_form_label"/>
-                            <field name="iva" readonly="1" nolabel="1" style="text-align:right;"/>
-
-                            <!-- IEPS -->
-                            <label for="ieps" string="IEPS" class="o_form_label"/>
-                            <field name="ieps" readonly="1" nolabel="1" style="text-align:right;"/>
-
-                            <separator string="TOTAL" colspan="2"/>
-                            <field name="total" readonly="1" nolabel="1" style="font-size:22px; font-weight:700; text-align:right;"/>
-                        </group>
-
-                    </group>
-
                     <notebook>
                      <page string="Detalles de Venta">
                         <field name="detalle" widget="one2many_list">
@@ -152,7 +138,27 @@
                         </group>
                      </page>
                     </notebook>
-                  
+
+                    <!-- Totales grandes y a la derecha -->
+                        <group string="Totales" colspan="2" class="oe_subtotal_footer o_right" style="min-width:280px; margin-left:auto; text-align:right;">
+
+                            <!-- Subtotal -->
+                            <label for="importe" string="Subtotal" class="o_form_label"/>
+                            <field name="importe" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                            <!-- IVA -->
+                            <label for="iva" string="IVA" class="o_form_label"/>
+                            <field name="iva" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                            <!-- IEPS -->
+                            <label for="ieps" string="IEPS" class="o_form_label"/>
+                            <field name="ieps" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                            <separator string="TOTAL" colspan="2"/>
+                            <field name="total" readonly="1" nolabel="1" style="font-size:22px; font-weight:700; text-align:right;"/>
+                        </group>
+
+                    </group>
                 </sheet>
             </form>
         </field>
@@ -189,8 +195,14 @@
                         <button type="object" name="action_noop" class="oe_stat_button" icon="fa-calendar">
                             <div class="o_stat_info">
                                 <span class="o_stat_value"><field name="fecha" readonly="1"/></span>
-                                <span class="o_stat_text">Fecha</span>
+                                <span class="o_stat_text"></span>
                             </div>
+                        </button>
+                        <button type="object" name="action_open_contrato" class="oe_stat_button" icon="fa-handshake-o" invisible="not contrato">
+                            <div class="o_stat_info"><span class="o_stat_text">Contrato</span></div>
+                        </button>
+                        <button type="object" name="action_open_payments" class="oe_stat_button" icon="fa-credit-card" invisible="not move_id">
+                            <div class="o_stat_info"><span class="o_stat_text">Pagos</span></div>
                         </button>
                     </div>
 
@@ -205,21 +217,6 @@
                         <field name="observaciones" readonly="1"/>
                       </group>
 
-                      <group string="Totales" colspan="2" class="oe_subtotal_footer o_right" style="min-width:280px; margin-left:auto; text-align:right;">
-
-                        <label for="importe" string="Subtotal" class="o_form_label"/>
-                        <field name="importe" readonly="1" nolabel="1" style="text-align:right;"/>
-
-                        <label for="iva" string="IVA" class="o_form_label"/>
-                        <field name="iva" readonly="1" nolabel="1" style="text-align:right;"/>
-
-                        <label for="ieps" string="IEPS" class="o_form_label"/>
-                        <field name="ieps" readonly="1" nolabel="1" style="text-align:right;"/>
-
-                        <separator string="TOTAL" colspan="2"/>
-                        <field name="total" readonly="1" nolabel="1" style="font-size:22px; font-weight:700; text-align:right;"/>
-                      </group>
-
                     </group>
 
                     <field name="detalle" widget="one2many_list" readonly="1" options="{'no_create': True, 'no_edit': True, 'no_open': True, 'no_create_edit': True}">
@@ -232,6 +229,21 @@
                                 <field name="importe" readonly="1" sum="Importe"/>
                         </list>
                     </field>
+
+                    <group string="Totales" colspan="2" class="oe_subtotal_footer o_right" style="min-width:280px; margin-left:auto; text-align:right;">
+
+                        <label for="importe" string="Subtotal" class="o_form_label"/>
+                        <field name="importe" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                        <label for="iva" string="IVA" class="o_form_label"/>
+                        <field name="iva" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                        <label for="ieps" string="IEPS" class="o_form_label"/>
+                        <field name="ieps" readonly="1" nolabel="1" style="text-align:right;"/>
+
+                        <separator string="TOTAL" colspan="2"/>
+                        <field name="total" readonly="1" nolabel="1" style="font-size:22px; font-weight:700; text-align:right;"/>
+                    </group>
                 </sheet>
             </form>
         </field>
