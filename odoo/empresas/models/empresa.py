@@ -15,6 +15,14 @@ class empresa(models.Model):
     calle = fields.Char(string="Calle", size=20)
     numero = fields.Char(string="Número", size=32)
 
+    res_company_id = fields.Many2one(
+        'res.company', string='Compañía fiscal (Odoo)',
+        required=True, ondelete='restrict', index=True,
+        help="Compañía de Odoo que emitirá los CFDI para esta empresa."
+    )
+    company_id = fields.Many2one('res.company', string='Compañía Odoo', required=True,
+                                 default=lambda self: self.env.company)
+
     # (opcional conservar)
     usuario_id = fields.Many2one('res.users', string='Usuario', required=True, ondelete='restrict', index=True,
                                  default=lambda self: self.env.user.id)

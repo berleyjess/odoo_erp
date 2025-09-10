@@ -1,4 +1,5 @@
 <odoo>
+<!-- mx_cfdi_provider_sw/data/ir_config_parameter.xml -->
   <data noupdate="1">
     <record id="param_sw_sandbox" model="ir.config_parameter">
       <field name="key">mx_cfdi_sw.sandbox</field>

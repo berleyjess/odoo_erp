@@ -1,3 +1,4 @@
+# mx_cfdi_core/models/engine.py
 from odoo import models, api, _, fields
 from odoo.exceptions import UserError
 import base64
@@ -50,15 +51,17 @@ class CfdiEngine(models.AbstractModel):
 
         company = self.env.company
         cpostal = getattr(company, 'zip', None) or getattr(company, 'postal_code', None) or '00000'
-        emisor_rfc = (getattr(company, 'vat', None) or '').upper()
+        emisor_rfc = (company.cfdi_sw_rfc or company.vat or '').upper()
         if not emisor_rfc:
-            raise UserError(_("Configura el RFC de la compañía (company.vat)."))
-        rfc_cfg = self.env['ir.config_parameter'].sudo().get_param('mx_cfdi_sw.rfc') or emisor_rfc
+            raise UserError(_("Configura el RFC de la compañía."))
+
+        rfc_cfg = (company.cfdi_sw_rfc or
+           self.env['ir.config_parameter'].sudo().get_param('mx_cfdi_sw.rfc') or
+           emisor_rfc)
         if rfc_cfg and rfc_cfg != emisor_rfc:
             raise UserError(_("El RFC de la compañía (%s) y el de Ajustes (%s) no coinciden.")
-                % (emisor_rfc, rfc_cfg))
-
-        emisor_nombre = (getattr(company, 'name', None) or 'EMISOR').upper()
+                            % (emisor_rfc, rfc_cfg))
+        emisor_nombre  = (company.name or 'EMISOR').upper()
         emisor_regimen = getattr(company, 'l10n_mx_edi_fiscal_regime', None) or '601'
 
         total = 0.0
@@ -91,18 +94,25 @@ class CfdiEngine(models.AbstractModel):
             'RegimenFiscal': str(emisor_regimen),
         })
 
+                # --- Receptor (una sola vez) con reglas de RFC genérico ---
         receptor = self.env['res.partner'].browse(receptor_id) if receptor_id else False
-        rec_rfc = (receptor.vat or 'XAXX010101000').upper()
-        rec_nombre = receptor.name or 'PUBLICO EN GENERAL'
-        rec_cp = receptor.zip or '00000'
-        rec_regimen = getattr(receptor, 'l10n_mx_edi_fiscal_regime', None) or ('616' if rec_rfc == 'XAXX010101000' else '601')
+        rec_rfc = (getattr(receptor, 'vat', '') or '').strip().upper() or 'XAXX010101000'
+        is_generic = rec_rfc in ('XAXX010101000', 'XEXX010101000')
+
+        # Nombre / Uso / Régimen / CP conforme a reglas de global y RFC genérico
+        rec_nombre  = 'PUBLICO EN GENERAL' if is_generic else (getattr(receptor, 'name', None) or 'CLIENTE')
+        uso_cfdi_ok = 'S01' if is_generic else (kw.get('uso_cfdi') or 'G03')
+        rec_regimen = '616' if is_generic else (getattr(receptor, 'l10n_mx_edi_fiscal_regime', None) or '601')
+        rec_cp      = (cpostal if is_generic else (getattr(receptor, 'zip', None) or '00000'))
+
         SubElement(comprobante, 'cfdi:Receptor', {
             'Rfc': rec_rfc,
             'Nombre': rec_nombre,
-            'UsoCFDI': uso_cfdi,
+            'UsoCFDI': uso_cfdi_ok,
             'DomicilioFiscalReceptor': rec_cp,
             'RegimenFiscalReceptor': str(rec_regimen),
         })
+
 
         # >>> BLOQUE NUEVO: reglas CFDI 4.0 para RFC genérico
         if rec_rfc in ('XAXX010101000', 'XEXX010101000'):
@@ -110,7 +120,7 @@ class CfdiEngine(models.AbstractModel):
             rec_regimen = '616'             # Sin obligaciones fiscales
             rec_nombre = 'PUBLICO EN GENERAL'
             rec_cp = cpostal                 # CP receptor = LugarExpedicion del emisor (requerido en global)
-        
+
         SubElement(comprobante, 'cfdi:Receptor', {
             'Rfc': rec_rfc,
             'Nombre': rec_nombre,
@@ -191,10 +201,11 @@ class CfdiEngine(models.AbstractModel):
         return xml_bytes
 
     def _get_provider(self):
-        provider_key = self.env['ir.config_parameter'].sudo().get_param(
-            'mx_cfdi_engine.provider', default='mx.cfdi.engine.provider.dummy'
-        )
-        return self.env[provider_key]
+        # lee siempre el provider de la compañía actual del env
+        provider_key = self.env.company.cfdi_provider or \
+                       self.env['ir.config_parameter'].sudo().get_param('mx_cfdi_engine.provider', 'mx.cfdi.engine.provider.dummy')
+        return self.env[provider_key].with_company(self.env.company)
+
 
     def _attach_xml(self, origin_model, origin_id, xml_bytes, doc):
         if not xml_bytes:
@@ -216,15 +227,16 @@ class CfdiEngine(models.AbstractModel):
     @api.model
     def cancel_cfdi(self, *, origin_model, origin_id, uuid, motivo='02', folio_sustitucion=None):
         provider = self._get_provider()
-        params = self.env['ir.config_parameter'].sudo()
-        rfc = params.get_param('mx_cfdi_sw.rfc') or (self.env.company.vat or '')
-        cer_pem = params.get_param('mx_cfdi_sw.cer_pem')
-        key_pem = params.get_param('mx_cfdi_sw.key_pem')
-        password = params.get_param('mx_cfdi_sw.key_password')
+        company = self.env.company
+        rfc = (company.cfdi_sw_rfc or company.vat or '').upper()
+        cer_pem = company.cfdi_sw_cer_pem
+        key_pem = company.cfdi_sw_key_pem
+        password = company.cfdi_sw_key_password
         if not (uuid and rfc and cer_pem and key_pem):
             raise UserError(_('Faltan parámetros para cancelar: uuid/rfc/certificados.'))
+
         res = provider._cancel(uuid, rfc=rfc, cer_pem=cer_pem, key_pem=key_pem,
-                               password=password, motivo=motivo, folio_sustitucion=folio_sustitucion)
+                           password=password, motivo=motivo, folio_sustitucion=folio_sustitucion)
         doc = self.env['mx.cfdi.document'].search([('uuid', '=', uuid)], limit=1)
         if doc:
             doc.write({'state': 'canceled'})

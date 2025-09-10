@@ -8,6 +8,7 @@ from ..services.invoicing_bridge import create_invoice_from_sale
 class venta(models.Model):
     _name = 'ventas.venta'
     _description = 'Venta de artículos'
+    _check_company_auto = True  # buenas prácticas multiempresa
     
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
     contrato = fields.Many2one('creditos.credito', string="Contrato",
@@ -34,6 +35,16 @@ class venta(models.Model):
     activa = fields.Boolean(string="Activa", default=True)
 
     detalle = fields.One2many('transacciones.transaccion', 'venta_id', string="Venta")
+
+    company_id = fields.Many2one('res.company', string='Compañía', required=True,
+                                 default=lambda self: self.env.company, index=True)
+
+    @api.onchange('empresa_id')
+    def _onchange_empresa_id(self):
+        if self.empresa_id:
+            self.company_id = self.empresa_id.company_id  # <-- clave
+        if self.sucursal_id and self.sucursal_id.empresa != self.empresa_id:
+            self.sucursal_id = False
 
     # Empresa con default por ID
     empresa_id = fields.Many2one(
@@ -529,15 +540,27 @@ class venta(models.Model):
         for sale in self:
             if sale.state not in ('confirmed', 'invoiced'):
                 raise ValidationError(_('La venta debe estar Confirmada para facturar.'))
-
+    
+            # 1) Compañía fiscal a usar (ligada a la empresa seleccionada en la venta)
+            company = getattr(sale.empresa_id, 'res_company_id', False) or self.env.company
+    
             uso = 'G03'
             metodo = sale.metododepago or 'PPD'
-            forma = sale.formadepago if metodo == 'PUE' else '99'  # por definir en PPD
-
-            move = create_invoice_from_sale(sale, tipo='I', uso_cfdi=uso, metodo=metodo, forma=forma)
+            forma = sale.formadepago if metodo == 'PUE' else '99'
+    
+            # 2) Crear la factura en esa compañía (importante: with_company + allowed_company_ids)
+            sale_ctx = sale.with_company(company).with_context(allowed_company_ids=[company.id])
+            move = create_invoice_from_sale(
+                sale_ctx, tipo='I', uso_cfdi=uso, metodo=metodo, forma=forma
+            )
+    
+            # Forzar company_id por claridad (with_company ya lo fija, pero esto lo deja explícito)
+            if 'company_id' in move._fields and move.company_id.id != company.id:
+                move.company_id = company.id
+    
             move.action_post()
-
-            # --- Timbrar vía engine (Emisión Timbrado) ---
+    
+            # 3) Construir conceptos a partir de las líneas de la factura
             conceptos = []
             for l in move.invoice_line_ids:
                 price = l.price_unit
@@ -545,18 +568,19 @@ class venta(models.Model):
                 importe = round(price * qty, 2)
                 iva_ratio = 0.0
                 ieps_ratio = 0.0
-                for t in l.tax_ids.filtered(lambda t: t.amount_type == 'percent'):
-                    if t.type_tax_use == 'sale':
-                        if int(t.l10n_mx_tax_type or 0) == 0:  # si no existe, mapear por impuesto
-                            pass
-                    if str(int(t.amount)) in ('16',):  # simple: IVA 16
-                        iva_ratio = float(t.amount) / 100.0
-                    if str(int(t.amount)) in ('8', '26', '30', '45', '53'):  # ejemplo IEPS
-                        ieps_ratio = float(t.amount) / 100.0
-
+                for t in l.tax_ids.filtered(lambda t: t.amount_type == 'percent' and t.type_tax_use == 'sale'):
+                    try:
+                        amt = int(t.amount)
+                        if amt == 16:
+                            iva_ratio = float(t.amount) / 100.0
+                        if amt in (8, 26, 30, 45, 53):
+                            ieps_ratio = float(t.amount) / 100.0
+                    except Exception:
+                        pass
+                    
                 conceptos.append({
                     'clave_sat': '01010101',
-                    'no_identificacion': l.product_id.default_code or l.id,
+                    'no_identificacion': l.product_id.default_code or str(l.id),
                     'cantidad': qty,
                     'clave_unidad': 'H87',
                     'descripcion': l.name or (l.product_id.display_name or 'Producto'),
@@ -566,8 +590,9 @@ class venta(models.Model):
                     'iva': iva_ratio,
                     'ieps': ieps_ratio,
                 })
-
-            engine = self.env['mx.cfdi.engine']
+    
+            # 4) Timbrar en la MISMA compañía
+            engine = self.env['mx.cfdi.engine'].with_company(company)
             stamped = engine.generate_and_stamp(
                 origin_model='account.move',
                 origin_id=move.id,
@@ -576,12 +601,19 @@ class venta(models.Model):
                 uso_cfdi=uso, metodo=metodo, forma=forma,
                 conceptos=conceptos,
             )
-
-            vals = {'state': 'invoiced', 'move_id': move.id, 'cfdi_state': 'stamped', 'cfdi_uuid': stamped.get('uuid')}
+    
+            # 5) Actualizar estado/UUID en venta y factura
+            vals = {
+                'state': 'invoiced',
+                'move_id': move.id,
+                'cfdi_state': 'stamped',
+                'cfdi_uuid': stamped.get('uuid'),
+            }
             if hasattr(move, 'l10n_mx_edi_cfdi_uuid') and stamped.get('uuid'):
                 move.l10n_mx_edi_cfdi_uuid = stamped['uuid']
             sale.write(vals)
         return True
+
 
 
     def action_open_invoice(self):

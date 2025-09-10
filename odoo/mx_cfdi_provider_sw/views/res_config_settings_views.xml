@@ -51,12 +51,25 @@
           </setting>
 
 
-          <setting string="CSD Cert (PEM)">
+          <!--setting string="CSD Cert (PEM)">
             <field name="mx_cfdi_sw_cer_pem" style="min-height:160px; white-space:pre; font-family:monospace;"/>
           </setting>
 
           <setting string="CSD Key (PEM)">
             <field name="mx_cfdi_sw_key_pem" style="min-height:160px; white-space:pre; font-family:monospace;"/>
+          </setting-->
+          <setting string="CSD Cert (.cer/.pem)">
+            <field name="mx_cfdi_sw_cer_file"
+                   filename="mx_cfdi_sw_cer_fname"
+                   widget="binary"
+                   options="{'accept': '.cer,.pem'}"/>
+          </setting>
+
+          <setting string="CSD Key (.key/.pem)">
+            <field name="mx_cfdi_sw_key_file"
+                   filename="mx_cfdi_sw_key_fname"
+                   widget="binary"
+                   options="{'accept': '.key,.pem'}"/>
           </setting>
         </block>
       </xpath>

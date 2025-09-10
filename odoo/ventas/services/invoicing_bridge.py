@@ -207,11 +207,13 @@ def create_invoice_from_sale(sale, *, tipo='I', uso_cfdi=None, metodo=None, form
     vals = {
         'move_type': move_type,
         'partner_id': partner.id,
-        'currency_id': env.company.currency_id.id,
+        'company_id': sale.env.company.id,  # 👈 asegura compañía
+        'currency_id': sale.env.company.currency_id.id,
         'invoice_origin': sale.codigo or sale.display_name,
         'invoice_date': sale.fecha or fields.Date.context_today(sale),
         'invoice_line_ids': _build_invoice_lines(env, sale),
     }
+
     if payment_term_id:
         vals['invoice_payment_term_id'] = payment_term_id
     # Link to original invoice for refunds when provided
