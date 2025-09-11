@@ -86,46 +86,54 @@ def _map_mx_edi_fields(move, *, uso_cfdi=None, metodo=None, forma=None, relacion
             move.l10n_mx_edi_origin = join
 
 
-def _find_income_account(env):
-    Account = env['account.account']
-    company = env.company
-    # En v18+ seleccionar por tipo de cuenta de ingresos
-    domain = [
-        ('account_type', 'in', ('income', 'income_other')),
-        ('deprecated', '=', False),
-    ]
-    # Ser compatible con distintas versiones/esquemas
+def _find_income_account(env, company):
+    Account = env['account.account'].with_company(company)
+    domain = [('deprecated', '=', False)]
+
+    # Tipo de cuenta (soporta v14+ y fallback viejo)
+    if 'account_type' in Account._fields:
+        domain.append(('account_type', 'in', ('income', 'income_other')))
+    else:
+        # Fallback (stacks viejos con user_type_id)
+        AType = env['account.account.type']
+        ats = AType.search([('type', 'in', ('income', 'other_income'))])
+        if 'user_type_id' in Account._fields and ats:
+            domain.append(('user_type_id', 'in', ats.ids))
+
+    # Multiempresa: company_ids (M2M) vs company_id (M2O)
     if 'company_ids' in Account._fields:
         domain.append(('company_ids', 'in', [company.id]))
     elif 'company_id' in Account._fields:
         domain.append(('company_id', '=', company.id))
-    acc = Account.search(domain, limit=1)
+
+    acc = Account.search(domain, limit=1, order='code asc')
     if not acc:
         from odoo.exceptions import ValidationError
-        raise ValidationError(_('No se encontró una cuenta de ingresos. Revisa el plan contable.'))
+        raise ValidationError(_('No se encontró una cuenta de ingresos para la compañía %s.') % (company.display_name,))
     return acc
 
 
 
-def _tax_by_percent(env, percent):
-    """Find an account.tax by percent for sales. percent is 0-100.
-    Returns recordset or empty.
-    """
-    Tax = env['account.tax']
-    taxes = Tax.search([
+
+def _tax_by_percent(env, percent, company):
+    Tax = env['account.tax'].with_company(company)
+    domain = [
         ('type_tax_use', '=', 'sale'),
         ('amount_type', '=', 'percent'),
         ('amount', '=', percent),
-        ('company_id', '=', env.company.id),
         ('active', '=', True),
-    ], limit=1)
-    return taxes
+    ]
+    if 'company_id' in Tax._fields:
+        domain.append(('company_id', '=', company.id))
+    # (en algunas instalaciones company_id es requerido; en otras se comparte)
+    return Tax.search(domain, limit=1)
 
 
 def _build_invoice_lines(env, sale):
     """Map ventas.venta.detalle (transacciones.transaccion) to account.move.invoice_line_ids commands."""
+    company = sale.company_id  # <- compañía operativa de la venta
     commands = []
-    income = _find_income_account(env)
+    income = _find_income_account(env, company)
     Product = env['product.product']
     for line in sale.detalle:
         if not line.producto_id or (line.cantidad or 0.0) <= 0:
@@ -151,11 +159,11 @@ def _build_invoice_lines(env, sale):
         iva_ratio = getattr(line, 'iva', 0.0) or 0.0
         ieps_ratio = getattr(line, 'ieps', 0.0) or 0.0
         if iva_ratio:
-            t = _tax_by_percent(env, round(iva_ratio * 100, 2))
+            t = _tax_by_percent(env, round(iva_ratio * 100, 2), company)
             if t:
                 taxes.append(t.id)
         if ieps_ratio:
-            t = _tax_by_percent(env, round(ieps_ratio * 100, 2))
+            t = _tax_by_percent(env, round(ieps_ratio * 100, 2), company)
             if t:
                 taxes.append(t.id)
 
@@ -163,7 +171,7 @@ def _build_invoice_lines(env, sale):
             'name': line.producto_id.name,
             'quantity': line.cantidad,
             'price_unit': line.precio,
-            'account_id': income.id,
+            'account_id': income.id,               # cuenta de ingresos de *esa* compañía
             'tax_ids': [(6, 0, taxes)] if taxes else False,
         }
         if product_ref:
@@ -174,7 +182,8 @@ def _build_invoice_lines(env, sale):
     return commands
 
 
-def create_invoice_from_sale(sale, *, tipo='I', uso_cfdi=None, metodo=None, forma=None, relacion_tipo=None, relacion_moves=None):
+def create_invoice_from_sale(sale, *, tipo='I', uso_cfdi=None, metodo=None, forma=None,
+                             relacion_tipo=None, relacion_moves=None):
     """Create an account.move from ventas.venta and return it.
 
     - tipo: 'I' (out_invoice) or 'E' (out_refund)
@@ -202,17 +211,24 @@ def create_invoice_from_sale(sale, *, tipo='I', uso_cfdi=None, metodo=None, form
             payment_term_id = pt.id or False
 
     # Si es PPD y no se conoce forma, usar '99' (por definir) como indica la guía de pagos. :contentReference[oaicite:14]{index=14}
-    if (metodo or '').upper() == 'PPD' and not forma:
+    if (tipo in ('I','E')) and (metodo or '').upper() == 'PPD' and not forma:
         forma = '99'
     vals = {
         'move_type': move_type,
         'partner_id': partner.id,
-        'company_id': sale.env.company.id,  # 👈 asegura compañía
-        'currency_id': sale.env.company.currency_id.id,
+        # Fuerza la compañía de la *venta*
+        'company_id': sale.company_id.id,
+        'currency_id': (sale.company_id.currency_id.id
+                        if sale.company_id and sale.company_id.currency_id
+                        else env.company.currency_id.id),
         'invoice_origin': sale.codigo or sale.display_name,
         'invoice_date': sale.fecha or fields.Date.context_today(sale),
         'invoice_line_ids': _build_invoice_lines(env, sale),
     }
+
+    # Solo facturas I/E llevan FormaPago; para P/T/N NO se envía.
+    if (tipo in ('I', 'E')) and (metodo or '').upper() == 'PPD' and not forma:
+        forma = '99'
 
     if payment_term_id:
         vals['invoice_payment_term_id'] = payment_term_id

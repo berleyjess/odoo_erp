@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+# ventas/wizard/cfdi_wizard.py
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError, UserError
 from ..services.invoicing_bridge import create_invoice_from_sale
@@ -107,16 +109,23 @@ class VentasCfdiWizard(models.TransientModel):
         if self.tipo_comprobante in ('I', 'E'):
             # Para E (nota) relacionamos los UUID de las facturas de ventas seleccionadas
             related_moves = self.relacion_ventas_ids.mapped('move_id') if self.tipo_comprobante == 'E' else None
+            metodo_to_send = self.metodo_pago if self.tipo_comprobante in ('I','E') else False
+            forma_to_send  = (
+                self.forma_pago if (self.tipo_comprobante in ('I','E') and self.metodo_pago == 'PUE')
+                else ('99' if (self.tipo_comprobante in ('I','E') and self.metodo_pago == 'PPD') else False)
+            )
+            
             move = create_invoice_from_sale(
                 sale,
                 tipo=self.tipo_comprobante,
                 uso_cfdi=self.uso_cfdi,
-                metodo=self.metodo_pago,
-                forma=self.forma_pago,
+                metodo=metodo_to_send,
+                forma=forma_to_send,
                 relacion_tipo=self.relacion_tipo,
                 relacion_moves=related_moves,
             )
             move.action_post()
+
             vals = {'state': 'invoiced'}
             if hasattr(sale, 'move_id'):
                 vals['move_id'] = move.id
@@ -126,19 +135,71 @@ class VentasCfdiWizard(models.TransientModel):
             sale.write(vals)
 
             # Timbrar vía engine/proveedor seleccionado (SW u otro)
-            conceptos = sale._to_cfdi_conceptos()
-            partner_id = move.partner_id.id
-            stamped = self.env['mx.cfdi.engine'].generate_and_stamp(
-                origin_model='ventas.venta',
-                origin_id=sale.id,
-                tipo=self.tipo_comprobante,
-                receptor_id=partner_id,
+            # --- Armar conceptos DESDE LA FACTURA (account.move) ---
+            conceptos = []
+            for l in move.invoice_line_ids:
+                qty = l.quantity
+                price = l.price_unit
+                importe = round(qty * price, 2)  # SIN impuestos
+                iva_ratio = 0.0
+                ieps_ratio = 0.0
+                for t in l.tax_ids.filtered(lambda t: t.amount_type == 'percent' and t.type_tax_use == 'sale'):
+                    try:
+                        amt = int(t.amount)
+                        if amt == 16:
+                            iva_ratio = float(t.amount) / 100.0
+                        if amt in (8, 26, 30, 45, 53):
+                            ieps_ratio = float(t.amount) / 100.0
+                    except Exception:
+                        pass
+                    
+                conceptos.append({
+                    'clave_sat': '01010101',
+                    'no_identificacion': l.product_id.default_code or str(l.id),
+                    'cantidad': qty,
+                    'clave_unidad': 'H87',
+                    'descripcion': l.name or (l.product_id.display_name or 'Producto'),
+                    'valor_unitario': price,
+                    'importe': importe,                              # SIN impuestos
+                    'objeto_imp': '02' if (iva_ratio or ieps_ratio) else '01',
+                    'iva': iva_ratio,
+                    'ieps': ieps_ratio,
+                })
+
+            # --- Método/Forma para I/E (PUE lleva forma elegida; PPD lleva 99; otros tipos sin forma) ---
+            metodo_to_send = self.metodo_pago if self.tipo_comprobante in ('I', 'E') else False
+            forma_to_send = (
+                self.forma_pago if (self.tipo_comprobante in ('I','E') and self.metodo_pago == 'PUE')
+                else ('99' if (self.tipo_comprobante in ('I','E') and self.metodo_pago == 'PPD') else False)
+            )
+
+            # --- Timbrar vía engine/proveedor (I/E) contra la FACTURA ---
+            company_invoice = sale.company_id
+            company_fiscal = sale.empresa_id.res_company_id or company_invoice
+            
+            # Validar CP de la compañía fiscal (LugarExpedicion)
+            zip_code = (company_fiscal.partner_id.zip or company_fiscal.zip or '').strip()
+            if not (zip_code.isdigit() and len(zip_code) == 5):
+                raise ValidationError(_("Configura un C.P. válido (5 dígitos) en la Compañía fiscal '%s'.") % company_fiscal.display_name)
+            
+            engine = self.env['mx.cfdi.engine']\
+                .with_context(allowed_company_ids=[company_invoice.id, company_fiscal.id])\
+                .with_company(company_fiscal)
+            
+            stamped = engine.generate_and_stamp(
+                origin_model='account.move',
+                origin_id=move.id,
+                tipo=self.tipo_comprobante,                 # 'I' o 'E'
+                receptor_id=move.partner_id.id,
                 uso_cfdi=self.uso_cfdi,
-                metodo=self.metodo_pago,
-                forma=self.forma_pago,
-                relacion_tipo=self.relacion_tipo,
+                metodo=metodo_to_send,                      # PUE/PPD sólo en I/E
+                forma=forma_to_send,                        # PPD -> '99', PUE -> seleccionada
+                relacion_tipo=self.relacion_tipo if self.tipo_comprobante == 'E' else None,
+                relacion_moves=related_moves if self.tipo_comprobante == 'E' else None,
                 conceptos=conceptos,
             )
+            
+            # Guardar UUID/estado si el PAC lo devolvió
             if stamped and stamped.get('uuid'):
                 sale.write({'cfdi_uuid': stamped['uuid'], 'cfdi_state': 'stamped'})
                 # duplicar adjunto a la factura para visibilidad
@@ -154,6 +215,7 @@ class VentasCfdiWizard(models.TransientModel):
                         'description': att.description,
                     })
             return {'type': 'ir.actions.act_window_close'}
+
 
         if self.tipo_comprobante == 'P':
             invoices = self.relacion_ventas_ids.mapped('move_id').filtered(lambda m: m and m.state == 'posted')

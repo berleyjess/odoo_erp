@@ -39,17 +39,13 @@ class venta(models.Model):
     company_id = fields.Many2one('res.company', string='Compañía', required=True,
                                  default=lambda self: self.env.company, index=True)
 
-    @api.onchange('empresa_id')
-    def _onchange_empresa_id(self):
-        if self.empresa_id:
-            self.company_id = self.empresa_id.company_id  # <-- clave
-        if self.sucursal_id and self.sucursal_id.empresa != self.empresa_id:
-            self.sucursal_id = False
+    
 
     # Empresa con default por ID
     empresa_id = fields.Many2one(
         'empresas.empresa', string='Empresa', required=True,
         default=lambda self: self.env.user.empresa_actual_id.id,
+        check_company=True, # ⬅️ Entra aquí y valida contra empresas.empresa.company_id
     )
 
     # Sucursal con default por ID
@@ -60,10 +56,13 @@ class venta(models.Model):
 
     @api.onchange('empresa_id')
     def _onchange_empresa_id(self):
-        # Si la sucursal elegida no pertenece a la empresa, límpiala
+        if self.empresa_id:
+            # si quieres que la venta “pertenezca” a la misma compañía operativa que la empresa
+            self.company_id = self.empresa_id.company_id
+        # coherencia sucursal-empresa
         if self.sucursal_id and self.sucursal_id.empresa != self.empresa_id:
             self.sucursal_id = False
-        # No devuelvas dominios aquí (en v14+ está deprecado). :contentReference[oaicite:1]{index=1}
+
 
     @api.onchange('sucursal_id')
     def _onchange_sucursal(self):
@@ -85,7 +84,8 @@ class venta(models.Model):
     )
 
     # Enlace con la factura generada (OCA/Enterprise)
-    move_id = fields.Many2one('account.move', string='Factura', copy=False, readonly=True)
+    move_id = fields.Many2one('account.move', string='Factura', copy=False, readonly=True, check_company=True, # ⬅️ Garantiza que la factura sea de la misma compañía que la venta
+                              )
 
     is_editing = fields.Boolean(default=False, store=True)
 
@@ -325,8 +325,16 @@ class venta(models.Model):
     def create(self, vals):
         vals.setdefault('empresa_id', self.env.user.empresa_actual_id.id)
         vals.setdefault('sucursal_id', self.env.user.sucursal_actual_id.id)
+
+        if vals.get('empresa_id'):
+            emp = self.env['empresas.empresa'].browse(vals['empresa_id'])
+            if emp and emp.company_id:
+                vals['company_id'] = emp.company_id.id  # venta y empresa operativa alineadas
+
         self._check_user_company_branch(vals=vals)
         return super().create(vals)
+
+
 
 
     def _next_folio(self):
@@ -541,31 +549,31 @@ class venta(models.Model):
             if sale.state not in ('confirmed', 'invoiced'):
                 raise ValidationError(_('La venta debe estar Confirmada para facturar.'))
     
-            # 1) Compañía fiscal a usar (ligada a la empresa seleccionada en la venta)
-            company = getattr(sale.empresa_id, 'res_company_id', False) or self.env.company
+            # A) Compañías:
+            company_invoice = sale.company_id                               # MISMA de la VENTA
+            company_fiscal  = sale.empresa_id.res_company_id or company_invoice  # credenciales PAC
     
-            uso = 'G03'
+            tipo   = 'I'  # o el que venga de tu wizard
+            uso    = 'G03'
             metodo = sale.metododepago or 'PPD'
-            forma = sale.formadepago if metodo == 'PUE' else '99'
+            forma  = (sale.formadepago if metodo == 'PUE' else '99') if tipo in ('I', 'E') else None
     
-            # 2) Crear la factura en esa compañía (importante: with_company + allowed_company_ids)
-            sale_ctx = sale.with_company(company).with_context(allowed_company_ids=[company.id])
-            move = create_invoice_from_sale(
-                sale_ctx, tipo='I', uso_cfdi=uso, metodo=metodo, forma=forma
+            sale_ctx = sale.with_company(company_invoice).with_context(
+                allowed_company_ids=[company_invoice.id, company_fiscal.id]
             )
-    
-            # Forzar company_id por claridad (with_company ya lo fija, pero esto lo deja explícito)
-            if 'company_id' in move._fields and move.company_id.id != company.id:
-                move.company_id = company.id
-    
+            move = create_invoice_from_sale(sale_ctx, tipo=tipo, uso_cfdi=uso, metodo=metodo, forma=forma)
+            move = move.with_company(company_invoice)
+            if move.company_id.id != company_invoice.id:
+                move.write({'company_id': company_invoice.id})
             move.action_post()
     
-            # 3) Construir conceptos a partir de las líneas de la factura
+            # C) Conceptos desde la factura (sin impuestos en Importe)
             conceptos = []
             for l in move.invoice_line_ids:
                 price = l.price_unit
                 qty = l.quantity
                 importe = round(price * qty, 2)
+    
                 iva_ratio = 0.0
                 ieps_ratio = 0.0
                 for t in l.tax_ids.filtered(lambda t: t.amount_type == 'percent' and t.type_tax_use == 'sale'):
@@ -585,24 +593,29 @@ class venta(models.Model):
                     'clave_unidad': 'H87',
                     'descripcion': l.name or (l.product_id.display_name or 'Producto'),
                     'valor_unitario': price,
-                    'importe': importe,
+                    'importe': importe,                # SIN impuestos
                     'objeto_imp': '02' if (iva_ratio or ieps_ratio) else '01',
                     'iva': iva_ratio,
                     'ieps': ieps_ratio,
                 })
     
-            # 4) Timbrar en la MISMA compañía
-            engine = self.env['mx.cfdi.engine'].with_company(company)
+            # D) Timbrar usando la compañía FISCAL (solo credenciales), sin cambiar la factura
+            engine = self.env['mx.cfdi.engine']\
+                        .with_context(allowed_company_ids=[company_invoice.id, company_fiscal.id])\
+                        .with_company(company_fiscal)
+    
             stamped = engine.generate_and_stamp(
                 origin_model='account.move',
                 origin_id=move.id,
-                tipo='I',
+                tipo=tipo,
                 receptor_id=move.partner_id.id,
-                uso_cfdi=uso, metodo=metodo, forma=forma,
+                uso_cfdi=uso,
+                metodo=(metodo if tipo in ('I', 'E') else None),
+                forma=(forma if tipo in ('I', 'E') else None),
                 conceptos=conceptos,
             )
     
-            # 5) Actualizar estado/UUID en venta y factura
+            # E) Enlazar resultado (ya compatibles porque move.company_id == sale.company_id)
             vals = {
                 'state': 'invoiced',
                 'move_id': move.id,
@@ -613,6 +626,7 @@ class venta(models.Model):
                 move.l10n_mx_edi_cfdi_uuid = stamped['uuid']
             sale.write(vals)
         return True
+
 
 
 
@@ -629,3 +643,20 @@ class venta(models.Model):
             'target': 'current',
         }
 
+    res_company_cfdi_id = fields.Many2one(
+        'res.company', related='empresa_id.res_company_id', string='Compañía fiscal',
+        readonly=True
+    )
+
+    def action_open_cfdi_company(self):
+        self.ensure_one()
+        if not self.res_company_cfdi_id:
+            return False
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Compañía (fiscal)',
+            'res_model': 'res.company',
+            'view_mode': 'form',
+            'res_id': self.res_company_cfdi_id.id,
+            'target': 'current',
+        }

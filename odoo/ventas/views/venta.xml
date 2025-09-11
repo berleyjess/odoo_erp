@@ -216,8 +216,15 @@
                         <field name="contrato" readonly="1" invisible="metododepago == 'PUE'" options="{'no_open': True}"/>
                         <field name="observaciones" readonly="1"/>
                       </group>
-
                     </group>
+
+                    <group>
+                      <field name="empresa_id"/>
+                      <field name="res_company_cfdi_id" readonly="1"/>
+                      <button name="action_open_cfdi_company" type="object"
+                              string="Ver compañía fiscal" class="oe_stat_button" icon="fa-building"/>
+                    </group>
+
 
                     <field name="detalle" widget="one2many_list" readonly="1" options="{'no_create': True, 'no_edit': True, 'no_open': True, 'no_create_edit': True}">
                         <list string="Detalles de Venta">

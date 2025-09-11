@@ -4,7 +4,7 @@
     'description': """Modulo para gestionar empresas y sus datos.""",
     'author': "Grupo Safinsa",
     'version': '1.0',
-    'depends': ['base'],
+    'depends': ['base', 'mx_cfdi_core'],
     'data': [
         #'security/ir.model.access.csv',
         'data/seq_code.xml',

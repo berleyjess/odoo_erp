@@ -74,11 +74,11 @@ class Transaccion(models.Model):
             else:
                 i.stock = '2'
 
-    @api.onchange('venta_id')
-    def _onchange_venta_id(self):
-        for i in self:
-            if i.venta_id and i.venta_id.sucursal_id:
-                i.sucursal_id = i.venta_id.sucursal_id
+    #@api.onchange('venta_id')
+    #def _onchange_venta_id(self):
+    #    for i in self:
+    #        if i.venta_id and i.venta_id.sucursal_id:
+    #            i.sucursal_id = i.venta_id.sucursal_id
 
     @api.constrains('venta_id', 'sucursal_id')
     def _constrain_sucursal_venta(self):
