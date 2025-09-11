@@ -28,7 +28,7 @@
                     <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
                     <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
                     <group invisible="id == False">
-                        <button name="action_editar" string="Editar" type="object" class="oe_highlight"/><!-- groups="security_roles.role_editor,security_roles.role_manager"/-->
+                        <button name="action_editar" string="Editar" type="object" class="oe_highlight" confirm="¿Estas seguro que quieres editar el cliente?"/><!-- groups="security_roles.role_editor,security_roles.role_manager"/-->
                     </group> 
 
                     <group invisible="id != False">
@@ -44,6 +44,7 @@
                             <field name="nombre" />
                             <field name="regimen"/>
                             <field name="rfc"/>
+                            <field name="usar_rfc_generico" invisible="rfc" help="Marca solo si el cliente no tiene RFC y deseas usar el genérico del SAT."/>
                         </group>
                         <group string="Dirección">
                             <field name="codigop"/>
@@ -109,90 +110,7 @@
         </field>
     </record>
 
-    <!-- Vista CREAR clientes -->
-    <record id="view_clientes_form_simple" model="ir.ui.view">
-        <field name="name">clientes.cliente.form.simple</field>
-        <field name="model">clientes.cliente</field>
-        <field name="priority" eval="16"/>
-        <!--field name="groups">security_roles.role_manager</field-->
-        <field name="arch" type="xml">
-            <form>
-            
-                <header>
-                    <!--button name="action_print" type="object" string="Imprimir" class="oe_highlight"/-->
-                    <!--button name="unlink" string="Eliminar" type="object" class="oe_highlight"/-->
-                    <group invisible="id != False">
-                        <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save"/>
-                    </group>
-                </header>
-                <div>view_clientes_form_simple</div>
-                <header>
-                    <!--button name="action_match_persona_by_rfc" type="object" string="Buscar persona por RFC" class="oe_secondary" invisible="persona_id"/-->
-                </header>
-                <sheet>
-                <field name="persona_id" invisible="1"/>
-                    <group>
-                        <group string="Información General">
-                            <field name="tipo" widget="radio" options="{'horizontal': true}"/>
-                            <field name="nombre"/>
-                            <field name="regimen" options="{'no_open': True,'no_create': True}"/>
-                            <field name="rfc"/>
-                        </group>
-                        <group string="Información Personal">
-                            <field name="ine"/>
-                            <field name="curp"/>
-                            <field name="estado_civil"/>
-                            <field name="conyugue" invisible="estado_civil not in ['casado', 'union_libre']" required="estado_civil in ['casado', 'union_libre']" placeholder="Nombre completo del cónyuge"/>
-                        </group>
-                    </group>
-
-                    <group string="Dirección">
-                        <group>
-                            <field name="localidad"/>
-                            <field name="codigop"/>
-                        </group>
-                        <group>
-                            <field name="colonia"/>
-                            <field name="calle"/>
-                            <field name="numero"/>
-                        </group>
-                    </group>
-                    <group string="Contacto">
-                        <field name="telefono"/>
-                        <field name="email"/>
-                    </group>
-
-                    <notebook>
-                        <page string="Contactos">
-                            <field name="contacto">
-                                <list editable="bottom">
-                                    <!-- persona_id puede ir oculto si no quieres mostrarlo -->
-                                    <field name="persona_id" invisible="1"/>
-                                    <field name="nombre"    placeholder="Nombre"/>
-                                    <field name="descripcion"/>
-                                    <field name="telefono"  placeholder="10 dígitos"/>
-                                    <field name="email"     placeholder="correo@dominio"/>
-                                    <!-- Botón del wizard de búsqueda por teléfono (opcional) -->
-                                    <button name="%(contactos.action_phone_lookup_wizard)d" type="action" string="Buscar por teléfono" icon="fa-search"/>
-                                </list>
-
-                                <!-- (Opcional) mini-form para editar una línea del O2M -->
-                                <form>
-                                    <group>
-                                        <field name="persona_id" invisible="1"/>
-                                        <field name="nombre"/>
-                                        <field name="telefono"/>
-                                        <field name="email"/>
-                                        <field name="descripcion"/>
-                                    </group>
-                                </form>
-                            </field>
-                        </page>
-                    </notebook>
-                </sheet>
-            </form>
-        </field>
-    </record>
+    
 
     <!-- Vista de formulario para editar clientes -->
     <record id="view_clientes_form_edit" model="ir.ui.view">

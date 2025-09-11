@@ -1,29 +1,56 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 
-acl_prueba_viewer,Prueba solo vista,pruebas.model_pruebas_prueba,security_roles.role_viewer,1,0,0,0
-acl_prueba_editor,Prueba editor,pruebas.model_pruebas_prueba,security_roles.role_editor,1,1,1,0
-acl_prueba_manager,Prueba admin,pruebas.model_pruebas_prueba,security_roles.role_manager,1,1,1,1
+acl_empresas_viewer,Empresas solo vista,empresas.model_empresas_empresa,security_roles.role_viewer,1,0,0,0
+acl_empresas_editor,Empresas editor,empresas.model_empresas_empresa,security_roles.role_editor,1,1,1,0
+acl_empresas_manager,Empresas admin,empresas.model_empresas_empresa,security_roles.role_manager,1,1,1,1
 
-acl_ciclos_viewer,Ciclos solo vista,ciclos.model_ciclos_ciclo,security_roles.role_viewer,1,0,0,0
-acl_ciclos_editor,Ciclos editor,ciclos.model_ciclos_ciclo,security_roles.role_editor,1,1,1,0
-acl_ciclos_manager,Ciclos administrador,ciclos.model_ciclos_ciclo,security_roles.role_manager,1,1,1,1
 
-acl_contacto_ext_viewer,ContactosExt solo vista,clientes.model_clientes_contacto_ext,security_roles.role_viewer,1,0,0,0
-acl_contacto_ext_editor,ContactosExt editor,clientes.model_clientes_contacto_ext,security_roles.role_editor,1,1,1,0
-acl_contacto_ext_manager,ContactosExt admin,clientes.model_clientes_contacto_ext,security_roles.role_manager,1,1,1,1
+acl_sucursales_viewer,Sucursales solo vista,sucursales.model_sucursales_sucursal,security_roles.role_viewer,1,0,0,0
+acl_sucursales_editor,Sucursales editor,sucursales.model_sucursales_sucursal,security_roles.role_editor,1,1,1,0
+acl_sucursales_manager,Sucursales admin,sucursales.model_sucursales_sucursal,security_roles.role_manager,1,1,1,1
+
+
+acl_productos_viewer,Productos solo vista,productos.model_productos_producto,security_roles.role_viewer,1,0,0,0
+acl_productos_editor,Productos editor,productos.model_productos_producto,security_roles.role_editor,1,1,1,0
+acl_productos_manager,Productos admin,productos.model_productos_producto,security_roles.role_manager,1,1,1,1
+
+
+acl_clientes_viewer,Clientes solo vista,clientes.model_clientes_cliente,security_roles.role_viewer,1,0,0,0
+acl_clientes_editor,Clientes editor,clientes.model_clientes_cliente,security_roles.role_editor,1,1,1,0
+acl_clientes_manager,Clientes admin,clientes.model_clientes_cliente,security_roles.role_manager,1,1,1,1
+
+
+acl_creditos_viewer,Créditos solo vista,creditos.model_creditos_credito,security_roles.role_viewer,1,0,0,0
+acl_creditos_editor,Créditos editor,creditos.model_creditos_credito,security_roles.role_editor,1,1,1,0
+acl_creditos_manager,Créditos admin,creditos.model_creditos_credito,security_roles.role_manager,1,1,1,1
+
+
+acl_transaccion_viewer,Transacción solo vista,transacciones.model_transacciones_transaccion,security_roles.role_viewer,1,0,0,0
+acl_transaccion_editor,Transacción editor,transacciones.model_transacciones_transaccion,security_roles.role_editor,1,1,1,0
+acl_transaccion_manager,Transacción admin,transacciones.model_transacciones_transaccion,security_roles.role_manager,1,1,1,1
+
+
+acl_ventas_viewer,Ventas solo vista,ventas.model_ventas_venta,security_roles.role_viewer,1,0,0,0
+acl_ventas_editor,Ventas editor,ventas.model_ventas_venta,security_roles.role_editor,1,1,1,0
+acl_ventas_manager,Ventas admin,ventas.model_ventas_venta,security_roles.role_manager,1,1,1,1
+
+acl_regimenfiscal_viewer,Régimen Fiscal solo vista,clientes.model_clientes_c_regimenfiscal,security_roles.role_viewer,1,0,0,0
+acl_regimenfiscal_editor,Régimen Fiscal editor,clientes.model_clientes_c_regimenfiscal,security_roles.role_editor,1,1,1,0
+acl_regimenfiscal_manager,Régimen Fiscal admin,clientes.model_clientes_c_regimenfiscal,security_roles.role_manager,1,1,1,1
+
+acl_contacto_viewer,Contacto solo vista,contactos.model_contactos_contacto,security_roles.role_viewer,1,0,0,0
+acl_contacto_editor,Contacto editor,contactos.model_contactos_contacto,security_roles.role_editor,1,1,1,0
+acl_contacto_manager,Contacto admin,contactos.model_contactos_contacto,security_roles.role_manager,1,1,1,1
+
 
 acl_localidad_viewer,Localidad solo vista,localidades.model_localidades_localidad,security_roles.role_viewer,1,0,0,0
 acl_localidad_editor,Localidad editor,localidades.model_localidades_localidad,security_roles.role_editor,1,1,1,0
 acl_localidad_manager,Localidad admin,localidades.model_localidades_localidad,security_roles.role_manager,1,1,1,1
 
-acl_ejido_viewer,Ejido solo vista,ejidos.model_ejidos_ejido,security_roles.role_viewer,1,0,0,0
-acl_ejido_editor,Ejido editor,ejidos.model_ejidos_ejido,security_roles.role_editor,1,1,1,0
-acl_ejido_manager,Ejido admin,ejidos.model_ejidos_ejido,security_roles.role_manager,1,1,1,1
+acl_contrato_viewer,Contrato solo vista,contratos.model_contratos_contrato,security_roles.role_viewer,1,0,0,0
+acl_contrato_editor,Contrato editor,contratos.model_contratos_contrato,security_roles.role_editor,1,1,1,0
+acl_contrato_manager,Contrato admin,contratos.model_contratos_contrato,security_roles.role_manager,1,1,1,1
 
-acl_garantia_viewer,Garantia solo vista,garantias.model_garantias_garantia,security_roles.role_viewer,1,0,0,0
-acl_garantia_editor,Garantia editor,garantias.model_garantias_garantia,security_roles.role_editor,1,1,1,0
-acl_garantia_manager,Garantia admin,garantias.model_garantias_garantia,security_roles.role_manager,1,1,1,1
-
-acl_georeferencia_viewer,Georeferencia solo vista,georeferencias.model_georeferencias_georeferencia,security_roles.role_viewer,1,0,0,0
-acl_georeferencia_editor,Georeferencia editor,georeferencias.model_georeferencias_georeferencia,security_roles.role_editor,1,1,1,0
-acl_georeferencia_manager,Georeferencia admin,georeferencias.model_georeferencias_georeferencia,security_roles.role_manager,1,1,1,1
+acl_stock_sucursal_producto_viewer,Stock sucursal/producto solo vista,stocks.model_stock_sucursal_producto,security_roles.role_viewer,1,0,0,0
+acl_stock_sucursal_producto_editor,Stock sucursal/producto editor,stocks.model_stock_sucursal_producto,security_roles.role_editor,1,1,1,0
+acl_stock_sucursal_producto_manager,Stock sucursal/producto admin,stocks.model_stock_sucursal_producto,security_roles.role_manager,1,1,1,1

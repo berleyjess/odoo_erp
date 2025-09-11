@@ -1,3 +1,4 @@
+#ventas/models/transaccion_ext.py
 from odoo import models, fields, api
 
 class transaccion_ext(models.Model):

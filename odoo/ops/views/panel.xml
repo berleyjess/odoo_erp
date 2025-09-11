@@ -1,0 +1,95 @@
+<!-- ops/views/panel.xml -->
+<odoo>
+  <record id="view_ops_panel_form" model="ir.ui.view">
+    <field name="name">ops.panel.form</field>
+    <field name="model">ops.panel</field>
+    <field name="arch" type="xml">
+      <form string="Panel" create="0" edit="0" delete="0">
+        <sheet>
+          <!-- Tira de smart buttons (arriba a la derecha) -->
+          <div class="oe_button_box" name="button_box">
+
+            <!-- Ventas: Nueva -->
+            <button class="oe_stat_button" type="action"
+                    name="%(ventas.action_ventas_new)d"
+                    icon="fa-shopping-cart"
+                    groups="sales_team.group_sale_user,security_roles.role_editor">
+              <div class="o_stat_info">
+                <span class="o_stat_value">Nueva</span>
+                <span class="o_stat_text">Venta</span>
+              </div>
+            </button>
+
+            <!-- Ventas: Listado -->
+            <button class="oe_stat_button" type="object"
+                    name="action_ventas_listado"
+                    icon="fa-list"
+                    groups="sales_team.group_sale_user,security_roles.role_viewer">
+              <div class="o_stat_info">
+                <span class="o_stat_value"><field name="ventas_hoy"/></span>
+                <span class="o_stat_text">Ventas hoy</span>
+              </div>
+            </button>
+
+            <!-- Clientes: Nuevo (abre en edición) -->
+            <button class="oe_stat_button" type="object"
+                    name="action_clientes_nuevo"
+                    icon="fa-user-plus"
+                    groups="security_roles.role_editor">
+              <div class="o_stat_info">
+                <span class="o_stat_value">Nuevo</span>
+                <span class="o_stat_text">Cliente</span>
+              </div>
+            </button>
+
+            <!-- Clientes: Listado -->
+            <button class="oe_stat_button" type="object"
+                    name="action_clientes_listado"
+                    icon="fa-users"
+                    groups="security_roles.role_viewer">
+              <div class="o_stat_info">
+                <span class="o_stat_value"><field name="clientes_total"/></span>
+                <span class="o_stat_text">Clientes</span>
+              </div>
+            </button>
+
+            <!-- Stock: Consulta -->
+            <button class="oe_stat_button" type="object"
+                    name="action_stock"
+                    icon="fa-archive"
+                    groups="security_roles.role_viewer">
+              <div class="o_stat_info">
+                <span class="o_stat_value">Ver</span>
+                <span class="o_stat_text">Stock</span>
+              </div>
+            </button>
+
+          </div>
+
+          <group string="Accesos rápidos">
+            <p>Bienvenido. Usa los botones de arriba para iniciar una venta, gestionar clientes o consultar existencias.</p>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <!-- Acción que abre SIEMPRE el mismo registro (singleton) -->
+  <record id="action_ops_panel" model="ir.actions.act_window">
+    <field name="name">Panel de Operaciones</field>
+    <field name="res_model">ops.panel</field>
+    <field name="view_mode">form</field>
+    <field name="target">current</field>
+    <field name="res_id" eval="ref('ops_panel_record')"/>
+  </record>
+
+  <!-- Registro único del panel -->
+  <record id="ops_panel_record" model="ops.panel">
+    <field name="name">Panel</field>
+  </record>
+
+  <!-- Menú -->
+  <menuitem id="menu_ops_root" name="Operaciones" sequence="5" groups="base.group_user"/>
+  <menuitem id="menu_ops_panel" name="Panel de agente" parent="menu_ops_root"
+            action="action_ops_panel" sequence="10" groups="base.group_user"/>
+</odoo>

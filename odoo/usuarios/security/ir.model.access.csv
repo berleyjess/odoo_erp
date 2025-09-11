@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_empresas_user,empresas.empresa user,empresas.model_empresas_empresa,base.group_user,1,0,0,0
+access_sucursales_user,sucursales.sucursal user,sucursales.model_sucursales_sucursal,base.group_user,1,0,0,0

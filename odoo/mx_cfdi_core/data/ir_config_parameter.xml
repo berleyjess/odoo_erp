@@ -1,0 +1,6 @@
+<odoo>
+  <record id="mx_cfdi_provider_default" model="ir.config_parameter">
+    <field name="key">mx_cfdi_engine.provider</field>
+    <field name="value">mx.cfdi.engine.provider.dummy</field>
+  </record>
+</odoo>

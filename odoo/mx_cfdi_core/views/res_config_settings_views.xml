@@ -1,0 +1,19 @@
+<odoo>
+<!-- mx_cfdo_core/views/res_config_settongs_views.xml -->
+  <record id="view_res_config_settings_cfdi" model="ir.ui.view">
+    <field name="name">res.config.settings.view.form.cfdi</field>
+    <field name="model">res.config.settings</field>
+    <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//form" position="inside">
+        <group string="CFDI Engine" col="2" name="mx_cfdi_engine_group">
+          <field name="mx_cfdi_provider"/>
+          <label for="mx_cfdi_provider"/>
+          <div class="text-muted" colspan="2">
+            Proveedor usado para timbrar (dummy por defecto).
+          </div>
+        </group>
+      </xpath>
+    </field>
+  </record>
+</odoo>

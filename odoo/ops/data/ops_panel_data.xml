@@ -1,0 +1,19 @@
+<!-- data/ops_panel_data.xml -->
+<odoo>
+  <!-- 1) El registro del panel (singleton) -->
+  <record id="ops_panel_record" model="ops.panel">
+    <field name="name">Panel de Operaciones</field>
+  </record>
+
+  <!-- 2) La acción que lo abre -->
+  <record id="action_ops_panel" model="ir.actions.act_window">
+    <field name="name">Panel de Operaciones</field>
+    <field name="res_model">ops.panel</field>
+    <field name="view_mode">form</field>
+    <field name="target">current</field>
+    <!-- usa ref=, NO eval=ref(...) -->
+    <field name="res_id" ref="ops_panel_record"/>
+  </record>
+
+  <menuitem id="menu_ops_panel" name="Panel" action="action_ops_panel"/>
+</odoo>

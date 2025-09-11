@@ -1,0 +1,37 @@
+<!-- ventas/wizard/cfdi_wizard_views.xml -->
+<odoo>
+  <record id="view_ventas_cfdi_wizard" model="ir.ui.view">
+    <field name="name">ventas.cfdi.wizard.form</field>
+    <field name="model">ventas.cfdi.wizard</field>
+    <field name="arch" type="xml">
+      <form string="Generar CFDI">
+        <sheet>
+          <group>
+            <field name="sale_id" invisible="1"/>
+            <field name="tipo_comprobante" required="1"/>
+            <field name="uso_cfdi" required="1"/>
+          </group>
+
+          <!-- Solo para Ingreso -->
+          <group invisible="tipo_comprobante != 'I'">
+            <field name="metodo_pago"/>
+            <field name="forma_pago" invisible="metodo_pago == 'PPD'"/>
+          </group>
+
+          <!-- Solo para Egreso o Pago -->
+          <group invisible="tipo_comprobante not in ('E','P')">
+            <field name="relacion_tipo" required="tipo_comprobante == 'E'"/>
+            <field name="relacion_ventas_ids"
+                   domain="[('id','!=', sale_id), ('state','=','invoiced')]"
+                   context="{'default_cliente': sale_id.cliente}"
+                   required="tipo_comprobante in ('E','P')"/>
+          </group>
+        </sheet>
+        <footer>
+          <button string="Cancelar" class="btn-secondary" special="cancel"/>
+          <button name="action_confirm" string="Continuar" type="object" class="btn-primary"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+</odoo>

@@ -1,3 +1,4 @@
+#localidades/models/localidad.py
 from odoo import fields, models, api, _
 
 class localidad(models.Model):

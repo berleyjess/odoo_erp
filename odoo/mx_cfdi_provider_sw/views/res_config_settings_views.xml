@@ -1,0 +1,78 @@
+﻿<odoo>
+<!-- mx_cfdi_provider_sw/views/res_config_settings_views.xml -->
+  <record id="view_res_config_settings_cfdi_sw" model="ir.ui.view">
+    <field name="name">res.config.settings.view.form.cfdi.sw</field>
+    <field name="model">res.config.settings</field>
+    <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//form" position="inside">
+        <block title="CFDI MX (SW®)">
+          <setting string="Proveedor">
+            <field name="mx_cfdi_provider"/>
+          </setting>
+
+          <setting string="Sandbox">
+            <field name="mx_cfdi_sw_sandbox"/>
+          </setting>
+
+          <setting string="Base URL">
+            <field name="mx_cfdi_sw_base_url" placeholder="https://services.test.sw.com.mx"/>
+          </setting>
+
+          <setting string="Probar conexión">
+            <button name="action_test_sw" type="object" string="Probar conexión" class="btn-primary"/>
+          </setting>
+
+          <setting string="Token (Bearer)">
+            <field name="mx_cfdi_sw_token" password="True"/>
+          </setting>
+
+          <!-- Oculta user/pass cuando HAYA token -->
+          <setting string="Usuario" invisible="mx_cfdi_sw_token">
+            <field name="mx_cfdi_sw_user"/>
+          </setting>
+          <setting string="Password" invisible="mx_cfdi_sw_token">
+            <field name="mx_cfdi_sw_password" password="True"/>
+          </setting>
+
+          <setting string="RFC Emisor">
+            <field name="mx_cfdi_sw_rfc"/>
+          </setting>
+
+          <setting string="CSD Key Password">
+            <field name="mx_cfdi_sw_key_password" password="True"/>
+          </setting>
+
+          <setting string="Cargar CSD en SW">
+            <button name="action_sw_upload_csd" type="object" string="Cargar CSD" class="btn-secondary"/>
+          </setting>
+          <setting string="Verificar CSD en SW">
+            <button name="action_sw_check_cert" type="object" string="Verificar CSD" class="btn-secondary"/>
+          </setting>
+
+
+          <!--setting string="CSD Cert (PEM)">
+            <field name="mx_cfdi_sw_cer_pem" style="min-height:160px; white-space:pre; font-family:monospace;"/>
+          </setting>
+
+          <setting string="CSD Key (PEM)">
+            <field name="mx_cfdi_sw_key_pem" style="min-height:160px; white-space:pre; font-family:monospace;"/>
+          </setting-->
+          <setting string="CSD Cert (.cer/.pem)">
+            <field name="mx_cfdi_sw_cer_file"
+                   filename="mx_cfdi_sw_cer_fname"
+                   widget="binary"
+                   options="{'accept': '.cer,.pem'}"/>
+          </setting>
+
+          <setting string="CSD Key (.key/.pem)">
+            <field name="mx_cfdi_sw_key_file"
+                   filename="mx_cfdi_sw_key_fname"
+                   widget="binary"
+                   options="{'accept': '.key,.pem'}"/>
+          </setting>
+        </block>
+      </xpath>
+    </field>
+  </record>
+</odoo>

@@ -4,8 +4,11 @@ class bodega(models.Model):
     _name = 'empresas.bodega'
     _description = "Modelo de Bodega, almacena el catálogo de bodegas."
 
-    empresa = fields.Many2one('empresa', string = "Empresa", ondelete='cascade')
-    sucursal = fields.Many2one('sucursal', string = "Sucursal", required = True)
+    empresa = fields.Many2one(
+        'empresas.empresa', string='Empresa',
+        required=True, ondelete='restrict', index=True
+    )    
+    #sucursal_id = fields.Many2one('sucursales.sucursal', string='Sucursal', ondelete='restrict', index=True)
     nombre = fields.Char(string = "Nombre", required = True, size = 20)
     activa = fields.Boolean(string="Activa", required = True, default = True)
     codigo = fields.Char(
