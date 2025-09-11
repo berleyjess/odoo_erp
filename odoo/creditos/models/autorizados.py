@@ -6,26 +6,25 @@ class autorizados(models.Model):
     #_inherit = 'creditoautorizaciones.autorizacion'  # Hereda del modelo de autorizaciones
 
     status = fields.Selection(string = "Dictamen", selection=[
-        ('1', 'Aprobado'),
-        ('2', 'Rechazado')
-    ], required = True, default = '2')
+        ('0', 'Enviar a Borrador'),
+        ('1', 'Aprobar'),
+        ('2', 'Rechazar')
+    ], required = True, default = '0')
 
     descripcion = fields.Char(
-        string='Descripción',
-        help='Descripción del status actual. Puede ser un texto breve que explique el estado del activo.', required=True
+        string='Observaciones',
+        required=True
     )
 
     fecha = fields.Date(
         string='Fecha',
-        help='Fecha en la que se registró el estado del status.',
         default=fields.Date.context_today, readonly=True
-
     )
 
     credito_id = fields.Many2one(
         'creditos.credito',
         string='Solicitud',
-        ondelete='cascade'
+        #ondelete='cascade'
     )
 
     def is_autorizada(self):

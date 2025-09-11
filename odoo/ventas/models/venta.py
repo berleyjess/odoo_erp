@@ -9,7 +9,7 @@ class venta(models.Model):
     
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
     contrato = fields.Many2one('creditos.credito', string="Contrato",
-                               domain="[('cliente', '=', cliente), ('contratoactivo','=',True), ('vencimiento', '>', context_today())]" if cliente else "[('id', '=', 0)]")
+                               domain="[('cliente', '=', cliente), ('status','=','active'), ('vencimiento', '>', context_today())]" if cliente else "[('id', '=', 0)]")
 
     # Calcula siempre la fecha actual sin depender de otros campos
     hoy = fields.Date(compute='_compute_hoy')
@@ -70,6 +70,12 @@ class venta(models.Model):
         string="Forma de Pago", default="01"
     )
 
+    def write(self, vals):
+        res = super().write(vals)
+        if self.contrato:
+            self.contrato._calc_saldoporventas()
+        return res
+    
     @api.onchange('metododepago')
     def _chgmpago(self):
         for record in self:

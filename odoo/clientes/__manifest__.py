@@ -13,9 +13,9 @@
         'data/seq_code.xml',#ir.sequence 'seq_client_code' para campo codigo. :contentReference[oaicite:0]{index=0}
 
         'views/persona_link_views.xml',
-        'views/rfc_lookup_wizard_view.xml',
         'data/clientes.c_regimenfiscal.csv',
         'views/cliente.xml',
+        'views/rfc_lookup_wizard_view.xml',
     ],
     'installable': True,
     'application': True,

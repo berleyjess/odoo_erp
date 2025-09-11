@@ -8,9 +8,10 @@ class cargo(models.Model):
     descripcion = fields.Char(string = "Descripción del concepto", required = True)
 
     tipo = fields.Selection(string = "Tipo de Cargo", selection = [
-        ('0', "Costo x Superficie"),
-        ('1', "Porcentaje x Saldo Ejercido"),
-        ('2', "Monto Único")
+        ('0', "Costo x superficie"),
+        ('1', "Porcentaje x el monto del crédito"),
+        ('2', "Monto único"),
+        ('3', "Porcentaje x el saldo ejercido")
     ],
     required = True, store = True)
 

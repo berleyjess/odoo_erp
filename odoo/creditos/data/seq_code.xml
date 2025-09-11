@@ -5,7 +5,16 @@
             <field name="name">Secuencia de Folios Solicitud Crédito</field>
             <field name="code">creditos.folio</field>
             <field name="prefix">SOL-%(year)s-</field>
-            <field name="padding">5</field>
+            <field name="padding">6</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="implementation">standard</field>
+        </record>
+
+        <record id="seq_credito_folio_aut" model="ir.sequence">
+            <field name="name">Secuencia de Folios Solicitud Crédito</field>
+            <field name="code">creditos.folioaut</field>
+            <field name="padding">6</field>
             <field name="number_next">1</field>
             <field name="number_increment">1</field>
             <field name="implementation">standard</field>

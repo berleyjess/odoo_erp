@@ -25,35 +25,45 @@ class credito(models.Model):
 
     @api.depends('autorizaciones')
     def _compute_ultima_autorizacion(self):
-        for proceso in self:
-            if proceso.autorizaciones:
-                _logger.info("*** ULTIMA AUTORIZACION ***")
-                proceso.ultimaautorizacion = fields.first(
-                    proceso.autorizaciones.sorted('id', reverse=True)[0]
+        for r in self:
+            if r.autorizaciones:
+                _logger.info("*-*-*-*-*-* ULTIMA AUTORIZACION *-*-*-*-*-*")
+                r.ultimaautorizacion = fields.first(
+                    r.autorizaciones.sorted('id', reverse=True)[0]
                 )
             else:
                 # Si no hay autorizaciones, establecer como False o None
-                proceso.ultimaautorizacion = False
-    #Referencia el status de la última autorización capturada
-    autorizada = fields.Selection(string="¿Está autorizada?", compute="_compute_autorizada", store=True,
-        selection=[
-            ('0', 'Pendiente'),
-            ('1', 'Aprobado'),
-            ('2', 'Rechazado')
-        ], default='0')
+                r.ultimaautorizacion = False
+            
+            if r.ultimaautorizacion:
+                if r.ultimaautorizacion_status == "1":
+                    serie = "A"
+                    if r.tipocredito == '1':
+                        serie = "P"
+                    else:
+                        serie = "E"
+
+                    r.dictamen = 'confirmed'
+                    r.foliocredito= serie + self.env['ir.sequence'].next_by_code('creditos.folioaut')
+                elif r.ultimaautorizacion_status == "0":
+                    r.dictamen = 'draft'
+                elif r.ultimaautorizacion_status == "2":
+                    r.dictamen = 'cancelled'
+                else:
+                    r.dictamen = 'draft'
 
     ultimaautorizacion_fecha = fields.Date(string = "Fecha", related = 'ultimaautorizacion.fecha', readonly = True, stored = True)
     ultimaautorizacion_descripcion = fields.Char(string = "Descripción", related = 'ultimaautorizacion.descripcion', readonly = True, stored = True)
     ultimaautorizacion_status = fields.Selection(string = "Status", related = 'ultimaautorizacion.status', readonly = True, stored = True)
 
-    @api.depends('ultimaautorizacion')
-    def _compute_autorizada(self):
-        for record in self:
-            _logger.info("*** AUTORIZACION AGREGADA ***")
-            if record.ultimaautorizacion:
-                record.autorizada = record.ultimaautorizacion.status
-            else:
-                record.autorizada = '0'
+    dictamen = fields.Selection(
+        selection = [
+            ('draft', 'Borrador'),
+            ('check', 'En Comité'),
+            ('confirmed', 'Aprobado'),
+            ('cancelled', 'Rechazado')
+        ], default='draft', string = "Estatus", compute='_compute_dict', store = True)
+    
 
 ###########################################################################
 ##                      Cambio de Estatus
@@ -73,6 +83,28 @@ class credito(models.Model):
     ultimaactivacion_descripcion = fields.Char(string = "Detalle", related = 'ultimaactivacion.descripcion', readonly = True, store = True)
     ultimaactivacion_status = fields.Selection(string = "Status", related = 'ultimaactivacion.status', readonly = True, store = True)
 
+    status = fields.Selection(
+        selection = [
+            ('active', 'Activo'),
+            ('paused', 'Pausado'),
+            ('expired', 'Vencido'),
+            ('exceeded', 'Excedido')
+        ], default='active', string = "Estatus", compute='_compute_status', store = True)
+
+
+    @api.depends('activaciones', 'autorizaciones')
+    def _compute_dict(self):
+        for r in self:
+            if r.ultimaautorizacion:
+                if r.ultimaautorizacion_status == "1" or r.dictamen != 'confirmed':
+                    r.status = 'paused'
+                elif r.ultimaautorizacion_status == "0":
+                    r.status = 'active'
+                elif r.ultimaautorizacion_status == "2":
+                    r.status = 'expired'
+                else:
+                    r.status = 'active'
+    
     @api.depends('activaciones')
     def _compute_ultima_activacion(self):
         for proceso in self:
@@ -93,26 +125,90 @@ class credito(models.Model):
 ###########################################################################
 ##                      Otros Campos
 ###########################################################################
-
-
-    cargos = fields.One2many('cargosdetail.cargodetail', 'credito_id',string = "Cargos al Crédito")
-
-    #ventas_ids = fields.One2many('ventas.venta', 'contrato', string = "Ventas al crédito")
-
-    contratoaprobado = fields.Boolean(string="Estado de Solicitud", readonly = True, compute='_checkautorizacionstatus', store = True)
-    contratoactivo = fields.Boolean(string = "Estatus", readonly = True, compute='_checkcontratoactivo', store = True)
-
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
     cliente_estado_civil = fields.Selection(related='cliente.estado_civil', string="Estado Civil", readonly=True)
     cliente_conyugue = fields.Char(related='cliente.conyugue', string="Cónyuge", readonly=True)
     #ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)
-    contrato = fields.Many2one('contratos.contrato', string="Contrato", required=True)
-    titularr = fields.Selection(
-        selection=[
-            ("0", "Sí"),
-            ("1", "No")
-        ], required = True, string="El cliente es responsable del crédito?", default="0"
+    contrato = fields.Many2one('contratos.contrato', string="Tipo de contrato", required=True)
+
+    cargos = fields.One2many('cargosdetail.cargodetail', 'credito_id',string = "Cargos al Crédito")
+    cargoscontrato = fields.One2many('cargosdetail.cargodetail', 'contrato_id', related = 'contrato.cargos', string = "Cargos del Contrato")
+
+    #ventas_ids = fields.One2many('ventas.venta', 'contrato', string = "Ventas al crédito")
+
+    bonintereses = fields.Float(string = "Bonificación de Intereses (0 - 1)", store = True, default = 0.0)
+    
+    @api.depends('bonintereses')
+    def _check_bonificacion(self):
+        for record in self:
+            if record.bonintereses < 0 or record.bonintereses > 1:
+                raise ValidationError("La bonificación de intereses debe estar entre 0 y 1.")
+    
+    @api.depends('contrato.cargos')
+    def _gen_cargosbycontrato(self):
+        self.env['cargosdetail.cargodetail'].search([
+            ('credito_id', '=', self.id),
+            ('cargocontrato', '=', True),
+            ]).unlink()
+        
+        for record in self:
+            if record.cargoscontrato:
+                for cargo in record.cargoscontrato:
+                    existing = self.env['cargosdetail.cargodetail'].search([
+                        ('credito_id', '=', record.id),
+                        ('cargo', '=', cargo.cargo.id),
+                        ('cargocontrato', '=', True),
+                    ])
+                    if not existing:
+                        self.env['cargosdetail.cargodetail'].create({
+                            'credito_id': record.id,
+                            'cargo': cargo.cargo.id,
+                            'costo': cargo.costo,
+                            'porcentaje': cargo.porcentaje,
+                            'fecha': fields.Date.today(),
+                            'cargocontrato': True,
+                        })
+
+    fechaacomite = fields.Date(string="Fecha a Comité", required = False)
+
+    tipocredito = fields.Selection(
+        selection = [
+            ('0', "AVIO"),
+            ('1', "Parcial"),
+            ('2', "Especial")
+        ], default = '0', related = 'contrato.tipocredito', string = "Tipo de crédito", store = True, readonly = True
     )
+
+    titularr = fields.Boolean(
+        required = True, string="El cliente es responsable del crédito?", default=True, store = True
+    )
+
+    saldoporventas = fields.Float(string = "", compute="_calc_saldoporventas", store=True)
+    saldoejercido  = fields.Float(string = "", compute="_saldoejercido", store=True)
+
+    @api.depends('ventas_ids', 'ventas_ids.state')
+    def _saldoporventas(self):
+        for record in self:
+            total = sum(venta.total for venta in record.ventas_ids if venta.state in ('confirmed', 'invoiced') and venta.contrato.id==record.id)
+            record.saldoporventas = total
+
+    @api.depends('contrato.cargos', 'cargos', 'saldoporventas', 'saldoporventas')
+    def _saldoejercido(self):
+        for record in self:
+            total = sum(cargo.importe for cargo in record.cargos if cargo.credito_id.id==record.id and cargo.tipocargo in ('0','1','2'))
+            saldo = total + record.saldoporventas
+            for i in record.cargos:
+                if i.tipocargo == '3':
+                    total = total + (i.porcentaje * saldo)
+            record.saldoejercido = total + record.saldoporventas
+
+    def _calc_saldoporventas(self):
+        for r in self:
+            if 'ventas.venta' in self.env:
+                ventas = self.env['ventas.venta'].search([('contrato', '=', r.id)])
+                r.saldoporventas = sum(venta.total for venta in ventas if venta.state in ('confirmed', 'invoiced'))
+            else:
+                r.saldoporventas = 0.0
 
     """
     saldoejercido = fields.Float(string = "Saldo ejercito", store = False, compute = 'calc_saldosalidas')
@@ -182,20 +278,23 @@ class credito(models.Model):
     garantias = fields.One2many('creditos.garantia_ext', 'credito_id', string = "Garantías")
     
     # Datos variables dependiendo del tipo de crédito
-    monto = fields.Float(string="Monto solicitado", digits=(12, 4), required=True, store = True)
-    vencimiento = fields.Date(string="Fecha de vencimiento", required=True, default=fields.Date.today, store = True)
-    superficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), compute="_compute_superficie", store=True)
+    monto = fields.Float(string="Monto solicitado", digits=(12, 4), store = True, readonly = True, compute = '_calc_monto')
+    vencimiento = fields.Date(string="Fecha de vencimiento",  default=fields.Date.today, store = True, readonly = True, compute = '_calc_vencimiento')
+    superficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), compute="_compute_superficie", store=True, readonly=True)
 
-    obligado = fields.Char(string="Nombre", size=100, required=True)
-    obligadodomicilio = fields.Many2one('localidades.localidad', string="Domicilio", required=True)
-    obligadoRFC = fields.Char(string = "RFC", required=True)
+    usermonto = fields.Float(string = "Monto Solicitado", default = 0.0, store = True)
+    uservencimiento = fields.Date(string="Fecha de vencimiento", required=True, default=fields.Date.today, store = False)
+    usersuperficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), store=False)
+
+    obligado = fields.Char(string="Nombre", size=100)
+    obligadodomicilio = fields.Many2one('localidades.localidad', string="Domicilio")
+    obligadoRFC = fields.Char(string = "RFC")
 
     # Campo computed para validación de garantías
     total_garantias = fields.Float(string="Total Garantías", compute="_compute_total_garantias", store=False)
-
     
     folio = fields.Char(
-        string='Folio',
+        string="Solicitud",
         required=True,
         readonly=True,
         copy=False,
@@ -203,25 +302,7 @@ class credito(models.Model):
         #help="Código único autogenerado con formato COD-000001"
     )
 
-    is_editing = fields.Boolean(default=False, store = True)
-
-    #def _generate_code(self):
-    #    sequence = self.env['ir.sequence'].next_by_code('seq_credito_folio') or '/'
-    #    number = sequence.split('/')[-1]
-    #    return f"{number.zfill(6)}"
-    
-    
-    @api.depends('ultimaautorizacion_status')
-    def _checkautorizacionstatus(self):
-        for record in self:
-            record.contratoaprobado = record.ultimaautorizacion_status == '1' or record.ultimaautorizacion_status == 'Aprobado'
-            _logger.info("*/*/*/*/*/*/ CONSULTANDO STATUS /*/*/*/*/*/* %s", record.contratoaprobado)
-
-    @api.depends('ultimaactivacion_status', 'ultimaautorizacion_status')
-    def _checkcontratoactivo(self):
-        for record in self:
-            record.contratoactivo = ((record.ultimaactivacion_status == '1' or not record.activaciones) and record.contratoaprobado == True)
-            _logger.info("*/*/*/*/*/*/ CONSULTANDO HABILITACIÓN /*/*/*/*/*/* %s", record.contratoactivo)
+    foliocredito = fields.Char(string="Contrato", readonly=True)
 
     @api.model
     def create(self, vals):
@@ -294,7 +375,7 @@ class credito(models.Model):
     @api.onchange('titularr', 'cliente')
     def _onchange_titularr(self):
         """Auto-rellena los datos del obligado solidario cuando el cliente es responsable"""
-        if self.titularr == '1' and self.cliente:  # Si el cliente es responsable
+        if not self.titularr and self.cliente:  # Si el cliente es responsable
         #    self.obligado = self.cliente.nombre
             self.obligado = ''  # Limpia el campo para llenado manual
             self.obligadoRFC = '' # Limpia el RFC para llenado manual
@@ -302,7 +383,7 @@ class credito(models.Model):
         #        self.obligadodomicilio = self.cliente.domicilio
         #    if hasattr(self.cliente, 'rfc') and self.cliente.rfc:
         #        self.obligadoRFC = self.cliente.rfc
-        if self.titularr == '0' and self.cliente:  # Si el cliente SI es responsable
+        if self.titularr and self.cliente:  # Si el cliente SI es responsable
             # Auto-rellena con el cónyuge si está casado
             if (self.cliente.estado_civil in ['casado', 'union_libre'] and self.cliente.conyugue):
                 self.obligado = self.cliente.conyugue
@@ -310,34 +391,35 @@ class credito(models.Model):
                 self.obligado = ''  # Limpia el campo para llenado manual
                 self.obligadoRFC = ''  # Limpia el RFC para llenado manual
 
-    @api.depends('predios', 'contrato')
+    @api.depends('predios', 'contrato', 'usersuperficie')
     def _depends_predios_superficie(self):
+        self.tipocredito = self.contrato.tipocredito if self.contrato else False
         # Si es tipo 1 permite edición manual
         if self.contrato and self.contrato.tipocredito == "1":
             return  # No actualiza automáticamente, el usuario puede escribir el valor
         # En cualquier otro tipo, actualiza automáticamente
         total_superficie = sum(predio.superficiecultivable or 0.0 for predio in self.predios)
-        self.superficie = total_superficie
+        if self.tipocredito == "0":
+            self.superficie = total_superficie
+        elif self.tipocredito == "1":
+            self.superficie = self.usersuperficie or 0.0
 
-    """@api.onchange('ciclo')
-    def _onchange_ciclo(self):
-        #Maneja cambios en el ciclo
-        if self.ciclo:
-            # Asigna fecha de vencimiento si hay ciclo
-            if self.ciclo.ffinal:
-                self.vencimiento = self.ciclo.ffinal
-            
-            # Solo borra el contrato si realmente cambió el ciclo
-            if self.contrato and hasattr(self.contrato, 'ciclo') and self.contrato.ciclo and self.contrato.ciclo.id != self.ciclo.id:
-                self.contrato = False
-            return {
-                'domain': {'contrato': [('ciclo', '=', self.ciclo.id)]}
-            }
-        else:
-            self.contrato = False
-            self.vencimiento = False
-            return {'domain': {'contrato': []}}
-    """
+    @api.depends('predios', 'contrato', 'superficie', 'usermonto', 'usersuperficie')
+    def _calc_monto(self):
+        for r in self:
+            if self.tipocredito == "0" or self.tipocredito == "1": 
+                self.monto = self.superficie * self.contrato.monto
+            elif self.tipocredito == "2":
+                self.monto = self.usermonto
+
+    @api.depends('contrato', 'uservencimiento')
+    def _calc_vencimiento(self):
+        for r in self:
+            if r.contrato and r.tipocredito != '2':
+                r.vencimiento = r.contrato.ciclo.ffinal
+            else:
+                r.vencimiento = r.uservencimiento
+
     @api.onchange('contrato')
     def _onchange_contrato(self):
         """Maneja cambios en el contrato"""
@@ -356,11 +438,14 @@ class credito(models.Model):
     def _check_cliente_contrato_unico(self):
         """Validación: Un cliente no puede tener el mismo contrato"""
         for record in self:
+            if self.tipocredito == '2':
+                self.titularr = True
+            
             if record.cliente and record.contrato:
                 existing = self.search([
                     ('cliente', '=', record.cliente.id),
                     ('contrato', '=', record.contrato.id),
-                    ('id', '!=', record.id)
+                    ('id', '!=', record.id),
                 ])
                 if existing:
                     # Usar display_name, o construir un nombre descriptivo
@@ -377,7 +462,7 @@ class credito(models.Model):
                         "Un cliente no puede tener el mismo contrato más de una vez."
                     )
 
-    @api.constrains('garantias', 'monto', 'contrato')
+    @api.constrains('garantias', 'usermonto', 'contrato')
     def _check_garantias_monto(self):
         """Validación: El total de garantías debe ser igual o mayor al monto del crédito"""
         for record in self:
@@ -405,58 +490,22 @@ class credito(models.Model):
                     if not total or total <= 0:
                         raise ValidationError("Debes agregar al menos un predio con superficie cultivable mayor a 0.")
                     
-    @api.constrains('titular')
+    @api.constrains('titularr')
     def _check_titular(self):
         for record in self:
-            if not record.titular or not record.titular.strip():
+            if not record.titularr or not record.titularr.strip():
                 raise ValidationError("El campo Titular es obligatorio para el predio.")
 
-    @api.depends('predios.superficiecultivable', 'contrato')
+    @api.depends('predios.superficiecultivable', 'contrato', 'usersuperficie')
     def _compute_superficie(self):
         for record in self:
-            if record.contrato and record.contrato.tipocredito == "0":  # Solo para AVIO
+            if record.contrato and record.contrato.tipocredito == '0':  # Solo para AVIO
                 record.superficie = sum(p.superficiecultivable or 0.0 for p in record.predios)
+            elif record.contrato and record.contrato.tipocredito == '1':  # Parcial
+                record.superficie = record.usersuperficie
             # Si es tipo 1 o 2, se respeta el valor manual (no se calcula aquí)
     
     #BOTONES "Editar", "Guardar y Volver" y "Cancelar y volver a la lista"
-
-    def action_editar(self):
-        self.ensure_one()
-        self.write({'is_editing': True})
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': self.id,
-            'view_mode': 'form',
-            'target': 'current',  # 'new' lo muestra como popup/modal
-        }
-
-    
-    def action_save_and_return(self):
-        self.ensure_one()
-        self.write({'is_editing': False})
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': self.id,
-            'view_mode': 'form',
-            'target': 'current',  # 'new' lo muestra como popup/modal
-        }
-    
-    
-    def action_cancelar_y_volver(self):
-    # Redirige a la lista de solicitudes de crédito (sin guardar cambios)
-        self.ensure_one()
-        self.write({'is_editing': False})
-        return {
-            'type': 'ir.actions.act_window',
-            'view_mode': 'list',
-            'target': 'current',  # 'new' lo muestra como popup/modal
-        }
-
-    creditoestatu_id = fields.Many2one(
-        'creditoestatus.creditoestatu',
-        string="Estatus de la Solicitud",
-        help="Estado actual de la solicitud."
-    )
 
     def action_cambiar_a_habilitado(self):
         for rec in self:
@@ -470,6 +519,54 @@ class credito(models.Model):
                 rec.creditoestatu_id.action_deshabilitar()
         return {'type': 'ir.actions.client', 'tag': 'reload'}
     
+    def action_enviaracomite(self):
+        self.ensure_one()
+        self.fechaacomite = fields.Date.today()
+        self.dictamen = 'check'
+
+    def action_borrador(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'creditos.autorizacion',
+            'view_mode': 'form',
+            'target': 'new',
+            'name': 'Solicitar correcciones',
+            'context': {
+                'default_credito_id': self.id,
+                'default_status': '0',
+            }
+        }
+    
+    def action_autorizar(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'creditos.autorizacion',
+            'view_mode': 'form',
+            'target': 'new',
+            'name': 'Autorizar solicitud de crédito',
+            'context': {
+                'default_credito_id': self.id,
+                'default_status': '1',
+            }
+        }
+    
+    def action_rechazar(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'creditos.autorizacion',
+            'view_mode': 'form',
+            'target': 'new',
+            'name': 'Rechazar solicitud de crédito',
+            'context': {
+                'default_credito_id': self.id,
+                'default_status': '2',
+            }
+        }
+
+        # Lógica para enviar la solicitud al comité
     def action_autorizacion(self):
         """Acción para dictaminar la autorización de la solicitud de crédito."""
         self.ensure_one()
@@ -499,51 +596,12 @@ class credito(models.Model):
             'res_model': 'creditos.activacion',
             'view_mode': 'form',
             'target': 'new',
-            'name': 'Habilitar/Deshabilitar Contrato',
+            'name': 'Dictaminar crédito',
             'context': {
                 'default_credito_id': self.id
             }
             
         }
-    """
-    def action_edocuenta(self):
-        self.ensure_one()
-        if not self.autorizaciones:
-            raise ValidationError(_("No hay autorizaciones disponibles para esta solicitud."))
-        
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'creditos.cuentaxcobrar_ext',
-            'view_mode': 'form',
-            'target': 'new',
-            'name': 'Estado e cuenta',
-            'context': {
-                'default_credito_id': self.id
-            }
-            
-        }
-    """
-
-    @api.model
-    def _get_view(self, view_id=None, view_type='form', **options):
-        _logger.info("**************************** ENTRADA A _get_view ******************************")
-
-        if view_type == 'form' and not view_id:
-            context = options.get('context', {})
-            params = context.get('params', {})
-            res_id = params.get('id')
-
-            if not res_id:
-                _logger.info("**************************** MODO CREACIÓN ******************************")
-                #view = self.env.ref('creditos.view_credito_edit', raise_if_not_found=False)
-            else:
-                _logger.info("**************************** MODO EDICIÓN ******************************")
-                #view = self.env.ref('creditos.view_credito_detail', raise_if_not_found=False)
-
-            #if view:
-            #   return super()._get_view(view.id, view_type, **options)
-
-        return super()._get_view(view_id, view_type, **options)
     
     def action_abrir_edocta(self):
         return {
@@ -561,3 +619,16 @@ class credito(models.Model):
         }
 
     #def cargar_saldos(self):
+
+    #MONTO NUNCA DEBE SER <= 0
+    _sql_constraints = [
+        ('check_monto_positive', 'CHECK(monto <= 0)', 'El monto solicitado no puede ser $0.'),
+    ]
+
+    #OBLIGADO SOLIDARIO ES REQUERIDO SI TIPOCREDITO != 2 Y SI NO ES EL TITULAR DEL CREDITO
+    @api.constrains('obligado', 'obligadorfc', 'obligadodomicilio')
+    def _check_obligado_solidario(self):
+        for rec in self:
+            if rec.tipocredito != '2' and (not rec.titularr or rec.cliente_edo_civil == 'casado'):
+                if not rec.obligado or not rec.obligadorfc or not rec.obligadodomicilio:
+                    raise ValidationError(_('Debe ingresar los datos completos del obligado solidario del crédito.'))

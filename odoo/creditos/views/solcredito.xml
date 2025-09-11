@@ -66,55 +66,47 @@
         <field name="arch" type="xml">
             <form autosave="False">
                 <header>
-                    <button name="action_editar" string="Editar" type="object" class="oe_highlight" invisible="not id or is_editing"/>
+                    <!--button name="action_editar" string="Editar" type="object" class="oe_highlight" invisible="not id"/-->
 
-                    <button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save" invisible="id or not is_editing"/>
+                    <!--button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save" invisible="id"/-->
 
-                    <button name="action_autorizacion" string="Autorizar contrato" type="object" class="btn btn-primary" icon="fa-check" invisible="not id or is_editing or contratoaprobado"/>
+                    <button name="action_borrador" string="Sugerir correciones" type="object" class="btn btn-primary" icon="fa-edit" invisible="dictamen != 'check'"/>
+                    <button name="action_autorizar" string="Autorizar contrato" type="object" class="btn btn-success" icon="fa-thumbs-up" invisible="dictamen != 'check'"/>
+                    <button name="action_rechazar" string="Rechazar contrato" type="object" class="btn btn-danger" icon="fa-thumbs-down" invisible="dictamen != 'check'"/>
 
-                    <button name="action_activacion" string="Bloquear contrato" type="object" class="btn btn-primary" icon="fa-toggle-on" invisible="not id or is_editing or not contratoaprobado or not contratoactivo"/>
+                    <button name="action_activacion" string="Bloquear contrato" type="object" class="btn btn-primary" icon="fa-toggle-on" invisible="not id"/>
 
-                    <button name="action_activacion" string="Habilitar contrato" type="object" class="btn btn-primary" icon="fa-toggle-on" invisible="not id or is_editing or not contratoaprobado or contratoactivo"/>
+                    <button name="action_activacion" string="Habilitar contrato" type="object" class="btn btn-primary" icon="fa-toggle-on" invisible="not id"/>
                     <button 
                         name="action_abrir_edocta" 
                         string="Ver Estado de Cuenta" 
                         type="object" 
-                        class="btn-primary"/>
+                        class="btn-primary" invisible="not id or not dictamen == 'confirmed'"
+                        icon = "fa-chart-line"/>
+
+                    <button name ="action_enviaracomite" string="Enviar a Comité" type="object" class="btn-primary" invisible="dictamen != 'draft' or not id"  confirm="¿Desea enviar la solicitud a comité?"/>
+
                     <!--button name="action_edocuenta2" string="Estado de Cuenta" type="object" class="oe_highlight" invisible="not id or is_editing"/-->
+                    <field name="dictamen" widget="statusbar" statusbar_visible="draft,check,confirmed,cancelled" invisible="dictamen == 'confirmed' or not id"/>
+                    <field name="status" widget="statusbar" statusbar_visible="active,paused,expired,exceeded" invisible="dictamen != 'confirmed'"/>
                 </header>
                 <sheet>
                     <group>
-                        <span>"VISTA DETAIL"</span>
-                        <field name="is_editing"/>
-                        <field name="folio" readonly="1" string ="" style="font-size: 20px; font-weight: bold" invisible="not id"/>
-                        <div style="height:20px"></div>
-                        <field name = "contratoaprobado" widget="toggle"/>
-                        <sheet invisible="not autorizaciones">
-                            <field name="ultimaautorizacion_fecha" readonly = "1"/>
-                            <field name="ultimaautorizacion_descripcion" readonly = "1"/>
-                        </sheet>
-                        <field name = "contratoactivo" widget="toggle"/>
-                        <sheet invisible="not activaciones">
-                            <field name="ultimaactivacion_fecha" readonly = "1"/>
-                            <field name="ultimaactivacion_descripcion" readonly = "1"/>
-                        </sheet>
+                        <field name="saldoejercido"/>
+                        <field name="foliocredito" readonly="1" style="font-size: 20px; font-weight: bold" invisible="dictamen == 'draft'"/>
+                        <field name="folio" invisible = "dictamen != 'draft' and dictamen != 'check'"/>
                         <field name="cliente"/>
                         <field name="contrato"/>
-                        <field name="titularr" widget="radio" options="{'horizontal': true}" readonly="not cliente or not contrato"/>
-                        <field name="monto" readonly="not cliente or not contrato" widget = "monetary"/>
-                        <div class="text-muted" invisible="not contrato">
-                            <span invisible="tipocredito_val == '2'">
-                                Cálculo automático: Aporte × Superficie
-                            </span>
-                            <span invisible="tipocredito_val != '2'">
-                                Monto manual (Crédito Especial)
-                            </span>
-                        </div>
-                        <field name="vencimiento" readonly="not cliente or not contrato"/>
-                        <!-- CORREGIDO: Hacer editable solo para tipo "1" -->
-                        <field name="superficie" readonly="not cliente or not contrato or tipocredito_val == '0'" invisible="tipocredito_val == '2'" />
+                        <field name="titularr" invisible="tipocredito == '2'"/>
+                        <field name="monto" widget = "monetary" invisible = "tipocredito == '2'"/>
+                        <field name="usermonto" invisible = "tipocredito != '2'" widget = "monetary"/>
+                        <field name="vencimiento" invisible = "tipocredito == '2'"/>
+                        
+                        <field name ="uservencimiento" invisible = "tipocredito != '2'"/>
+                        <field name="superficie" invisible="tipocredito != '0'" />
+                        <field name="usersuperficie" invisible="tipocredito != '1'" />
                     </group>
-                    <group name="datos_obligado" string="Obligado Solidario">
+                    <group name="datos_obligado" string="Obligado Solidario" invisible = "(titularr and cliente_estado_civil != 'casado') or tipocredito == '2'">
                         <div class="o_row" invisible="not cliente">
                             <field name="cliente_estado_civil" readonly="1"/>
                             <field name="cliente_conyugue" readonly="1" invisible="cliente_estado_civil not in ['casado', 'union_libre']"/>
@@ -122,21 +114,25 @@
                         <field name="obligado" readonly="not cliente or not contrato"/>
                         <field name="obligadodomicilio" readonly="not cliente or not contrato"/>
                         <field name="obligadoRFC" readonly="not cliente or not contrato"/>
-
                     </group>
 
                     <!-- CORREGIDO: Agregar campo tipocredito_val oculto para que funcione la condición -->
                     <field name="tipocredito_val" invisible="1"/>
 
                     <group name="cargos" string="Cargos">
-                            <field name="cargos">
-                                <list editable="bottom">
-                                    <field name="fecha"/>
-                                    <field name = "cargo"/>
-                                    <field name = "tipocargo"/>
-                                    <field name ="porcentaje" invisible = "tipocargo != '1'"/>
-                                    <field name="costo" invisible = "tipocargo == '1'"/>
-                                    <field name="importe"/>
+                            <field name="cargos" string = " ">
+                                <list editable="bottom" delete="0">
+                                    <!--field name="cargocontrato" widget="badge"
+                                    options='{"text_true": "Con contrato", "text_false": "Sin contrato", "color_true": "success", "color_false": "danger"}'/-->
+                                    <field name = "cargo" readonly="cargocontrato"/>
+                                    <field name = "tipocargo" readonly="cargocontrato"/>
+                                    <field name ="porcentaje" invisible = "not tipocargo in ['1', '3']"  readonly="cargocontrato"/>
+                                    <field name="costo" invisible = "tipocargo in ['1', '3']"  readonly="cargocontrato"/>
+                                    <field name="iva"/>
+                                    <field name="ieps"/>
+                                    <field name="importe"  readonly="cargocontrato"/>
+                                    <field name="fecha"  readonly="cargocontrato"/>
+                                    <button name="action_eliminar_cargo" string="" type="object" class="btn-link" icon="fa-trash" invisible="cargocontrato"/>
                                 </list>
                             </field>
                     </group>
@@ -188,6 +184,18 @@
                         <field name="monto" readonly="1" widget="monetary" nolabel="1"/>
                     </group>
 
+                    <sheet invisible="not autorizaciones">
+                        <group string="Dictamen">
+                            <field name="ultimaautorizacion_fecha" readonly = "1"/>
+                            <field name="ultimaautorizacion_descripcion" readonly = "1"/>
+                        </group>
+                    </sheet>
+
+                    <sheet invisible="not activaciones">
+                        <field name="ultimaactivacion_fecha" readonly = "1"/>
+                        <field name="ultimaactivacion_descripcion" readonly = "1"/>
+                    </sheet>
+
                 </sheet>
             </form>
         </field>
@@ -200,7 +208,7 @@
             <form autosave="False">
                 <sheet>
                     <group>
-                        <field name="status" widget="selection_badge"/>
+                        <field name="status" widget="selection_badge" readonly = "1"/>
                         <field name="descripcion"/>
                     </group>
                 </sheet>

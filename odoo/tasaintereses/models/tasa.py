@@ -25,3 +25,9 @@ class tasa(models.Model):
          'UNIQUE(periodo)', 
          'Ya existe un registro para este periodo.'),
     ]
+
+    @api.dependes('tasa')
+    def _check_tasa_positive(self):
+        for record in self:
+            if record.tasa < 0 or record.tasa > 1:
+                raise ValidationError("La tasa de interés debe estar entre 0 y 1.")

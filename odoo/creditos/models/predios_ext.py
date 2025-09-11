@@ -26,7 +26,8 @@ class predio_ext(models.Model):
     )
 
     credito_id = fields.Many2one('creditos.credito', string="Solicitud de Crédito",
-                                    ondelete='cascade')
+                                    #ondelete='cascade'
+                                    )
     superficiecultivable = fields.Float(
         string="Superficie cultivable (Hectáreas)", required=True, digits=(12, 4),
         help="Superficie cultivable del predio en hectáreas.", default=lambda self: self.superficie)

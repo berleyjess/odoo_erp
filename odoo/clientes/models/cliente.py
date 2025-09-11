@@ -273,7 +273,7 @@ class cliente(models.Model):
             # sin RFC y sin persona → persona mínima con RFC genérico
                 vals['persona_id'] = Person.create({
                     'name': vals.get('nombre') or _('SIN NOMBRE'),
-                    'rfc': RFC_GENERICOS[0],
+                    'rfc': self.RFC_GENERICOS[0],
                     'email': (vals.get('email') or '').strip().lower() or False,
                     'telefono': vals.get('telefono') or False,
                     'localidad_id': vals.get('localidad') or False,

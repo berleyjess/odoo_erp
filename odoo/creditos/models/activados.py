@@ -24,5 +24,5 @@ class activados(models.Model):
     credito_id = fields.Many2one(
         'creditos.credito',
         string='Activación',
-        ondelete='cascade'
+        #ondelete='cascade'
     )

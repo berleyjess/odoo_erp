@@ -1,22 +1,23 @@
 from odoo import models, fields, api
-from odoo.exceptions import ValidationError
 
 class cargodetail(models.Model):
     _name = 'cargosdetail.cargodetail'
 
-    fecha = fields.Date(string = "Fecha", default=fields.Date.context_today, required = True)
-    cargo = fields.Many2one('cargos.cargo', string = "Cargo", required = True)
+    fecha = fields.Date(string = "Fecha", default=fields.Date.context_today, readonly = True)
+    cargo = fields.Many2one('cargos.cargo', string = "Concepto", required = True, ondelete='cascade')
     contrato_id = fields.Many2one('contratos.contrato', string = "Contrato")
-    #credito_id = fields.Many2one('creditos.credito', string = "Crédito")
+    credito_id = fields.Many2one('creditos.credito', string = "Crédito")
     costo = fields.Float(string = "Costo", default = 0.0)
     porcentaje = fields.Float(string ="Porcentaje", default = 0.0)
+    cargocontrato = fields.Boolean(string = "Cargo de contrato", default = False, readonly = True)
     tipocargo = fields.Selection(
         selection = [
-            ('0', "Costo x Superficie"),
-            ('1', "Porcentaje x Saldo Ejercido"),
-            ('2', "Monto Único")
+            ('0', "Costo x superficie"),
+            ('1', "Porcentaje x el monto del crédito"),
+            ('2', "Monto único"),
+            ('3', "Porcentaje x el saldo ejercido")
         ],
-        store = True, related='cargo.tipo', string="Tipo de Cargo"
+        store = True, related='cargo.tipo', string="Tipo", readonly = True
     )
 
     descripcion = fields.Char(string = "Descripción", related='cargo.descripcion')
@@ -24,25 +25,14 @@ class cargodetail(models.Model):
     iva = fields.Float(string = "Iva %", related='cargo.iva')
     ieps = fields.Float(string = "Ieps %", related='cargo.ieps')
 
-    cargocontrato = fields.Boolean(string = "Cargo del contrato", default = False, compute = '_cargo_contrato')
+    def action_eliminar_cargo(self):
+        for rec in self:
+            cargos_a_eliminar = rec.filtered(lambda c: not c.cargocontrato)
+            if cargos_a_eliminar:
+                cargos_a_eliminar.unlink()
+        return {'type': 'ir.actions.client', 'tag': 'reload'}
+    
+    
 
-    @api.depends('contrato_id')
-    def _cargo_contrato(self):
-        for i in self:
-            i.cargocontrato =  bool(i.contrato_id)
 
 
-
-    @api.constrains('cargo')
-    def _check_superficie_required(self):
-        for record in self:
-            if record.contrato_id:
-                if record.cargo.tipo == '0': # Costo por superficie
-                    if not record.costo:
-                        raise ValidationError("Debe capturar un costo por Hectárea.")
-                elif record.cargo.tipo == '1':  # Saldo ejercido
-                   if not record.porcentaje or not (record.porcentaje > 0 and record.porcentaje <= 1):
-                        raise ValidationError("Ingrese un porcentaje válido para el cálculo del cargo.")
-                elif record.cargo.tipo == '2':  # Monto único
-                    if not record.costo:
-                        raise ValidationError("Debe capturar el monto del cargo.")

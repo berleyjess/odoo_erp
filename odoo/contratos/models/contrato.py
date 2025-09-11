@@ -2,6 +2,9 @@ from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 from datetime import date
 
+import logging
+_logger = logging.getLogger(__name__)
+
 class contrato(models.Model):
     _name='contratos.contrato'
     _description='Contratos agrícolas a clientes'
@@ -9,9 +12,9 @@ class contrato(models.Model):
 
     tipocredito = fields.Selection(
         selection = [
-            ("0", "AVIO"),
-            ("1", "Parcial"),
-            ("2", "Especial")
+            ('0', "AVIO"),
+            ('1', "Parcial"),
+            ('2', "Especial")
         ], string = "Tipo de crédito", default = "0", required = True
     )
     ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)    
@@ -24,9 +27,26 @@ class contrato(models.Model):
     display_name = fields.Char(compute='_compute_display_name', store=True, string="Contrato")
 
     cargos = fields.One2many('cargosdetail.cargodetail', 'contrato_id', string = "Cargos")
-    #creditos = fields.One2many('creditos.credito', 'contrato', string = "Créditos")
-       
+    #creditos = fields.One2many('creditos.credito', 'contrato', string = "Créditos asociados")
 
+    def write(self, vals):
+        # Guardar los créditos relacionados antes de hacer el write
+        _logger.info("*-*-*-*-*-* EH, WE, SI ENTRA EN WRITE *-*-*-*-*-*")
+        creditos_afectados = self.env['creditos.credito']
+        if 'cargos' in vals:
+            creditos_afectados = self.env['creditos.credito'].search([
+                ('contrato', 'in', self.ids)
+            ])
+        
+        result = super().write(vals)
+        
+        # Ejecutar sincronización después del write
+        if creditos_afectados:
+            _logger.info("*-*-*-*-*-* EH, WE, SI ENTRA EN WRITE PERO EN LOS CREDITOS *-*-*-*-*-*")
+            creditos_afectados._gen_cargosbycontrato()
+        
+        return result
+    
     @api.onchange('tipocredito')
     def _cambiotipo(self):
         self.cultivo = False
