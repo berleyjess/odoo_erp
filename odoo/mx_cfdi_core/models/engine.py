@@ -3,6 +3,12 @@ from odoo import models, api, _, fields
 from odoo.exceptions import UserError
 import base64
 from xml.etree.ElementTree import Element, SubElement, tostring
+from datetime import datetime, timedelta
+import logging
+_logger = logging.getLogger(__name__)
+from xml.etree.ElementTree import Element, SubElement, tostring, register_namespace
+register_namespace('cfdi', 'http://www.sat.gob.mx/cfd/4')
+register_namespace('xsi',  'http://www.w3.org/2001/XMLSchema-instance')
 
 class CfdiEngine(models.AbstractModel):
     _name = "mx.cfdi.engine"
@@ -21,6 +27,8 @@ class CfdiEngine(models.AbstractModel):
                            relacion_tipo=None, relacion_moves=None,
                            conceptos=None, moneda="MXN", serie=None, folio=None,
                            fecha=None, extras=None):
+        _logger.info("CFDI DEBUG | generate_and_stamp IN: model=%s id=%s tipo=%s receptor_id=%s fecha_arg=%s",
+                     origin_model, origin_id, tipo, receptor_id, fecha)
         xml = self._build_xml(tipo=tipo, receptor_id=receptor_id, conceptos=conceptos,
                               uso_cfdi=uso_cfdi, metodo=metodo, forma=forma,
                               relacion_tipo=relacion_tipo, relacion_moves=relacion_moves,
@@ -28,9 +36,39 @@ class CfdiEngine(models.AbstractModel):
                               extras=extras)
 
         provider = self._get_provider()
-        stamped = provider._stamp_xml(xml)
+        _logger.info("CFDI DEBUG | provider=%s company_id=%s", provider._name, self.env.company.id)
+
+        # 2) Timbrar + reintento si se detecta 305
+        stamped = None
+        saw_305 = False
+        try:
+            stamped = provider._stamp_xml(xml)
+        except Exception as e:
+            if self._is_305(exc=e):
+                _logger.warning("CFDI DEBUG | 305 detectado vía excepción: %s", e)
+                saw_305 = True
+            else:
+                raise
+            
+        # Si vimos 305 por excepción o por payload, reintentar con Fecha UTC “plana”
+        if saw_305 or self._is_305(payload=stamped):
+            fecha_utc = fields.Datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+            _logger.warning("CFDI DEBUG | Reintentando 305 con FECHA UTC=%s", fecha_utc)
+            xml = self._build_xml(tipo=tipo, receptor_id=receptor_id, conceptos=conceptos,
+                                  uso_cfdi=uso_cfdi, metodo=metodo, forma=forma,
+                                  relacion_tipo=relacion_tipo, relacion_moves=relacion_moves,
+                                  moneda=moneda, serie=serie, folio=folio, fecha=fecha_utc,
+                                  extras=extras)
+            stamped = provider._stamp_xml(xml)
+
+
         if not stamped or not stamped.get("uuid"):
+            # Si seguimos sin UUID, deja claro en log qué devolvió el PAC
+            _logger.error("CFDI DEBUG | PAC sin UUID. Payload=%s", stamped)
             raise UserError(_("El PAC no devolvió un UUID."))
+
+        _logger.info("CFDI DEBUG | provider returned keys=%s", list(stamped.keys()))
+
 
         doc = self.env["mx.cfdi.document"].create({
             "origin_model": origin_model,
@@ -41,7 +79,14 @@ class CfdiEngine(models.AbstractModel):
             "state": "stamped",
         })
         att = self._attach_xml(origin_model, origin_id, stamped.get("xml_timbrado"), doc)
+        _logger.info("CFDI DEBUG | stamped uuid=%s | att_id=%s | doc_id=%s", doc.uuid, att.id, doc.id)
         return {"uuid": doc.uuid, "attachment_id": att.id, "document_id": doc.id}
+
+    @staticmethod
+    def _legal_name(p):
+        name = (getattr(p, 'l10n_mx_edi_legal_name', None) or getattr(p, 'name', None) or '').strip()
+        # NO toques signos; solo colapsa espacios y mayúsculas
+        return ' '.join(name.split()).upper()
 
     @api.model
     def _build_xml(self, **kw):
@@ -57,18 +102,33 @@ class CfdiEngine(models.AbstractModel):
         metodo       = kw.get('metodo') or None
         forma        = kw.get('forma') or None
         moneda       = kw.get('moneda') or 'MXN'
-        fecha        = kw.get('fecha') or fields.Datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+        
+        #Fecha a zona del usuario (o MX por defecto) para no salirte de la vigencia del CSD:
+        if kw.get('fecha'):
+            fecha = str(kw['fecha']).strip().replace(' ', 'T')[:19]
+        else:
+            fecha = self._as_cfdi_fecha(self._mx_local_now())
+
+        #fecha='2025-09-17T10:20:00'  # hora local MX
         relacion_tipo   = kw.get('relacion_tipo') or None
         relacion_moves  = kw.get('relacion_moves') or None
         related_uuids_kw= kw.get('related_uuids') or []
 
         company = self.env.company
         cpostal = (company.partner_id.zip or getattr(company, 'zip', None)
-                    or getattr(company, 'postal_code', None) or '00000')
+                   or getattr(company, 'postal_code', None) or '').strip()
+        if not cpostal or cpostal == '00000':
+            _logger.warning("CFDI DEBUG | LugarExpedicion sin CP real; usando '01000' temporalmente.")
+            cpostal = '01000'
 
-        emisor_rfc = (company.cfdi_sw_rfc or company.vat or '').upper()
+        # trazas de fecha/tz/cp
+        self._debug_dates(fecha, cpostal)
+
+        # === CAMBIO 3: RFC del emisor SOLO del campo fiscal (evita fallback involuntario) ===
+        emisor_rfc = (company.cfdi_sw_rfc or '').upper()
         if not emisor_rfc:
-            raise UserError(_("Configura el RFC de la compañía (RFC/CSD)."))
+            raise UserError(_("Configura el RFC Emisor (cfdi_sw_rfc) y carga su CSD en SW."))
+        _logger.info("CFDI DEBUG | EMISOR RFC=%s company_id=%s", emisor_rfc, company.id)
 
         is_moral = self._is_moral_rfc(emisor_rfc)
 
@@ -169,7 +229,7 @@ class CfdiEngine(models.AbstractModel):
             'Version': '4.0',
             'Fecha': fecha,
             'Moneda': moneda,
-            'TipoDeComprobante': {'I': 'I', 'E': 'E', 'P': 'P'}.get(tipo, 'I'),
+            'TipoDeComprobante': {'I':'I','E':'E','P':'P'}.get(tipo, 'I'),
             'Exportacion': '01',
             'SubTotal': f"{subtotal_sum:.2f}",
             'Total': f"{total_sum:.2f}",
@@ -177,8 +237,12 @@ class CfdiEngine(models.AbstractModel):
             'Sello': '',
             'Certificado': '',
             'NoCertificado': '',
+            # namespaces requeridos:
             'xmlns:cfdi': 'http://www.sat.gob.mx/cfd/4',
+            'xmlns:xsi':  'http://www.w3.org/2001/XMLSchema-instance',
+            'xsi:schemaLocation': 'http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd',
         })
+
 
         # Emisor
         SubElement(comprobante, 'cfdi:Emisor', {
@@ -191,19 +255,20 @@ class CfdiEngine(models.AbstractModel):
         receptor = self.env['res.partner'].browse(receptor_id) if receptor_id else False
         rec_rfc = (getattr(receptor, 'vat', '') or '').strip().upper() or 'XAXX010101000'
         is_generic = rec_rfc in ('XAXX010101000', 'XEXX010101000')
-        rec_cp     = cpostal if is_generic else (getattr(receptor, 'zip', None) or cpostal)
 
         if is_generic:
             rec_regimen = '616'
         else:
             rec_regimen = getattr(receptor, 'l10n_mx_edi_fiscal_regime', None)
             if not rec_regimen:
-                rec_regimen = '601' if self._is_moral_rfc(rec_rfc) else '612'
-
-        rec_nombre  = 'PUBLICO EN GENERAL' if is_generic else (getattr(receptor, 'name', None) or 'CLIENTE')
+                rec_regimen = '601' if self._is_moral_rfc(rec_rfc) else '612' # PM vs PF "seguro"
+    
+        # Nombre exacto (usa l10n_mx_edi_legal_name si existe), colapsando espacios:
+        rec_nombre = 'PUBLICO EN GENERAL' if is_generic else (self._legal_name(receptor) or 'CLIENTE')
+        
         uso_cfdi_ok = 'S01' if is_generic else uso_default
-        rec_regimen = '616' if is_generic else (getattr(receptor, 'l10n_mx_edi_fiscal_regime', None) or '601')
-        rec_cp      = cpostal if is_generic else (getattr(receptor, 'zip', None) or '00000')
+        #rec_regimen = '616' if is_generic else (getattr(receptor, 'l10n_mx_edi_fiscal_regime', None) or '601')
+        rec_cp      = (cpostal if is_generic else (getattr(receptor, 'zip', None) or '00000'))
 
         SubElement(comprobante, 'cfdi:Receptor', {
             'Rfc': rec_rfc,
@@ -254,7 +319,20 @@ class CfdiEngine(models.AbstractModel):
                     'TotalImpuestosTrasladados': f"{traslados_total:.2f}"
                 })
 
-        xml_bytes = tostring(comprobante, encoding='utf-8', xml_declaration=True)
+            
+            #_logger = logging.getLogger(__name__)
+            _logger.info(f"=== CFDI fecha a usar: {fecha}============================================================================")
+            _logger.info(f"=== RFC emisor: {emisor_rfc}====================================================================================")
+
+            xml_bytes = tostring(comprobante, encoding='utf-8', xml_declaration=True)
+            _logger.info("CFDI DEBUG | XML bytes len=%s head=%s", len(xml_bytes), xml_bytes[:120])
+
+            _logger.info("CFDI DEBUG | EMISOR RFC=%s | company_id=%s", emisor_rfc, self.env.company.id)
+            _logger.info("CFDI DEBUG | FECHA_XML=%s | NOW_UTC=%s | USER_TZ=%s", fecha, fields.Datetime.now(), self.env.user.tz or 'America/Mexico_City')
+            _logger.info("CFDI DEBUG | XML bytes len=%s head=%s", len(xml_bytes), xml_bytes[:120])
+            #self._log_csd_validity()
+            #stamped = provider._stamp_xml(xml)
+
         return xml_bytes
 
     def _get_provider(self):
@@ -312,3 +390,68 @@ class CfdiEngine(models.AbstractModel):
                 'description': _('Acuse de cancelación %s') % (uuid,),
             })
         return res
+    
+    # ---------- Utils de fecha y CSD ----------
+    def _mx_local_now(self):
+        tz = self.env.user.tz or 'America/Mexico_City'
+        return fields.Datetime.context_timestamp(self.with_context(tz=tz), fields.Datetime.now())
+
+    def _as_cfdi_fecha(self, dt):
+        # antiskew: -120s para evitar “futuro” vs PAC
+        return (dt - timedelta(seconds=120)).strftime('%Y-%m-%dT%H:%M:%S')
+
+    def _debug_dates(self, fecha_str, cpostal):
+        now_utc = fields.Datetime.now()
+        local_now = self._mx_local_now()
+        _logger.info("CFDI DEBUG | NOW_UTC=%s | NOW_LOCAL=%s | USER_TZ=%s | FECHA_XML=%s | CP=%s",
+                     now_utc, local_now, self.env.user.tz or 'America/Mexico_City', fecha_str, cpostal)
+        try:
+            dt_xml = fields.Datetime.from_string(fecha_str.replace('T', ' '))
+            delta = abs(now_utc - dt_xml)
+            _logger.info("CFDI DEBUG | delta(now_utc vs FECHA_XML)=%s", delta)
+        except Exception as e:
+            _logger.warning("CFDI DEBUG | No se pudo evaluar delta: %s", e)
+
+    def _company_cer_pem(self):
+        c = self.env.company
+        # 1) Si ya tienes PEM en texto:
+        txt = getattr(c, 'cfdi_sw_cer_pem', '') or ''
+        if txt.strip().startswith('-----BEGIN CERTIFICATE-----'):
+            return txt.strip()
+        # 2) Si tienes archivo (binario base64 del .cer DER):
+        data = getattr(c, 'cfdi_sw_cer_file', False)
+        if data:
+            import base64
+            der = base64.b64decode(data)
+            try:
+                from cryptography import x509
+                from cryptography.hazmat.primitives.serialization import Encoding
+                cert = x509.load_der_x509_certificate(der)
+                return cert.public_bytes(Encoding.PEM).decode('utf-8')
+            except Exception:
+                pass
+        return ''
+
+    def _log_csd_validity(self):
+        pem = self._company_cer_pem()
+        if not pem:
+            _logger.warning("CSD DEBUG | No tengo PEM del CSD; no puedo leer vigencia.")
+            return
+        try:
+            from cryptography import x509
+            from cryptography.hazmat.backends import default_backend
+            cert = x509.load_pem_x509_certificate(pem.encode('utf-8'), default_backend())
+            _logger.info("CSD DEBUG | notBefore(UTC)=%s | notAfter(UTC)=%s | serial=%s",
+                         cert.not_valid_before, cert.not_valid_after, cert.serial_number)
+        except Exception as e:
+            _logger.warning("CSD DEBUG | No se pudo leer vigencia del CSD: %s", e)
+
+    def _is_305(self, payload=None, exc=None):
+        """Detecta '305 - La fecha de emisión no está dentro de la vigencia del CSD' en payload/exception."""
+        txt = ""
+        if isinstance(payload, dict):
+            txt = " ".join(str(payload.get(k, "")) for k in ("code", "message", "mensaje", "error", "detail", "Message"))
+        if exc:
+            txt += " " + str(exc)
+        txt_low = txt.lower()
+        return "305" in txt_low or "vigencia del csd" in txt_low

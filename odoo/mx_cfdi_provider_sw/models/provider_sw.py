@@ -235,3 +235,48 @@ class CfdiProviderSW(models.AbstractModel):
 
         rfc = (rfc or cfg.get('rfc') or '').upper()
         return any(_issuer_rfc(c) == rfc for c in data)
+
+    def _debug_cfg(self):
+        cfg = self._cfg()
+        safe = {
+            'sandbox': cfg.get('sandbox'),
+            'base_url': cfg.get('base_url'),
+            'rfc': cfg.get('rfc'),
+            'token_present': bool(cfg.get('token')),
+            'cer_b64_len': len(cfg.get('cer_b64') or ''),
+            'key_b64_len': len(cfg.get('key_b64') or ''),
+            'has_pwd': bool(cfg.get('key_password')),
+        }
+        _logger.info("SW DEBUG CFG: %s", safe)
+        return safe
+
+    def debug_list_certificates(self):
+        """Listar lo que SW dice tener cargado y loggear vigencias si las expone."""
+        if not requests:
+            return False
+        cfg = self._cfg()
+        url = cfg['base_url'] + '/certificates'
+        r = requests.get(url, headers=self._headers(cfg), timeout=30)
+        try:
+            data = r.json()
+        except Exception:
+            try:
+                import json as _json
+                data = _json.loads(r.text or '[]')
+            except Exception:
+                data = []
+        if isinstance(data, dict):
+            for k in ('data','items','results','certificates'):
+                if isinstance(data.get(k), list):
+                    data = data[k]
+                    break
+        if not isinstance(data, list):
+            data = [data]
+        # Logguea por RFC
+        for i, c in enumerate(data):
+            rfc  = (c.get('issuer_rfc') or c.get('issuerRfc') or c.get('rfc') or '').upper()
+            # Algunos PAC exponen notBefore/notAfter/validFrom/validTo
+            vfrom = c.get('valid_from') or c.get('not_before') or c.get('validFrom')
+            vto   = c.get('valid_to')   or c.get('not_after')  or c.get('validTo')
+            _logger.info("SW CERT[%s]: RFC=%s valid_from=%s valid_to=%s raw=%s", i, rfc, vfrom, vto, c)
+        return True

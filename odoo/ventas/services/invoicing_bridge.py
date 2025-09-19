@@ -4,30 +4,62 @@ from odoo.exceptions import ValidationError, UserError
 
 
 def _find_or_create_partner(env, cliente):
-    """Return a res.partner for the given clientes.cliente.
-
-    - Looks up by VAT (RFC) first, then by name.
-    - If not found, creates a minimal partner with MX country.
-    """
     Partner = env['res.partner']
     Country = env['res.country']
-    rfc = (getattr(cliente, 'rfc', False) or '').strip().upper() or False
-    name = getattr(cliente, 'nombre', False) or getattr(cliente, 'display_name', False) or 'Cliente'
-    partner = False
-    if rfc:
-        partner = Partner.search([('vat', '=', rfc)], limit=1)
+
+    rfc = (getattr(cliente, 'rfc', '') or '').strip().upper() or False
+
+    # Toma la razón social EXACTA (usa persona.nombre/cliente.nombre)
+    legal = (getattr(cliente, 'nombre', None) or getattr(cliente, 'display_name', None) or 'CLIENTE').strip().upper()
+
+    # Código postal correcto en tu modelo
+    zip_code = (getattr(cliente, 'codigop', '') or '').strip()
+
+    # Many2one a tu catálogo: clientes.c_regimenfiscal(code, descripcion, tipo)
+    regimen_code = False
+    reg = getattr(cliente, 'regimen', False)
+    if reg:
+        regimen_code = getattr(reg, 'code', False) or False
+    # Si por alguna razón te llega texto, déjalo pasar tal cual (p.ej. '601')
+    if not regimen_code:
+        regimen_code = (getattr(cliente, 'regimen_fiscal', '') or '').strip()
+
+    # Buscar por RFC primero
+    partner = Partner.search([('vat', '=', rfc)], limit=1) if rfc else Partner.browse()
     if not partner:
-        # try by exact name
-        partner = Partner.search([('name', '=', name)], limit=1)
+        # como fallback por nombre legal idéntico (no siempre recomendable)
+        partner = Partner.search([('name', '=', legal)], limit=1)
+
     if not partner:
+        vals = {'name': legal}
+        if rfc:
+            vals['vat'] = rfc
         mx = Country.search([('code', '=', 'MX')], limit=1)
-        partner = Partner.create({
-            'name': name,
-            'vat': rfc or False,
-            'country_id': mx.id if mx else False,
-            'type': 'invoice',
-        })
+        if mx:
+            vals['country_id'] = mx.id
+        if zip_code:
+            vals['zip'] = zip_code
+        if 'l10n_mx_edi_legal_name' in Partner._fields:
+            vals['l10n_mx_edi_legal_name'] = legal
+        if 'l10n_mx_edi_fiscal_regime' in Partner._fields and regimen_code:
+            vals['l10n_mx_edi_fiscal_regime'] = regimen_code
+        partner = Partner.create(vals)
+    else:
+        updates = {}
+        if not partner.name and legal:
+            updates['name'] = legal
+        if 'l10n_mx_edi_legal_name' in Partner._fields and not getattr(partner, 'l10n_mx_edi_legal_name', False) and legal:
+            updates['l10n_mx_edi_legal_name'] = legal
+        if zip_code and not partner.zip:
+            updates['zip'] = zip_code
+        if 'l10n_mx_edi_fiscal_regime' in Partner._fields and regimen_code and not getattr(partner, 'l10n_mx_edi_fiscal_regime', False):
+            updates['l10n_mx_edi_fiscal_regime'] = regimen_code
+        if updates:
+            partner.write(updates)
+
     return partner
+
+
 
 
 def _map_mx_edi_fields(move, *, uso_cfdi=None, metodo=None, forma=None, relacion_tipo=None, related_uuids=None):
@@ -191,6 +223,11 @@ def create_invoice_from_sale(sale, *, tipo='I', uso_cfdi=None, metodo=None, form
     """
     env = sale.env
     Move = env['account.move']
+    mxn = env.ref('base.MXN', raise_if_not_found=False)
+    currency_id = (mxn.id if mxn
+                   else (sale.company_id.currency_id.id
+                         if sale.company_id and sale.company_id.currency_id
+                         else env.company.currency_id.id))
 
     if not env.registry.ready:
         raise UserError(_('El entorno ORM no está listo.'))
@@ -216,11 +253,8 @@ def create_invoice_from_sale(sale, *, tipo='I', uso_cfdi=None, metodo=None, form
     vals = {
         'move_type': move_type,
         'partner_id': partner.id,
-        # Fuerza la compañía de la *venta*
         'company_id': sale.company_id.id,
-        'currency_id': (sale.company_id.currency_id.id
-                        if sale.company_id and sale.company_id.currency_id
-                        else env.company.currency_id.id),
+        'currency_id': currency_id,        # <- MXN si existe
         'invoice_origin': sale.codigo or sale.display_name,
         'invoice_date': sale.fecha or fields.Date.context_today(sale),
         'invoice_line_ids': _build_invoice_lines(env, sale),
