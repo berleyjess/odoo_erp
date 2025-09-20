@@ -4,6 +4,8 @@ import base64
 import json
 from odoo import models, api, _
 from odoo.exceptions import UserError
+import time
+import logging
 
 try:
     import requests
@@ -26,6 +28,8 @@ class CfdiProviderSW(models.AbstractModel):
         base_url = (c.cfdi_sw_base_url or ICP.get_param('mx_cfdi_sw.base_url')
                     or ('https://services.sw.com.mx' if not sandbox else 'https://services.test.sw.com.mx'))
 
+        # NUEVO: base de API (datawarehouse)
+        api_base = 'https://api.sw.com.mx' if not sandbox else 'https://api.test.sw.com.mx'
         # Toma los binarios ya en b64 (Binary fields) — si son bytes, pásalos a str
         def _as_str(v):
             return v.decode('ascii') if isinstance(v, (bytes, bytearray)) else (v or '')
@@ -33,6 +37,7 @@ class CfdiProviderSW(models.AbstractModel):
         return {
             'sandbox': sandbox,
             'base_url': base_url.rstrip('/'),
+            'api_base_url': api_base,
             'token':        c.cfdi_sw_token        or ICP.get_param('mx_cfdi_sw.token') or '',
             'user':         c.cfdi_sw_user         or ICP.get_param('mx_cfdi_sw.user') or '',
             'password':     c.cfdi_sw_password     or ICP.get_param('mx_cfdi_sw.password') or '',
@@ -42,6 +47,62 @@ class CfdiProviderSW(models.AbstractModel):
             'key_password': c.cfdi_sw_key_password or ICP.get_param('mx_cfdi_sw.key_password') or '',
         }
     #==================== Métodos de utilidad =====================#
+
+    # --- NUEVO: consulta datawarehouse por UUID y descarga XML/acuse ---
+    def _dw_lookup(self, uuid):
+        """Devuelve el objeto del DW para ese UUID o None si aún no aparece."""
+        if not requests:
+            raise UserError(_('El módulo requests no está disponible.'))
+        cfg = self._cfg()
+        url = f"{cfg['api_base_url'].rstrip('/')}/datawarehouse/v1/live/{uuid}"
+        r = requests.get(url, headers=self._headers(cfg), timeout=30)
+        if r.status_code >= 400:
+            return None
+        try:
+            js = r.json()
+        except Exception:
+            return None
+
+        # Forma oficial: data.records[] (ver documentación)
+        data = js.get('data') if isinstance(js, dict) else None
+        recs = (data or {}).get('records') if isinstance(data, dict) else None
+
+        # Fallbacks por si cambian nombres clave
+        if not isinstance(recs, list):
+            for k in ('records', 'items', 'Data'):
+                v = js.get(k) if isinstance(js, dict) else None
+                if isinstance(v, list):
+                    recs = v
+                    break
+
+        if isinstance(recs, list) and recs:
+            return recs[0]
+        return None
+
+    def download_xml_by_uuid(self, uuid, tries=30, delay=1.0):
+        """Devuelve {'xml': bytes, 'acuse': bytes|None} desde SW DW."""
+        if not requests:
+            raise UserError(_('El módulo requests no está disponible.'))
+        start = time.monotonic()
+        for attempt in range(max(1, int(tries))):   # ← no pises _
+            rec = self._dw_lookup(uuid)
+            if rec and rec.get('urlXml'):
+                xml = requests.get(rec['urlXml'], timeout=60).content
+                ack = None
+                if rec.get('urlAckCfdi'):
+                    try:
+                        ack = requests.get(rec['urlAckCfdi'], timeout=60).content
+                    except Exception:
+                        ack = None
+                return {'xml': xml, 'acuse': ack}
+            time.sleep(max(0.1, float(delay)))
+
+        waited = time.monotonic() - start
+        # usa _() correctamente con % dict (y sin pisarlo en este scope)
+        raise UserError(
+            _("SW aún no expone el XML del UUID %(uuid)s (esperé %(sec).1f s). "
+              "Inténtalo de nuevo en unos segundos.") % {'uuid': uuid, 'sec': waited}
+        )
     
     def _upload_cert_from_company(self):
         if not requests:
@@ -114,25 +175,29 @@ class CfdiProviderSW(models.AbstractModel):
             xml_bytes = xml_bytes.encode('utf-8')
 
         cfg = self._cfg()
-        url = cfg['base_url'] + '/cfdi33/issue/v4'  # ruta documentada
+        url = cfg['base_url'] + '/cfdi33/issue/v4'  # timbrado XML (multipart)
         files = {'xml': ('cfdi.xml', xml_bytes, 'application/xml')}
-        # NO fijar Content-Type manualmente
         resp = requests.post(url, headers=self._headers(cfg), files=files, timeout=60)
-
+        
         if resp.status_code >= 400:
+            # muestra el mensaje real de SW para depurar
             try:
-                data = resp.json()
-                msg = data.get('message') or data.get('Message') or resp.text
+                err = resp.json()
+                msg = err.get('message') or err.get('Message') or resp.text
             except Exception:
                 msg = resp.text
             raise UserError(_('Error timbrando con SW: %s') % msg)
 
-        # Respuesta típica: JSON con uuid y cfdi (base64)
-        data = resp.json() if resp.headers.get('Content-Type', '').startswith('application/json') else {}
-        uuid = (data.get('data') or {}).get('uuid') or data.get('uuid') or data.get('Uuid') or ''
-        xml_b64 = data.get('cfdi') or data.get('Cfdi') or None
-        xml_timbrado = base64.b64decode(xml_b64) if xml_b64 else xml_bytes
+        data = resp.json() if 'json' in resp.headers.get('Content-Type','') else {}
+        uuid = (data.get('data') or {}).get('uuid') or data.get('uuid') or ''
+        b64  = (data.get('data') or {}).get('cfdi') or data.get('cfdi') or data.get('Cfdi')
+
+        if not (uuid and b64):
+            raise UserError(_('SW no devolvió UUID/XML timbrado. Respuesta: %s') % (resp.text[:400],))
+
+        xml_timbrado = base64.b64decode(b64)
         return {'uuid': uuid, 'xml_timbrado': xml_timbrado}
+
 
     def _cancel(self, uuid, rfc=None, cer_pem=None, key_pem=None, password=None,
                 motivo='02', folio_sustitucion=None):

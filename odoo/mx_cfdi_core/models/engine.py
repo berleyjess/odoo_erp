@@ -67,15 +67,39 @@ class CfdiEngine(models.AbstractModel):
             _logger.error("CFDI DEBUG | PAC sin UUID. Payload=%s", stamped)
             raise UserError(_("El PAC no devolvió un UUID."))
 
-        _logger.info("CFDI DEBUG | provider returned keys=%s", list(stamped.keys()))
+        # Fallback: si por alguna razón no vino el XML, bájalo del DW por UUID
+        if not stamped.get("xml_timbrado"):
+            try:
+                dl = provider.download_xml_by_uuid(stamped['uuid'], tries=10, delay=1.0)
+                stamped['xml_timbrado'] = dl.get('xml')
+                # opcional: guardar acuse de timbrado como attachment separado
+                if dl.get('acuse'):
+                    self.env['ir.attachment'].sudo().create({
+                        'name': f"acuse-{stamped['uuid']}.xml",
+                        'res_model': origin_model,
+                        'res_id': origin_id,
+                        'type': 'binary',
+                        'datas': base64.b64encode(dl['acuse']),
+                        'mimetype': 'application/xml',
+                        'description': _('Acuse CFDI %s (SW DW)') % (stamped['uuid'],),
+                    })
+            except Exception as e:
+                _logger.warning("CFDI DEBUG | No se pudo recuperar XML por UUID: %s", e)
+                _logger.info("CFDI DEBUG | provider returned keys=%s", list(stamped.keys()))
 
+
+        xml_bytes = stamped.get("xml_timbrado")
+        if isinstance(xml_bytes, str):
+            xml_bytes = xml_bytes.encode("utf-8")
+
+        xml_b64 = base64.b64encode(xml_bytes).decode("ascii")
 
         doc = self.env["mx.cfdi.document"].create({
             "origin_model": origin_model,
             "origin_id": origin_id,
             "tipo": tipo,
             "uuid": stamped["uuid"],
-            "xml": stamped.get("xml_timbrado"),
+            "xml": xml_b64,                # <-- ahora sí, Base64 (str)
             "state": "stamped",
         })
         att = self._attach_xml(origin_model, origin_id, stamped.get("xml_timbrado"), doc)
@@ -169,9 +193,12 @@ class CfdiEngine(models.AbstractModel):
             base = round(qty * vu, 2)              # <- importe del concepto SIN impuestos
             subtotal_sum += base
 
-            imp_obj = c.get('objeto_imp', '01')    # 01=No objeto, 02=Sí objeto, 03=Sí objeto y no obligado
+            #imp_obj = c.get('objeto_imp', '01')    # 01=No objeto, 02=Sí objeto, 03=Sí objeto y no obligado
             iva_ratio  = float(c.get('iva') or 0.0)
             ieps_ratio = float(c.get('ieps') or 0.0)
+            imp_obj = (c.get('objeto_imp') or
+                        ('02' if (iva_ratio or ieps_ratio or (c.get('impuestos') and (c['impuestos'].get('traslados') or [])))
+                         else '01'))
 
             # Permitir también estructura anidada c['impuestos']['traslados'] si ya viene calculada
             traslados = []
@@ -347,7 +374,7 @@ class CfdiEngine(models.AbstractModel):
             raise UserError(_("No se recibió XML desde el proveedor."))
         if isinstance(xml_bytes, str):
             xml_bytes = xml_bytes.encode('utf-8')
-        b64 = base64.b64encode(xml_bytes)
+        b64 = base64.b64encode(xml_bytes).decode("ascii")
         name = f"{doc.uuid or 'cfdi'}-{origin_model.replace('.', '_')}-{origin_id}.xml"
         return self.env['ir.attachment'].sudo().create({
             'name': name,
@@ -421,7 +448,7 @@ class CfdiEngine(models.AbstractModel):
         # 2) Si tienes archivo (binario base64 del .cer DER):
         data = getattr(c, 'cfdi_sw_cer_file', False)
         if data:
-            import base64
+            
             der = base64.b64decode(data)
             try:
                 from cryptography import x509
