@@ -29,6 +29,8 @@
                             <field name="cantidad"/>
                             <field name="precio"/>
                             <field name="importe"/>
+                            <field name="iva"/>
+                            <field name="ieps"/>
                             <field name="cargo"/>
                             <field name="abono"/>
                             <field name="balance"/>

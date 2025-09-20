@@ -37,7 +37,7 @@ class TransientEdocta(models.TransientModel):
 
         # Buscar transacciones con filtro de fechas
         cxcs = self.env['transacciones.transaccion'].search([
-            ('contrato_id', '=', self.contrato_id.id),
+            ('venta_id.contrato', '=', self.contrato_id.id),
             ('fecha', '>=', self.desde),
             ('fecha', '<=', self.hasta),
         ], order='fecha asc')  # Ordenar por fecha
@@ -63,14 +63,14 @@ class TransientEdocta(models.TransientModel):
             }))
 
         cargo = self.env['cargosdetail.cargodetail'].search([
-            ('contrato_id', '=', self.contrato_id.id),
+            ('credito_id', '=', self.contrato_id.id),
             ('fecha', '>=', self.desde),
             ('fecha', '<=', self.hasta),
         ], order='fecha asc')  # Ordenar por fecha
 
         for linea in cargo:
             tmpcantidad =  linea.contrato_id.superficie if linea.tipocargo == '0' else 1
-            tmpprecio = linea.costo
+            tmpprecio = linea.costo if linea.tipocargo == '0' else linea.total
 
             if linea.tipocargo == '0':
                 tmpprecio = linea.costo * tmpcantidad
@@ -86,7 +86,7 @@ class TransientEdocta(models.TransientModel):
             lineas.append((0, 0, {
                 'edocta_id': self.id,
                 'fecha': linea.fecha,
-                'referencia': linea.referencia or '',
+                'referencia': 'Cargo',
                 'concepto': linea.cargo.concepto if linea.cargo else '',
                 'cantidad': tmpcantidad,
                 'precio': tmpprecio,

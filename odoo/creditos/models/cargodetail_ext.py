@@ -9,23 +9,26 @@ class cargodetail_ext(models.Model):
     _inherit = 'cargosdetail.cargodetail'
 
     fecha = fields.Date(string = "Fecha", default = date.today(), store = True)
-    credito_id = fields.Many2one('creditos.credito', "Crédito", store = True)
     importe = fields.Float(string = "Importe", readonly = True, compute = '_compute_importe', store = True)
-
-    montocredito = fields.Float(string = "Monto del crédito", related='credito_id.monto', store = True)
-
+    credito_id = fields.Many2one('creditos.credito', string = "Crédito", store = True)
+    total = fields.Float(string = "Total", readonly = True, compute = '_compute_total', store = True)
+    
     @api.depends('cargo', 'costo', 'porcentaje', 'credito_id.monto')#, 'credito_id.saldoejercido')
-    def _compute_importe(self):
+    def _compute_total(self):
         for record in self:
             if record.tipocargo == '0':  # Costo por superficie
-                record.importe = record.costo * record.credito_id.superficie
+                record.total = record.costo * record.credito_id.superficie
             elif record.tipocargo == '1':  # Porcentaje x Monto del Crédito
-                record.importe = record.montocredito * record.porcentaje
-                _logger.info(f"*-*-*-* CÁLCULO DE IMPORTE PORCENTAJE X MONTO DEL CRÉDITO: {record.importe} = {record.montocredito} * {record.porcentaje} *-*-*-*")
+                record.total = record.credito_id.monto * record.porcentaje
+                _logger.info(f"*-*-*-* CÁLCULO DE total PORCENTAJE X MONTO DEL CRÉDITO: {record.total} = {record.credito_id.monto} * {record.porcentaje} *-*-*-*")
             elif record.tipocargo == '2':  # Monto Único
-                record.importe = record.costo
+                record.total = record.costo
 
             # elif record.cargo.tipo == '3':  # Porcentaje x Saldo Ejercido
             #     record.importe = record.porcentaje * record.saldoejercido
+        record.credito_id.recalc_cargos()
 
-            record.importe = record.importe + (record.importe * record.iva) + (record.importe * record.ieps)
+    @api.depends('total', 'iva', 'ieps')
+    def _compute_importe(self):
+        for record in self:
+            record.importe = record.total + (record.total * record.iva) + (record.total * record.ieps)

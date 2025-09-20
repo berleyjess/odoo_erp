@@ -7,11 +7,11 @@ class activados(models.Model):
 
     status = fields.Selection(string = "Dictamen", selection=[
         ('1', 'Habilitar'),
-        ('0', 'Deshabilitar')
+        ('0', 'Pausar')
     ], required = True, default = '1')
 
     descripcion = fields.Char(
-        string='Descripción', required=True
+        string='Observaciones', required=True
     )
 
     fecha = fields.Date(

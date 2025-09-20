@@ -6,7 +6,6 @@ class cargodetail(models.Model):
     fecha = fields.Date(string = "Fecha", default=fields.Date.context_today, readonly = True)
     cargo = fields.Many2one('cargos.cargo', string = "Concepto", required = True, ondelete='cascade')
     contrato_id = fields.Many2one('contratos.contrato', string = "Contrato")
-    credito_id = fields.Many2one('creditos.credito', string = "Crédito")
     costo = fields.Float(string = "Costo", default = 0.0)
     porcentaje = fields.Float(string ="Porcentaje", default = 0.0)
     cargocontrato = fields.Boolean(string = "Cargo de contrato", default = False, readonly = True)
@@ -24,6 +23,8 @@ class cargodetail(models.Model):
 
     iva = fields.Float(string = "Iva %", related='cargo.iva')
     ieps = fields.Float(string = "Ieps %", related='cargo.ieps')
+    importe = fields.Float(string = "Importe", readonly = True, store = True)
+    total = fields.Float(string = "Total", readonly = True, store = True)
 
     def action_eliminar_cargo(self):
         for rec in self:

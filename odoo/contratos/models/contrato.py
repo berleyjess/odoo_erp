@@ -15,7 +15,7 @@ class contrato(models.Model):
             ('0', "AVIO"),
             ('1', "Parcial"),
             ('2', "Especial")
-        ], string = "Tipo de crédito", default = "0", required = True
+        ], string = "Tipo de crédito", default = "0", required = True, store = True
     )
     ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)    
     cultivo = fields.Many2one('cultivos.cultivo', string="Cultivo")

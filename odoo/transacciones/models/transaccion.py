@@ -49,6 +49,7 @@ class Transaccion(models.Model):
     # Enlace con venta (One2many en ventas.venta -> venta_id aquí)
     venta_id = fields.Many2one('ventas.venta', string="Venta", ondelete='cascade', index=True)
 
+
     @api.depends('producto_id', 'cantidad', 'precio')
     def _calc_montos(self):
         for i in self:

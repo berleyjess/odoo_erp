@@ -90,37 +90,27 @@ class credito(models.Model):
             ('expired', 'Vencido'),
             ('exceeded', 'Excedido')
         ], default='active', string = "Estatus", compute='_compute_status', store = True)
-
-
-    @api.depends('activaciones', 'autorizaciones')
-    def _compute_dict(self):
-        for r in self:
-            if r.ultimaautorizacion:
-                if r.ultimaautorizacion_status == "1" or r.dictamen != 'confirmed':
-                    r.status = 'paused'
-                elif r.ultimaautorizacion_status == "0":
-                    r.status = 'active'
-                elif r.ultimaautorizacion_status == "2":
-                    r.status = 'expired'
-                else:
-                    r.status = 'active'
     
     @api.depends('activaciones')
     def _compute_ultima_activacion(self):
-        for proceso in self:
-            if proceso.activaciones:
-                proceso.ultimaactivacion = fields.first(
-                    proceso.activaciones.sorted('id', reverse=True)[0]
+        for r in self:
+            if r.activaciones:
+                r.ultimaactivacion = fields.first(
+                    r.activaciones.sorted('id', reverse=True)[0]
                 )
             else:
                 # Si no hay autorizaciones, establecer como False o None
-                proceso.ultimaactivacion = False
+                r.ultimaactivacion = False
 
-    activacion = fields.Selection(string="¿Está autorizada?", related='ultimaactivacion.status', store=False,
-    selection=[
-        ('1', 'Aprobado'),
-        ('0', 'Rechazado')
-    ], default='0')
+            if r.ultimaactivacion:
+                if r.ultimaactivacion_status == '0' or r.dictamen != 'confirmed':
+                    r.status = 'paused'
+                elif r.ultimaactivacion_status == '1':
+                    r.status = 'active'
+                elif r.ultimaactivacion_status == "2":
+                    r.status = 'expired'
+                else:
+                    r.status = 'active'
 
 ###########################################################################
 ##                      Otros Campos
@@ -165,9 +155,20 @@ class credito(models.Model):
                             'cargo': cargo.cargo.id,
                             'costo': cargo.costo,
                             'porcentaje': cargo.porcentaje,
-                            'fecha': fields.Date.today(),
+                            'fecha': self.ultimaautorizacion_fecha or fields.Date.today(),
                             'cargocontrato': True,
                         })
+                record.recalc_cargos()
+
+    def recalc_cargos(self):
+        for record in self:
+            total = sum(cargo.importe for cargo in record.cargos if cargo.credito_id.id==record.id and cargo.tipocargo in ('0','1','2'))
+            saldo = total + record.saldoporventas
+            for i in record.cargos:
+                if i.tipocargo == '3':
+                    i.total = (i.porcentaje * saldo)
+                    total = total + i.importe
+            record.saldoejercido = total + record.saldoporventas
 
     fechaacomite = fields.Date(string="Fecha a Comité", required = False)
 
@@ -176,7 +177,7 @@ class credito(models.Model):
             ('0', "AVIO"),
             ('1', "Parcial"),
             ('2', "Especial")
-        ], default = '0', related = 'contrato.tipocredito', string = "Tipo de crédito", store = True, readonly = True
+        ], default = '0', related = 'contrato.tipocredito', string = "Tipo de crédito", readonly = True
     )
 
     titularr = fields.Boolean(
@@ -191,7 +192,8 @@ class credito(models.Model):
         for record in self:
             total = sum(venta.total for venta in record.ventas_ids if venta.state in ('confirmed', 'invoiced') and venta.contrato.id==record.id)
             record.saldoporventas = total
-
+            record.recalc_cargos()
+    """
     @api.depends('contrato.cargos', 'cargos', 'saldoporventas', 'saldoporventas')
     def _saldoejercido(self):
         for record in self:
@@ -201,7 +203,7 @@ class credito(models.Model):
                 if i.tipocargo == '3':
                     total = total + (i.porcentaje * saldo)
             record.saldoejercido = total + record.saldoporventas
-
+    """
     def _calc_saldoporventas(self):
         for r in self:
             if 'ventas.venta' in self.env:
@@ -284,7 +286,7 @@ class credito(models.Model):
 
     usermonto = fields.Float(string = "Monto Solicitado", default = 0.0, store = True)
     uservencimiento = fields.Date(string="Fecha de vencimiento", required=True, default=fields.Date.today, store = False)
-    usersuperficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), store=False)
+    usersuperficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), store=True)
 
     obligado = fields.Char(string="Nombre", size=100)
     obligadodomicilio = fields.Many2one('localidades.localidad', string="Domicilio")
@@ -322,23 +324,25 @@ class credito(models.Model):
                 contrato = self.env['contratos.contrato'].browse(vals['contrato'])
                 if hasattr(contrato, 'ciclo') and contrato.ciclo and contrato.ciclo.ffinal:
                     vals['vencimiento'] = contrato.ciclo.ffinal        
+        """
         # Manejo de monto
         if vals.get('contrato') and not vals.get('monto'):
             contrato = self.env['contratos.contrato'].browse(vals['contrato'])
-            if contrato.tipocredito != "2" and contrato.aporte and vals.get('superficie'):
+            if contrato.tipocredito != '2' and contrato.aporte and vals.get('superficie'):
                 vals['monto'] = contrato.aporte * vals['superficie']
+            elif contrato.tipocredito=='2':
+                vals['monto'] = vals['usermonto']
             elif not vals.get('monto'):
                 vals['monto'] = 0.0
-                
+        """
         # --- FORZAR MAYÚSCULAS ---
         vals = self._fields_to_upper(vals, self.FIELDS_TO_UPPER)
         return super(credito, self).create(vals)
 
-    @api.onchange('contrato', 'superficie')
+    """@api.onchange('contrato', 'superficie')
     def _onchange_monto(self):
-        """Actualiza el monto basado en el tipo de crédito"""
         if self.contrato:
-            if self.contrato.tipocredito == "2":  # Especial
+            if self.contrato.tipocredito != '2':  # Especial
                 # Para crédito especial, se mantiene el monto manual
                 if not self.monto:
                     self.monto = 0.0
@@ -347,6 +351,7 @@ class credito(models.Model):
                 self.monto = self.contrato.aporte * self.superficie
             else:
                 self.monto = 0.0
+    """
 
     @api.depends('garantias.valor')
     def _compute_total_garantias(self):
@@ -390,27 +395,31 @@ class credito(models.Model):
             else:
                 self.obligado = ''  # Limpia el campo para llenado manual
                 self.obligadoRFC = ''  # Limpia el RFC para llenado manual
-
+    """
     @api.depends('predios', 'contrato', 'usersuperficie')
     def _depends_predios_superficie(self):
+        _logger.info(f"*/*/*/*/*/ CAMBIANDO LA SUPERFICIE */*/*/*/*/")
         self.tipocredito = self.contrato.tipocredito if self.contrato else False
         # Si es tipo 1 permite edición manual
+        
         if self.contrato and self.contrato.tipocredito == "1":
             return  # No actualiza automáticamente, el usuario puede escribir el valor
+        
         # En cualquier otro tipo, actualiza automáticamente
         total_superficie = sum(predio.superficiecultivable or 0.0 for predio in self.predios)
-        if self.tipocredito == "0":
+        if self.tipocredito == '0':
             self.superficie = total_superficie
-        elif self.tipocredito == "1":
-            self.superficie = self.usersuperficie or 0.0
-
-    @api.depends('predios', 'contrato', 'superficie', 'usermonto', 'usersuperficie')
+        elif self.tipocredito == '1':
+            self.superficie = self.usersuperficie
+            _logger.info(f"*/*/*/*/*/ CAMBIANDO LA SUPERFICIE tipocredito={self.tipocredito}, superficie={self.superficie}, usersuperficie={self.usersuperficie} */*/*/*/*/")
+    """
+    @api.depends('predios', 'contrato', 'superficie', 'usermonto')
     def _calc_monto(self):
         for r in self:
-            if self.tipocredito == "0" or self.tipocredito == "1": 
-                self.monto = self.superficie * self.contrato.monto
-            elif self.tipocredito == "2":
-                self.monto = self.usermonto
+            if r.tipocredito == '0' or r.tipocredito == '1': 
+                r.monto = r.superficie * r.contrato.aporte if r.contrato and r.contrato.aporte else 0.0
+            elif r.tipocredito == '2':
+                r.monto = r.usermonto
 
     @api.depends('contrato', 'uservencimiento')
     def _calc_vencimiento(self):
@@ -493,17 +502,18 @@ class credito(models.Model):
     @api.constrains('titularr')
     def _check_titular(self):
         for record in self:
-            if not record.titularr or not record.titularr.strip():
+            if not record.titularr and record.tipocredito != '2':
                 raise ValidationError("El campo Titular es obligatorio para el predio.")
 
     @api.depends('predios.superficiecultivable', 'contrato', 'usersuperficie')
     def _compute_superficie(self):
+        _logger.info(f"*/*/*/*/*/ CAMBIANDO LA SUPERFICIE */*/*/*/*/")
         for record in self:
             if record.contrato and record.contrato.tipocredito == '0':  # Solo para AVIO
                 record.superficie = sum(p.superficiecultivable or 0.0 for p in record.predios)
             elif record.contrato and record.contrato.tipocredito == '1':  # Parcial
                 record.superficie = record.usersuperficie
-            # Si es tipo 1 o 2, se respeta el valor manual (no se calcula aquí)
+                _logger.info(f"*/*/*/*/*/ CAMBIANDO LA SUPERFICIE tipocredito={record.tipocredito}, superficie={record.superficie}, usersuperficie={record.usersuperficie} */*/*/*/*/")
     
     #BOTONES "Editar", "Guardar y Volver" y "Cancelar y volver a la lista"
 
@@ -566,12 +576,9 @@ class credito(models.Model):
             }
         }
 
-        # Lógica para enviar la solicitud al comité
+    """    # Lógica para enviar la solicitud al comité
     def action_autorizacion(self):
-        """Acción para dictaminar la autorización de la solicitud de crédito."""
         self.ensure_one()
-        """if not self.autorizaciones:
-            raise ValidationError(_("No hay autorizaciones disponibles para esta solicitud."))"""
         
         return {
             'type': 'ir.actions.act_window',
@@ -584,21 +591,36 @@ class credito(models.Model):
             }
             
         }
+    """
 
-    def action_activacion(self):
-        """Acción para dictaminar la activación de la solicitud de crédito."""
+    def action_desbloquear(self):
         self.ensure_one()
-        """if not self.autorizaciones:
-            raise ValidationError(_("No hay autorizaciones disponibles para esta solicitud."))"""
         
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'creditos.activacion',
             'view_mode': 'form',
             'target': 'new',
-            'name': 'Dictaminar crédito',
+            'name': 'Desbloquear crédito',
             'context': {
-                'default_credito_id': self.id
+                'default_credito_id': self.id,
+                'default_status': '1',
+            }
+            
+        }
+    
+    def action_bloquear(self):
+        self.ensure_one()
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'creditos.activacion',
+            'view_mode': 'form',
+            'target': 'new',
+            'name': 'Bloquear crédito',
+            'context': {
+                'default_credito_id': self.id,
+                'default_status': '0',
             }
             
         }
@@ -622,13 +644,13 @@ class credito(models.Model):
 
     #MONTO NUNCA DEBE SER <= 0
     _sql_constraints = [
-        ('check_monto_positive', 'CHECK(monto <= 0)', 'El monto solicitado no puede ser $0.'),
+        ('check_monto_positive', 'CHECK(monto > 0)', 'El monto solicitado no puede ser $0.'),
     ]
 
     #OBLIGADO SOLIDARIO ES REQUERIDO SI TIPOCREDITO != 2 Y SI NO ES EL TITULAR DEL CREDITO
     @api.constrains('obligado', 'obligadorfc', 'obligadodomicilio')
     def _check_obligado_solidario(self):
         for rec in self:
-            if rec.tipocredito != '2' and (not rec.titularr or rec.cliente_edo_civil == 'casado'):
+            if rec.tipocredito != '2' and (not rec.titularr or rec.cliente_estado_civil == 'casado'):
                 if not rec.obligado or not rec.obligadorfc or not rec.obligadodomicilio:
                     raise ValidationError(_('Debe ingresar los datos completos del obligado solidario del crédito.'))
