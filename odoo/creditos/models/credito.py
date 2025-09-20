@@ -56,15 +56,15 @@ class credito(models.Model):
     ultimaautorizacion_descripcion = fields.Char(string = "Descripción", related = 'ultimaautorizacion.descripcion', readonly = True, stored = True)
     ultimaautorizacion_status = fields.Selection(string = "Status", related = 'ultimaautorizacion.status', readonly = True, stored = True)
 
+    
     dictamen = fields.Selection(
         selection = [
             ('draft', 'Borrador'),
             ('check', 'En Comité'),
             ('confirmed', 'Aprobado'),
             ('cancelled', 'Rechazado')
-        ], default='draft', string = "Estatus", compute='_compute_dict', store = True)
+        ], default='draft', string = "Estatus", compute='_compute_ultima_autorizacion', store = True)
     
-
 ###########################################################################
 ##                      Cambio de Estatus
 ###########################################################################
@@ -89,7 +89,7 @@ class credito(models.Model):
             ('paused', 'Pausado'),
             ('expired', 'Vencido'),
             ('exceeded', 'Excedido')
-        ], default='active', string = "Estatus", compute='_compute_status', store = True)
+        ], default='active', string = "Estatus", compute='_compute_ultima_activacion', store = True)
     
     @api.depends('activaciones')
     def _compute_ultima_activacion(self):
