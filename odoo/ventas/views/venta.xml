@@ -53,6 +53,11 @@
                     <button name="action_open_cfdi_wizard" type="object" string="Facturar (CFDI)" class="btn-primary" invisible="state not in ['confirmed','invoiced']"/>
                     <field name="cfdi_uuid" readonly="1" class="oe_inline" invisible="cfdi_uuid == False"/>
                     <button name="action_download_cfdi" type="object" string="Descargar XML" class="btn-secondary" invisible="cfdi_uuid == False"/>
+                    <button name="action_fetch_cfdi_from_sw"
+                            type="object"
+                            string="Forzar descarga desde SW"
+                            invisible="(not cfdi_uuid) or (state == 'draft')"
+                            class="btn-secondary"/>
                     <button name="action_cancel_cfdi" type="object" string="Cancelar CFDI" class="btn-danger" invisible="cfdi_uuid == False or cfdi_state == 'canceled'"/>
 
                 </header>

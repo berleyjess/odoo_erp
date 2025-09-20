@@ -4,6 +4,7 @@ from odoo.exceptions import ValidationError
 from datetime import date
 from odoo import SUPERUSER_ID
 from ..services.invoicing_bridge import create_invoice_from_sale
+import base64
 
 class venta(models.Model):
     _name = 'ventas.venta'
@@ -666,3 +667,49 @@ class venta(models.Model):
             'res_id': self.res_company_cfdi_id.id,
             'target': 'current',
         }
+
+    def action_fetch_cfdi_from_sw(self):
+        """Si ya tengo UUID, bajo el XML desde SW y lo adjunto (venta y factura)."""
+        self.ensure_one()
+        if not self.cfdi_uuid:
+            raise ValidationError(_('No hay UUID en la venta.'))
+        provider = self.env['mx.cfdi.engine']._get_provider()
+        data = provider.download_xml_by_uuid(self.cfdi_uuid, tries=10, delay=1.0)
+        if not data or not data.get('xml'):
+            raise UserError(_('SW no devolvió XML para el UUID %s.') % self.cfdi_uuid)
+
+        # A) factura
+        att_move = self.env['ir.attachment'].sudo().create({
+            'name': f"{self.cfdi_uuid}.xml",
+            'res_model': 'account.move',
+            'res_id': self.move_id.id,
+            'type': 'binary',
+            'datas': base64.b64encode(data['xml']).decode('ascii'),   # <- aquí
+            'mimetype': 'application/xml',
+            'description': _('CFDI timbrado %s (descargado de SW)') % self.cfdi_uuid,
+        })
+
+        # B) copia en venta
+        self.env['ir.attachment'].sudo().create({
+            'name': f"{self.cfdi_uuid}-venta.xml",
+            'res_model': self._name,
+            'res_id': self.id,
+            'type': 'binary',
+            'datas': base64.b64encode(data['xml']).decode('ascii'),   # <- aquí
+            'mimetype': 'application/xml',
+            'description': _('CFDI timbrado %s (copia en venta)') % self.cfdi_uuid,
+        })
+
+        # C) acuse (si viene)
+        if data.get('acuse'):
+            self.env['ir.attachment'].sudo().create({
+                'name': f"acuse-{self.cfdi_uuid}.xml",
+                'res_model': self._name,
+                'res_id': self.id,
+                'type': 'binary',
+                'datas': base64.b64encode(data['acuse']).decode('ascii'),  # <- aquí
+                'mimetype': 'application/xml',
+                'description': _('Acuse CFDI %s (SW DW)') % self.cfdi_uuid,
+            })
+
+        return True
