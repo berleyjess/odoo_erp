@@ -1,0 +1,140 @@
+<!-- views/factura_views.xml -->
+<odoo>
+  <record id="view_factura_tree" model="ir.ui.view">
+    <field name="name">facturas.factura.tree</field>
+    <field name="model">facturas.factura</field>
+    <field name="arch" type="xml">
+      <list>
+        <!-- Quita <field name="id"/> si no lo necesitas en UI -->
+        <field name="empresa_id"/>
+        <field name="cliente_id"/>
+        <field name="tipo"/>
+        <field name="metodo"/>
+        <field name="state"/>
+        <field name="uuid"/>
+      </list>
+    </field>
+  </record>
+
+<!-- views/factura_views.xml: en <group> principal -->
+
+
+  <record id="view_factura_form" model="ir.ui.view">
+    <field name="name">facturas.factura.form</field>
+    <field name="model">facturas.factura</field>
+    <field name="arch" type="xml">
+      <form string="Captura de Factura">
+        <header>
+          <button name="action_build_and_stamp" type="object" string="Timbrar" class="btn-primary"/>
+          <!-- Lo dejamos siempre visible; el método ya valida que tipo='P' -->
+          <button name="action_build_payment_cfdi" type="object" string="Complemento de pago" invisible="tipo != 'P'"/>
+          <button name="action_close_form" type="object" string="Cerrar" class="btn-secondary"/>
+          <field name="state" widget="statusbar" statusbar_visible="draft,ready,stamped,canceled"/>
+        </header>
+
+        <sheet>
+          <group>
+            <button name="%(action_wiz_add_sales)d" type="action" string="Agregar Ventas completas"
+                    invisible="not cliente_id"
+                    context="{
+                      'default_factura_id': id,
+                      'empresa_id':  empresa_id,
+                      'sucursal_id': sucursal_id,
+                      'cliente_id':  cliente_id,
+                      'cliente_rfc': (cliente_id and (cliente_id.rfc or cliente_id.vat)) or False
+                    }"
+                    class="btn-secondary"/>
+
+            <button name="%(action_wiz_add_lines)d" type="action" string="Agregar Transacciones"
+                    invisible="not cliente_id"
+                    context="{
+                      'default_factura_id': id,
+                      'empresa_id':  empresa_id,
+                      'sucursal_id': sucursal_id,
+                      'cliente_id':  cliente_id,
+                      'cliente_rfc': (cliente_id and (cliente_id.rfc or cliente_id.vat)) or False
+                    }"
+                    class="btn-secondary"/>
+
+            <!-- Botón (deja cliente_rfc en el contexto) -->
+            <button name="%(action_wiz_add_charges)d" type="action" string="Agregar Cargos"
+                    invisible="not cliente_id"
+                    context="{
+                      'default_factura_id': id,
+                      'empresa_id':  empresa_id,
+                      'sucursal_id': sucursal_id,
+                      'cliente_id':  cliente_id,
+                      'cliente_rfc': (cliente_id and (cliente_id.rfc or cliente_id.vat)) or False
+                    }"
+                    class="btn-secondary"/>
+
+
+            
+            <!-- Placeholder visible siempre por ahora -->
+            <button name="action_placeholder_interest" type="object" string="Agregar Intereses" class="btn-secondary"/>
+          </group>
+          <group>
+            <group>
+              <field name="empresa_id" required="1"/>
+              <field name="company_id" readonly="1"/>
+              <field name="sucursal_id" required="1"/>
+              <field name="cliente_id"/>
+              <field name="tipo"/>
+            </group>
+            <group>
+              <field name="uso_cfdi" invisible="tipo == 'P'"/>
+              <field name="metodo"   invisible="tipo == 'P'"/>
+              <field name="forma"    invisible="tipo == 'P'"/>
+              <field name="moneda"/>
+              <field name="fecha"/>
+            </group>
+            <group>
+              <field name="serie"/>
+              <field name="folio"/>
+              <field name="uuid" readonly="1"/>
+              <field name="move_id" readonly="1"/>
+            </group>
+          </group>
+
+          <notebook>
+            <page string="Productos/Servicios">
+              <field name="line_ids">
+                <list editable="bottom">
+                  <field name="line_type" readonly="1"/>
+                  <field name="source_model" invisible="1"/>
+                  <field name="source_id" invisible="1"/>
+                  <field name="empresa_id"/>
+                  <field name="cliente_id"/>
+                  <field name="sale_id" readonly="1"/>
+                  <field name="producto_id"/>
+                  <field name="descripcion"/>
+                  <field name="cantidad"/>
+                  <field name="precio"/>
+                  <field name="iva_ratio"/>
+                  <field name="ieps_ratio"/>
+                  <field name="subtotal" readonly="1"/>
+                  <field name="iva_amount" readonly="1"/>
+                  <field name="ieps_amount" readonly="1"/>
+                  <field name="total" readonly="1"/>
+                </list>
+              </field>
+            </page>
+            <page string="Ventas seleccionadas">
+              <field name="venta_ids" widget="many2many_tags"/>
+            </page>
+            <page string="Adjuntos">
+              <button name="action_open_attachments" type="object" string="Ver adjuntos" class="btn-secondary"/>
+              <field name="attachment_count" readonly="1"/>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_facturas_ui" model="ir.actions.act_window">
+    <field name="name">Interfaz de Facturas</field>
+    <field name="res_model">facturas.factura</field>
+    <field name="view_mode">list,form</field>
+  </record>
+</odoo>

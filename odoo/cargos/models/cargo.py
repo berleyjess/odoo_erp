@@ -1,3 +1,4 @@
+#cargos/models/cargo.py
 from odoo import models, fields, api
 
 class cargo(models.Model):

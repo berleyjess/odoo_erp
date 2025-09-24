@@ -440,17 +440,17 @@ class venta(models.Model):
             impuestos['traslados'].append({
                 'impuesto': '002',      # IVA
                 'tipo_factor': 'Tasa',
-                'tasa_cuota': 0.16,     # ajusta según tu línea
+                'tasa_cuota': iva_amt,     # ajusta según tu línea
                 'base': subtotal,
-                'importe': iva_amt,
+                'importe': iva_amt*subtotal,
             })
         if ieps_amt:
             impuestos['traslados'].append({
                 'impuesto': '003',      # IEPS
                 'tipo_factor': 'Tasa',
-                'tasa_cuota': 0.08,     # ejemplo
+                'tasa_cuota': ieps_amt,     # ejemplo
                 'base': subtotal,
-                'importe': ieps_amt,
+                'importe': ieps_amt*subtotal,
             })
 
         conceptos.append({
@@ -461,7 +461,7 @@ class venta(models.Model):
             'cantidad': cantidad,
             'valor_unitario': precio,
             'importe': subtotal + iva_amt + ieps_amt,
-            'objeto_imp': '02',  # gravado
+            'objeto_imp': '02' if iva_amt or ieps_amt else '01',  # gravado
             'impuestos': impuestos,
         })
      return conceptos
@@ -553,7 +553,7 @@ class venta(models.Model):
 
     def action_create_invoice_and_stamp(self):
         for sale in self:
-            if sale.state not in ('confirmed', 'invoiced'):
+            if sale.state not in ('confirmed', 'invoiced'):#=========0000000000==============================
                 raise ValidationError(_('La venta debe estar Confirmada para facturar.'))
     
             # A) Compañías:
@@ -713,3 +713,32 @@ class venta(models.Model):
             })
 
         return True
+
+    def action_open_factura_ui(self):
+        """Abre la Interfaz de Facturas prellenada con esta venta (sin timbrar)."""
+        self.ensure_one()
+        partner = _find_or_create_partner(self.env, self.cliente)
+        fac = self.env['facturas.factura'].create({
+            'empresa_id': self.empresa_id.id,
+            'company_id': self.company_id.id,
+            'sucursal_id': self.sucursal_id.id,
+            'cliente_id': self.cliente.id,        # ✅ clientes.cliente correcto
+            #'partner_id': partner.id if partner else False,  # ✅ receptor contable
+            'tipo': 'I',
+            'metodo': self.metododepago or 'PPD',
+            'forma': (self.formadepago if (self.metododepago == 'PUE') else '99'),
+        })
+
+        # (Opcional) no agrego líneas automáticamente: el usuario decide qué facturar
+        # Si quisieras precargar toda la venta:
+        # self.env['facturas.wiz.add.sales'].with_context(active_id=fac.id).create({
+        #     'factura_id': fac.id, 'venta_ids': [(6,0,[self.id])]
+        # }).action_add()
+
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'facturas.factura',
+            'res_id': fac.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }

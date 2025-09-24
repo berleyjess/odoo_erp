@@ -6,9 +6,9 @@ from datetime import date
 class Transaccion(models.Model):
     _name = 'transacciones.transaccion'
     _description = 'Detalles/Conceptos de Compra/Venta/Traspasos/Devoluciones'
+    _rec_name = 'referencia'
 
     fecha = fields.Date(string="Fecha", default=lambda self: fields.Date.context_today(self), store=True)
-
 
     # Para ventas: origen = sucursal de la venta; destino se usa en traspasos
     sucursal_id = fields.Many2one('sucursales.sucursal', string="Origen")
@@ -49,7 +49,6 @@ class Transaccion(models.Model):
     # Enlace con venta (One2many en ventas.venta -> venta_id aquí)
     venta_id = fields.Many2one('ventas.venta', string="Venta", ondelete='cascade', index=True)
 
-
     @api.depends('producto_id', 'cantidad', 'precio')
     def _calc_montos(self):
         for i in self:
@@ -75,19 +74,13 @@ class Transaccion(models.Model):
             else:
                 i.stock = '2'
 
-    #@api.onchange('venta_id')
-    #def _onchange_venta_id(self):
-    #    for i in self:
-    #        if i.venta_id and i.venta_id.sucursal_id:
-    #            i.sucursal_id = i.venta_id.sucursal_id
-
     @api.constrains('venta_id', 'sucursal_id')
     def _constrain_sucursal_venta(self):
         for i in self:
             if i.venta_id and i.venta_id.sucursal_id and i.sucursal_id and i.venta_id.sucursal_id != i.sucursal_id:
                 raise ValidationError(_("La sucursal de la línea debe coincidir con la sucursal de la venta."))
 
-    @api.onchange('producto_id', 'venta_id', 'venta_id.metododepago')
+    @api.onchange('producto_id', 'venta_id')
     def _onchange_precio_por_metodo(self):
         for line in self:
             if not line.producto_id:
@@ -95,12 +88,54 @@ class Transaccion(models.Model):
             metodo = (line.venta_id.metododepago or 'PPD') if line.venta_id else 'PPD'
             line.precio = line.producto_id.contado if metodo == 'PUE' else line.producto_id.credito
 
+
     @api.model
     def create(self, vals):
-        # set precio por defecto si viene vacío
+        # 1) Precio por defecto si no viene explícito
         if not vals.get('precio') and vals.get('producto_id'):
             venta = self.env['ventas.venta'].browse(vals.get('venta_id')) if vals.get('venta_id') else False
-            metodo = venta.metododepago if venta and venta.metododepago else 'PPD'
+            metodo = (venta.metododepago if venta and venta.metododepago else 'PPD')
             prod = self.env['productos.producto'].browse(vals['producto_id'])
             vals['precio'] = prod.contado if metodo == 'PUE' else prod.credito
-        return super().create(vals)
+
+        rec = super().create(vals)
+
+        # 2) Sincroniza helpers desde la venta (si hay)
+        rec._update_helpers_from_sale()
+
+        return rec
+
+    empresa_id_helper  = fields.Many2one('empresas.empresa', index=True)
+    cliente_rfc_helper = fields.Char(index=True)
+
+    def _update_helpers_from_sale(self):
+        for r in self:
+            v = r.venta_id
+            if not v:
+                r.empresa_id_helper = False
+                r.cliente_rfc_helper = False
+                continue
+            empresa = getattr(v, 'empresa_id', False) or getattr(v, 'empresa', False)
+            cli     = getattr(v, 'cliente', False)
+            r.empresa_id_helper  = empresa.id if empresa else False
+            r.cliente_rfc_helper = (getattr(cli, 'rfc', False) or getattr(cli, 'vat', False) or False)
+
+    def write(self, vals):
+        res = super().write(vals)
+
+        # Si cambia la venta, re-sincroniza helpers
+        if 'venta_id' in vals:
+            self._update_helpers_from_sale()
+
+        # (Opcional) Si cambió producto o venta y el precio quedó 0, recalcular por método
+        if 'venta_id' in vals or 'producto_id' in vals:
+            for line in self:
+                if line.producto_id and (not line.precio or vals.get('producto_id')):
+                    metodo = (line.venta_id.metododepago or 'PPD') if line.venta_id else 'PPD'
+                    line.precio = line.producto_id.contado if metodo == 'PUE' else line.producto_id.credito
+
+        return res
+    
+    @api.onchange('venta_id')
+    def _onchange_venta_id_fill_helpers(self):
+        self._update_helpers_from_sale()

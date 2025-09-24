@@ -59,6 +59,7 @@
                             invisible="(not cfdi_uuid) or (state == 'draft')"
                             class="btn-secondary"/>
                     <button name="action_cancel_cfdi" type="object" string="Cancelar CFDI" class="btn-danger" invisible="cfdi_uuid == False or cfdi_state == 'canceled'"/>
+                    <button name="action_open_factura_ui" type="object" class="oe_highlight" string="Facturar (UI)" invisible="state not in ['confirmed','invoiced']"/>
 
                 </header>
 

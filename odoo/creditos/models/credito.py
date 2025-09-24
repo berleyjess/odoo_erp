@@ -36,7 +36,7 @@ class credito(models.Model):
                 r.ultimaautorizacion = False
             
             if r.ultimaautorizacion:
-                if r.ultimaautorizacion_status == "1":
+                if r.ultimaautorizacion_status == '1':
                     serie = "A"
                     if r.tipocredito == '1':
                         serie = "P"
@@ -45,9 +45,9 @@ class credito(models.Model):
 
                     r.dictamen = 'confirmed'
                     r.foliocredito= serie + self.env['ir.sequence'].next_by_code('creditos.folioaut')
-                elif r.ultimaautorizacion_status == "0":
+                elif r.ultimaautorizacion_status == '0':
                     r.dictamen = 'draft'
-                elif r.ultimaautorizacion_status == "2":
+                elif r.ultimaautorizacion_status == '2':
                     r.dictamen = 'cancelled'
                 else:
                     r.dictamen = 'draft'
@@ -304,7 +304,7 @@ class credito(models.Model):
         #help="Código único autogenerado con formato COD-000001"
     )
 
-    foliocredito = fields.Char(string="Contrato", readonly=True)
+    foliocredito = fields.Char(string="Contrato", readonly=True, store=True)
 
     @api.model
     def create(self, vals):
