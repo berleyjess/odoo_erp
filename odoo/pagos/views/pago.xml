@@ -1,0 +1,60 @@
+<odoo>
+    <!-- Acción de Menú (DEBE IR PRIMERO) -->
+    <record id="action_pagos" model="ir.actions.act_window">
+        <field name="name">pagos Agrícolas</field>
+        <field name="res_model">pagos.pago</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'default_periodo': 'OI'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Aplicar pagos</p>
+        </field>
+    </record>
+
+    <!-- Vista árbol -->
+    <record id="view_pago_list" model="ir.ui.view">
+        <field name="name">pagos.list</field>
+        <field name="model">pagos.pago</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="fecha"/>
+                <field name="folio"/>
+                <field name="metodo"/>
+                <field name="observaciones"/>
+                <field name="monto"/>
+                <field name="status"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista formulario -->
+    <record id="view_pago_form" model="ir.ui.view">
+        <field name="name">pagos.form</field>
+        <field name="model">pagos.pago</field>
+        <field name="arch" type="xml">
+            <form autosave="False">
+                <sheet>
+                    <group>
+                        <field name="folio"/>
+                        <field name="fecha"/>
+                        <field name="cliente"/>
+                        <field name="tipoventa"/>
+                        <field name="credito"/>
+                        <field name="metodo"/>
+                        <field name="observaciones"/>
+                        <field name="monto"/>
+                        <field name="details">
+                            <list editable="bottom">
+                                <field name="referencia"/>
+                                <field name="monto"/>
+                            </list>
+                        </field>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Menús -->
+    <menuitem id="menu_root" name="pagos" sequence="10" />
+    <menuitem id="menu_action" name="pagos Agrícolas" parent="menu_root" action="action_pagos" />
+</odoo>
