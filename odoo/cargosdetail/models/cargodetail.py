@@ -25,7 +25,8 @@ class cargodetail(models.Model):
     ieps = fields.Float(string = "Ieps %", related='cargo.ieps')
     importe = fields.Float(string = "Importe", readonly = True, store = True)
     total = fields.Float(string = "Total", readonly = True, store = True)
-
+    saldo = fields.Float(string= "Saldo", readonly = True, store = True)
+    
     def action_eliminar_cargo(self):
         for rec in self:
             cargos_a_eliminar = rec.filtered(lambda c: not c.cargocontrato)

@@ -9,7 +9,6 @@ class Transaccion(models.Model):
 
     fecha = fields.Date(string="Fecha", default=lambda self: fields.Date.context_today(self), store=True)
 
-
     # Para ventas: origen = sucursal de la venta; destino se usa en traspasos
     sucursal_id = fields.Many2one('sucursales.sucursal', string="Origen")
     sucursal_d_id = fields.Many2one('sucursales.sucursal', string="Destino")
@@ -48,7 +47,6 @@ class Transaccion(models.Model):
 
     # Enlace con venta (One2many en ventas.venta -> venta_id aquí)
     venta_id = fields.Many2one('ventas.venta', string="Venta", ondelete='cascade', index=True)
-
 
     @api.depends('producto_id', 'cantidad', 'precio')
     def _calc_montos(self):

@@ -10,6 +10,7 @@ class cargodetail_ext(models.Model):
 
     fecha = fields.Date(string = "Fecha", default = date.today(), store = True)
     importe = fields.Float(string = "Importe", readonly = True, compute = '_compute_importe', store = True)
+    Saldo = fields.Float(string = "Saldo", readonly = True, compute = '_compute_importe', store = True)
     credito_id = fields.Many2one('creditos.credito', string = "Crédito", store = True)
     total = fields.Float(string = "Total", readonly = True, compute = '_compute_total', store = True)
     
@@ -20,7 +21,6 @@ class cargodetail_ext(models.Model):
                 record.total = record.costo * record.credito_id.superficie
             elif record.tipocargo == '1':  # Porcentaje x Monto del Crédito
                 record.total = record.credito_id.monto * record.porcentaje
-                _logger.info(f"*-*-*-* CÁLCULO DE total PORCENTAJE X MONTO DEL CRÉDITO: {record.total} = {record.credito_id.monto} * {record.porcentaje} *-*-*-*")
             elif record.tipocargo == '2':  # Monto Único
                 record.total = record.costo
 
@@ -32,3 +32,4 @@ class cargodetail_ext(models.Model):
     def _compute_importe(self):
         for record in self:
             record.importe = record.total + (record.total * record.iva) + (record.total * record.ieps)
+            record.saldo = record.importe

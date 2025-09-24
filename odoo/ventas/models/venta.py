@@ -26,7 +26,6 @@ class venta(models.Model):
         """Usado por los tiles de cabecera: no hace nada."""
         return False
 
-
     observaciones = fields.Char(string="Observaciones", size=48)
     fecha = fields.Date(string="Fecha", readonly=True, copy=False, index=True)
     importe = fields.Float(string="Importe", readonly=True, store=True, compute='_add_detalles')
@@ -39,8 +38,7 @@ class venta(models.Model):
 
     company_id = fields.Many2one('res.company', string='Compañía', required=True,
                                  default=lambda self: self.env.company, index=True)
-
-    
+    saldo = fields.Float(string="Saldo", readonly=True, store=True)
 
     # Empresa con default por ID
     empresa_id = fields.Many2one(
@@ -124,6 +122,12 @@ class venta(models.Model):
             self.contrato._calc_saldoporventas()
         return res
     
+    @api.depends('state')
+    def _compute_saldo(self):
+        for record in self:
+            if record.state == 'confirmed':
+                record.saldo = record.importe
+
     @api.onchange('metododepago')
     def _chgmpago(self):
         for record in self:
