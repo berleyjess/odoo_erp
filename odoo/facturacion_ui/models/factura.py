@@ -4,6 +4,7 @@ from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 import logging
 _logger = logging.getLogger(__name__)
+import base64
 
 class FacturaUI(models.Model):
     _name = 'facturas.factura'
@@ -30,7 +31,13 @@ class FacturaUI(models.Model):
 
     cliente_id = fields.Many2one('clientes.cliente', string='Cliente', index=True, ondelete='set null')
     tipo         = fields.Selection([('I','Ingresos'),('E','Egresos'),('P','Pago')], default='I', required=True)
-    uso_cfdi     = fields.Selection(selection=[('G03','G03'),('S01','S01')], default='G03', string='Uso CFDI')
+    uso_cfdi = fields.Selection(
+        [('G03','G03'),('S01','S01')],
+        string='Uso CFDI',
+        required=True,
+        default=False
+    )
+
     metodo       = fields.Selection([('PUE','PUE (Contado)'),('PPD','PPD (Crédito)')], default='PPD', string='Método')
     forma        = fields.Selection(selection=lambda s: s._forma_pago_selection(), string='Forma de pago')
     moneda       = fields.Char(default='MXN')
@@ -409,6 +416,144 @@ class FacturaUI(models.Model):
         """Placeholder ultra simple: cambia tipo a 'E' (egreso)."""
         self.write({'tipo': 'E'})
         return True
+    
+    # ===== Botones para descargar/recuperar XML =====
+    # Busca el attachment XML del CFDI (prioriza account.move, luego pagos, luego factura_ui, luego mx.cfdi.document)
+    def _find_cfdi_xml_attachment(self):
+        """Regresa attachment XML si existe (prioriza account.move → pagos → facturas.factura → mx.cfdi.document)."""
+        self.ensure_one()
+        Att = self.env['ir.attachment']
+
+        # 1) Anexos del MOVE (preferido)
+        if self.move_id:
+            att = Att.search([
+                ('res_model', '=', 'account.move'),
+                ('res_id', '=', self.move_id.id),
+                ('mimetype', '=', 'application/xml'),
+            ], limit=1, order='id desc')
+            if att:
+                return att
+
+        # 2) Complementos de pago (pagos reconciliados con la factura)
+        if self.move_id:
+            Pay = self.env['account.payment']
+            payments = Pay.search([('reconciled_invoice_ids', 'in', self.move_id.id),
+                                   ('state', '=', 'posted')], limit=10)
+            if payments:
+                att = Att.search([
+                    ('res_model', '=', 'account.move'),
+                    ('res_id', 'in', payments.mapped('move_id').ids),
+                    ('mimetype', '=', 'application/xml'),
+                ], limit=1, order='id desc')
+                if att:
+                    return att
+
+        # 3) Fallback: adjunto en la propia FacturaUI
+        att = Att.search([
+            ('res_model', '=', self._name),
+            ('res_id', '=', self.id),
+            ('mimetype', '=', 'application/xml'),
+        ], limit=1, order='id desc')
+        if att:
+            return att
+
+        # 4) Fallback: documento del engine (si existe tu modelo mx.cfdi.document)
+        Doc = self.env['mx.cfdi.document'] if 'mx.cfdi.document' in self.env else False
+        if Doc and self.uuid:
+            doc_ids = Doc.search([
+                ('origin_model', '=', 'account.move' if self.move_id else self._name),
+                ('origin_id', '=', self.move_id.id if self.move_id else self.id),
+                ('uuid', '=', self.uuid),
+            ]).ids
+            if doc_ids:
+                att = Att.search([
+                    ('res_model', '=', 'mx.cfdi.document'),
+                    ('res_id', 'in', doc_ids),
+                    ('mimetype', '=', 'application/xml'),
+                ], limit=1, order='id desc')
+                if att:
+                    return att
+
+        return self.env['ir.attachment']  # vacío
+
+
+    def action_download_xml(self):
+        """Forzar descarga del XML CFDI (igual que ventas.action_download_cfdi)."""
+        self.ensure_one()
+        if not self.uuid:
+            raise ValidationError(_("Aún no hay UUID. Timbra o recupera el XML primero."))
+
+        att = self._find_cfdi_xml_attachment()
+        if not att:
+            raise ValidationError(_("No hay XML adjunto para esta factura."))
+
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{att.id}?download=true',
+            'target': 'self',
+        }
+
+
+    def action_fetch_xml_from_sw(self):
+        """Descarga el XML desde SW (PAC) y lo adjunta al move y a la FacturaUI; luego fuerza descarga."""
+        self.ensure_one()
+        if not self.uuid:
+            raise ValidationError(_('No hay UUID para recuperar.'))
+
+        # Usa exactamente el mismo proveedor que en ventas
+        provider = self.env['mx.cfdi.engine']._get_provider()
+        data = provider.download_xml_by_uuid(self.uuid, tries=10, delay=1.0)
+        if not data or not data.get('xml'):
+            raise UserError(_('SW no devolvió XML para el UUID %s.') % self.uuid)
+
+        Att = self.env['ir.attachment']
+
+        # A) Adjuntar al MOVE si existe
+        if self.move_id:
+            Att.sudo().create({
+                'name': f"{self.uuid}.xml",
+                'res_model': 'account.move',
+                'res_id': self.move_id.id,
+                'type': 'binary',
+                'datas': base64.b64encode(data['xml']).decode('ascii'),
+                'mimetype': 'application/xml',
+                'description': _('CFDI timbrado %s (descargado de SW)') % self.uuid,
+            })
+
+        # B) Copia en FacturaUI
+        Att.sudo().create({
+            'name': f"{self.uuid}-factura_ui.xml",
+            'res_model': self._name,
+            'res_id': self.id,
+            'type': 'binary',
+            'datas': base64.b64encode(data['xml']).decode('ascii'),
+            'mimetype': 'application/xml',
+            'description': _('CFDI timbrado %s (copia UI)') % self.uuid,
+        })
+
+        # C) Acuse, si viene
+        if data.get('acuse'):
+            Att.sudo().create({
+                'name': f"acuse-{self.uuid}.xml",
+                'res_model': self._name,
+                'res_id': self.id,
+                'type': 'binary',
+                'datas': base64.b64encode(data['acuse']).decode('ascii'),
+                'mimetype': 'application/xml',
+                'description': _('Acuse CFDI %s (SW DW)') % self.uuid,
+            })
+
+        # D) Forzar descarga inmediata del XML recién guardado (prioriza MOVE si existe)
+        att = self._find_cfdi_xml_attachment()
+        if att:
+            return {
+                'type': 'ir.actions.act_url',
+                'url': f'/web/content/{att.id}?download=true',
+                'target': 'self',
+            }
+        return self.action_open_attachments()
+
+
 
 
 # models/factura.py (continúa)
