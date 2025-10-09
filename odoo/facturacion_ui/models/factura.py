@@ -2,30 +2,32 @@
 # objeto interfaz + líneas + enlaces a origen
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
+import logging
+_logger = logging.getLogger(__name__)
 
 class FacturaUI(models.Model):
     _name = 'facturas.factura'
     _description = 'Interfaz de Facturación'
     _inherit = ['mail.thread']
     _order = 'id desc'
-
+    _logger = _logger
     # Encabezado
     empresa_id   = fields.Many2one(
         'empresas.empresa', string='Empresa', required=True, index=True,
         default=lambda s: s.env.user.empresa_actual_id.id
     )
-
+    
     sucursal_id = fields.Many2one(
         'sucursales.sucursal', string='Sucursal', required=True,
         default=lambda s: s.env.user.sucursal_actual_id.id
     )
     # compañía Odoo (de empresa, si existe; si no, de usuario)
-    company_id   = fields.Many2one(
-        'res.company', string='Compañía Odoo', required=True, index=True,
-        default=lambda s: (s.env.user.empresa_actual_id.company_id.id
-                           if s.env.user.empresa_actual_id and s.env.user.empresa_actual_id.company_id
-                           else s.env.company.id)
+    company_id = fields.Many2one(
+        'res.company', string='Compañía Odoo',
+        related='empresa_id.res_company_id', store=True, readonly=True, index=True
     )
+
+
     cliente_id = fields.Many2one('clientes.cliente', string='Cliente', index=True, ondelete='set null')
     tipo         = fields.Selection([('I','Ingresos'),('E','Egresos'),('P','Pago')], default='I', required=True)
     uso_cfdi     = fields.Selection(selection=[('G03','G03'),('S01','S01')], default='G03', string='Uso CFDI')
@@ -51,6 +53,32 @@ class FacturaUI(models.Model):
     move_id      = fields.Many2one('account.move', string='Factura contable', copy=False)
     attachment_count = fields.Integer(compute='_compute_attachment_count')
 
+    # ========= Construcción de la factura contable + timbrado =========
+#Valida consistencia (_check_consistency), construye el account.move en la compañía fiscal de la empresa (_build_account_move) y luego llama a _stamp_move_with_engine.    
+    def action_build_and_stamp(self):
+        for r in self:
+            self._logger.info("CFDI FLOW | START | fact_id=%s tipo=%s empresa_id=%s company_id=%s cliente_id=%s",
+                         r.id, r.tipo, r.empresa_id.id, r.company_id.id, r.cliente_id.id if r.cliente_id else None)
+            try:
+                if not r.cliente_id and not r.line_ids:
+                    raise ValidationError(_("Selecciona un cliente en el encabezado o agrega al menos una línea con cliente."))
+                r._check_consistency()
+                move = r._build_account_move()
+                self._logger.info("CFDI FLOW | MOVE | id=%s company_id=%s partner_id=%s lines=%s",
+                             move.id, move.company_id.id, move.partner_id.id, len(move.invoice_line_ids))
+                stamped = r._stamp_move_with_engine(move)
+                self._logger.info("CFDI FLOW | STAMPED | uuid=%s", stamped.get('uuid'))
+                r.write({'state':'stamped', 'uuid': stamped.get('uuid'), 'move_id': move.id})
+                r.line_ids._touch_invoice_links(move)
+            except Exception as e:
+                self._logger.exception("CFDI FLOW | ERROR | fact_id=%s", r.id)  # stacktrace completo
+                # deja rastro en el chatter
+                try:
+                    r.message_post(body="CFDI ERROR:<br/>%s" % (str(e) or repr(e)), subtype_xmlid="mail.mt_note")
+                except Exception:
+                    pass
+                raise
+
     @api.model
     def _forma_pago_selection(self):
         # catálogo mínimo; si tienes modelo de catálogo, puedes poblarlo
@@ -59,11 +87,10 @@ class FacturaUI(models.Model):
     @api.onchange('empresa_id')
     def _sync_companies(self):
         for r in self:
-            if r.empresa_id and r.empresa_id.company_id:
-                r.company_id = r.empresa_id.company_id.id
-            # coherencia sucursal-empresa
             if r.sucursal_id and r.sucursal_id.empresa != r.empresa_id:
                 r.sucursal_id = False
+
+
 
     def _compute_attachment_count(self):
         Att = self.env['ir.attachment']
@@ -85,7 +112,51 @@ class FacturaUI(models.Model):
                     r.forma = '99'
             else:
                 r.forma = False  # en tipo P no aplica
+    #BOTÓN TIMBRAR: ----------------------------------------
+#Resuelve partner_id a partir de tu clientes.cliente (con _ensure_partner_from_cliente).
+#Crea la factura contable en la compañía fiscal (empresa_id.res_company_id), postea, e intenta mapear campos l10n (uso/metodo/forma).
+    def _build_account_move(self):
+        self.ensure_one()
+        if not (self.empresa_id and self.empresa_id.res_company_id):   # ← fiscal
+            raise ValidationError(_("Configura la 'Compañía fiscal (Odoo)' en la Empresa seleccionada."))
+
+        partner = self._partner_from_context()
+        if not partner:
+            raise ValidationError(_('Falta cliente.'))
+
+        forma = self.forma
+        if self.tipo in ('I','E') and (self.metodo or '').upper() == 'PPD' and not forma:
+            forma = '99'
+
+        inv_company = self.empresa_id.res_company_id                   # ← crear el move en la fiscal
+        lines_cmd = self.with_context(allowed_company_ids=[inv_company.id])\
+                        .line_ids._to_move_line_cmds(inv_company)
+    
+        Move = self.env['account.move']\
+            .with_company(inv_company)\
+            .with_context(allowed_company_ids=[inv_company.id])
+
+        mxn = self.env.ref('base.MXN', raise_if_not_found=False)
+        move = Move.create({
+            'move_type': 'out_invoice' if self.tipo == 'I' else 'out_refund',
+            'partner_id': partner.id,
+            'company_id': inv_company.id,
+            'currency_id': (mxn.id if mxn else inv_company.currency_id.id),
+            'invoice_origin': self.display_name,
+            'invoice_date': fields.Date.context_today(self),
+            'invoice_line_ids': lines_cmd,
+        })
+        move.action_post()
+
+        try:
+            from ..services.mapper import map_mx_edi_fields
+            map_mx_edi_fields(move, uso=self.uso_cfdi, metodo=self.metodo, forma=forma)
+        except Exception:
+            pass
+        return move
+    
     # ========= Validaciones clave =========
+# Valida consistencia (primera accion en action_build_and_stamp)
     def _check_consistency(self):
         self.ensure_one()
         bad = self.line_ids.filtered(lambda l: l.sale_id and l.sale_id.sucursal_id != self.sucursal_id)
@@ -108,19 +179,74 @@ class FacturaUI(models.Model):
         if any(l.source_model == 'transacciones.transaccion' and l.sale_state == 'cancelled' for l in self.line_ids):
             raise ValidationError(_('Hay transacciones de ventas canceladas.'))
 
+#Calcula conceptos desde tus líneas (line_ids._to_cfdi_conceptos()).
+#Prepara extras (p.ej. InformacionGlobal para Público en General).
+#Forza contexto a la compañía emisor fiscal y llama al servicio:
 
-    # ========= Construcción de la factura contable + timbrado =========
-    def action_build_and_stamp(self):
-        for r in self:
-            # Validación previa súper clara
-            if not r.cliente_id and not r.line_ids:
-                raise ValidationError(_("Selecciona un cliente en el encabezado o agrega al menos una línea con cliente."))
-            r._check_consistency()
-            move = r._build_account_move()
-            stamped = r._stamp_move_with_engine(move)
-            r.write({'state':'stamped', 'uuid': stamped.get('uuid'), 'move_id': move.id})
-            r.line_ids._touch_invoice_links(move)
+    def _stamp_move_with_engine(self, move):
+        """Timbrar obligando el contexto de compañía del emisor fiscal (empresas.empresa)."""
+        self.ensure_one()
 
+        invoice_company = move.company_id
+        emisor_company  = self._emisor_company(move)   # ← ahora en este modelo
+
+        # Conceptos CFDI
+        conceptos = self.line_ids._to_cfdi_conceptos()
+
+        # Extras: Información Global para PÚBLICO EN GENERAL
+        rec = move.partner_id
+        extras = {}
+        if (self.tipo in ('I', 'E')
+            and (rec.vat or '').strip().upper() == 'XAXX010101000'
+            and (rec.name or '').strip().upper() == 'PUBLICO EN GENERAL'):
+            dt = fields.Datetime.context_timestamp(self, self.fecha or fields.Datetime.now())
+            extras['informacion_global'] = {
+                'periodicidad': '05',
+                'meses': f"{dt.month:02d}",
+                'anio': str(dt.year),
+            }
+        self._logger.info(
+            "CFDI FLOW | EMISOR | empresa=%s company=%s partner=%s zip='%s'",
+            self.empresa_id.display_name, emisor_company.display_name,
+            emisor_company.partner_id.display_name, (emisor_company.partner_id.zip or '')
+        )
+
+        # Validar ZIP de emisor (Lugar de expedición)
+        zip_code = (emisor_company.partner_id.zip or '').strip()
+        if not (zip_code.isdigit() and len(zip_code) == 5):
+            raise ValidationError(_("Configura el C.P. (5 dígitos) en la compañía fiscal '%s'.") % emisor_company.display_name)
+        # 🔒 (opcional) serializar timbrados por emisor y acotar espera por locks en adjuntos
+        try:
+            self.env.cr.execute("SELECT pg_advisory_xact_lock(%s)", [emisor_company.id])
+        except Exception:
+            pass
+        self.env.cr.execute("SET LOCAL lock_timeout TO '30s'")
+
+         # Logs de diagnóstico útiles
+        self._logger.info(
+            "CFDI FLOW | ENGINE CONTEXT | company_invoice=%s company_fiscal=%s partner_fiscal=%s zip=%s",
+            invoice_company.id, emisor_company.id, emisor_company.partner_id.id, zip_code
+        )
+
+        # Timbrar en el contexto de la compañía EMISOR (no la logueada)
+        engine = (self.env['mx.cfdi.engine']
+                .with_company(emisor_company)
+                .with_context(allowed_company_ids=[emisor_company.id, invoice_company.id]))
+
+
+        return engine.generate_and_stamp(
+            origin_model='account.move',
+            origin_id=move.id,
+            tipo=self.tipo,
+            receptor_id=rec.id,
+            uso_cfdi=self.uso_cfdi,
+            metodo=(self.metodo if self.tipo in ('I','E') else None),
+            forma=(self.forma if self.tipo in ('I','E') else None),
+            conceptos=conceptos,
+            serie=(self.serie or None),
+            folio=(self.folio or None),
+            extras=(extras or None),
+        )
 
     # ========= Helpers =========
     def _ensure_partner_from_cliente(self, cli):
@@ -131,11 +257,16 @@ class FacturaUI(models.Model):
         if not cli:
             return Partner.browse(False)
 
-        vat = (getattr(cli, 'rfc', False) or getattr(cli, 'vat', False) or '').strip().upper()
+        person = getattr(cli, 'persona_id', False)  # fuente de verdad si los related no están store
+        vat = ((getattr(person, 'rfc', False) or '')
+               or (getattr(cli, 'rfc', False) or '')
+               or (getattr(cli, 'vat', False) or '')).strip().upper()
         is_pg = (vat == 'XAXX010101000')
 
         # Nombre legal (para CFDI 4.0)
-        legal = (getattr(cli, 'nombre', False) or cli.display_name or 'CLIENTE').strip().upper()
+        legal = ((getattr(person, 'name', False) or '')
+                 or (getattr(cli, 'nombre', False) or '')
+                 or cli.display_name or 'CLIENTE').strip().upper()
         if is_pg:
             legal = 'PUBLICO EN GENERAL'
 
@@ -145,7 +276,9 @@ class FacturaUI(models.Model):
             partner = Partner.search([('name', '=', legal)], limit=1)
 
         # Datos de dirección/regímen
-        zip_code = (getattr(cli, 'codigop', False) or getattr(cli, 'zip', False) or '').strip()
+        zip_code = ((getattr(person, 'codigop', False) or '')
+                    or (getattr(cli, 'codigop', False) or '')
+                    or (getattr(cli, 'zip', False) or '')).strip()
         regimen_code = None
         reg = getattr(cli, 'regimen', False)
         if reg and getattr(reg, 'code', False):
@@ -158,7 +291,9 @@ class FacturaUI(models.Model):
             zip_code = '99999'
             regimen_code = '616'  # Sin obligaciones fiscales
 
-        if not partner:
+        updates = {}
+        created = False
+        if not partner or not partner.exists():
             vals = {
                 'name': legal,
             }
@@ -173,29 +308,66 @@ class FacturaUI(models.Model):
                 vals['l10n_mx_edi_legal_name'] = legal
             if regimen_code and 'l10n_mx_edi_fiscal_regime' in Partner._fields:
                 vals['l10n_mx_edi_fiscal_regime'] = regimen_code
+            elif regimen_code and 'cfdi_regimen_fiscal' in Partner._fields:   
+                vals['cfdi_regimen_fiscal'] = regimen_code                    
+
             partner = Partner.create(vals)
+            created = True
         else:
             updates = {}
             if vat and not partner.vat:
                 updates['vat'] = vat
-            if 'l10n_mx_edi_legal_name' in Partner._fields and not getattr(partner, 'l10n_mx_edi_legal_name', False):
-                updates['l10n_mx_edi_legal_name'] = legal
+
+            # === Nombre legal ===
+            if 'l10n_mx_edi_legal_name' in Partner._fields:
+                if (partner.l10n_mx_edi_legal_name or '').strip().upper() != legal:
+                    updates['l10n_mx_edi_legal_name'] = legal
+            else:
+                # Si no existe el campo de localización, asegura que name coincida
+                if (partner.name or '').strip().upper() != legal:
+                    updates['name'] = legal
+
             if is_pg:
                 if partner.name != 'PUBLICO EN GENERAL':
                     updates['name'] = 'PUBLICO EN GENERAL'
                 if partner.zip != '99999':
                     updates['zip'] = '99999'
-                if 'l10n_mx_edi_fiscal_regime' in Partner._fields and getattr(partner, 'l10n_mx_edi_fiscal_regime', None) != '616':
-                    updates['l10n_mx_edi_fiscal_regime'] = '616'
+                if 'l10n_mx_edi_fiscal_regime' in Partner._fields:
+                    if getattr(partner, 'l10n_mx_edi_fiscal_regime', None) != '616':
+                        updates['l10n_mx_edi_fiscal_regime'] = '616'
+                elif 'cfdi_regimen_fiscal' in Partner._fields:
+                    if getattr(partner, 'cfdi_regimen_fiscal', None) != '616':
+                        updates['cfdi_regimen_fiscal'] = '616'
             else:
                 if zip_code and not partner.zip:
                     updates['zip'] = zip_code
-                if regimen_code and 'l10n_mx_edi_fiscal_regime' in Partner._fields and not getattr(partner, 'l10n_mx_edi_fiscal_regime', False):
-                    updates['l10n_mx_edi_fiscal_regime'] = regimen_code
+
+                # === Régimen fiscal: acepta cualquiera de los dos campos ===
+                if regimen_code:
+                    if 'l10n_mx_edi_fiscal_regime' in Partner._fields:
+                        if getattr(partner, 'l10n_mx_edi_fiscal_regime', None) != regimen_code:
+                            updates['l10n_mx_edi_fiscal_regime'] = regimen_code
+                    elif 'cfdi_regimen_fiscal' in Partner._fields:
+                        if getattr(partner, 'cfdi_regimen_fiscal', None) != regimen_code:
+                            updates['cfdi_regimen_fiscal'] = regimen_code
+
             if updates:
                 partner.write(updates)
 
+        self._logger.info("CFDI FLOW | PARTNER FROM CLIENTE | cliente_id=%s rfc=%s legal=%s zip=%s regimen=%s -> partner_id=%s (created=%s)",
+                     cli.id, vat, legal, zip_code, regimen_code, partner.id if partner else None, created)
+        if updates:
+            self._logger.info("CFDI FLOW | PARTNER UPDATE | partner_id=%s updates=%s", partner.id, updates)
+
         return partner
+    
+    # En FacturaUI._emisor_company
+    def _emisor_company(self, move):
+        self.ensure_one()
+        emisor = self.empresa_id.res_company_id              # ← fiscal
+        if not emisor:
+            raise ValidationError(_("Configura la 'Compañía fiscal (Odoo)' en la Empresa seleccionada."))
+        return emisor
 
 
 
@@ -207,81 +379,6 @@ class FacturaUI(models.Model):
             if l.cliente_id:
                 return self._ensure_partner_from_cliente(l.cliente_id)
         return False
-
-    def _build_account_move(self):
-        """Crea account.move (out_invoice / out_refund). NO timbra todavía."""
-        self.ensure_one()
-        partner = self._partner_from_context()
-        if not partner:
-            raise ValidationError(_('Falta cliente.'))
-
-        # Para PPD y tipo I/E: forma = 99 si no viene
-        forma = self.forma
-        if self.tipo in ('I','E') and (self.metodo or '').upper() == 'PPD' and not forma:
-            forma = '99'
-
-        # Mapea líneas UI -> comandos de invoice_line_ids
-        lines_cmd = self.with_context(allowed_company_ids=[self.company_id.id])\
-                    .line_ids._to_move_line_cmds(self.company_id)
-
-        move_type = 'out_invoice' if self.tipo == 'I' else 'out_refund'
-        Move = self.env['account.move'].with_company(self.company_id)
-        mxn = self.env.ref('base.MXN', raise_if_not_found=False)
-        move = Move.create({
-            'move_type': move_type,
-            'partner_id': partner.id,
-            'company_id': self.company_id.id,
-            'currency_id': (mxn.id if mxn else self.company_id.currency_id.id),
-            'invoice_origin': self.display_name,
-            'invoice_date': fields.Date.context_today(self),
-            'invoice_line_ids': lines_cmd,
-        })
-        move.action_post()
-
-        # Mapea campos EDI básicos si existen (reutiliza tu bridge si quieres)
-        try:
-            from ..services.mapper import map_mx_edi_fields
-            map_mx_edi_fields(move, uso=self.uso_cfdi, metodo=self.metodo, forma=forma)
-        except Exception:
-            pass
-        return move
-
-    def _stamp_move_with_engine(self, move):
-        company_invoice = move.company_id
-        company_fiscal  = self.empresa_id.res_company_id or company_invoice
-        engine = self.env['mx.cfdi.engine']\
-                    .with_context(allowed_company_ids=[company_invoice.id, company_fiscal.id])\
-                    .with_company(company_fiscal)
-
-        conceptos = self.line_ids._to_cfdi_conceptos()
-
-        # === Información Global para Público en General (CFDI 4.0) ===
-        extras = {}
-        rec = move.partner_id
-        if (self.tipo in ('I', 'E')
-            and (rec.vat or '').upper() == 'XAXX010101000'
-            and (rec.name or '').strip().upper() == 'PUBLICO EN GENERAL'):
-            # Periodicidad: '05' Mensual (ajústala si necesitas diaria/semanal)
-            dt = fields.Datetime.context_timestamp(self, self.fecha or fields.Datetime.now())
-            extras['informacion_global'] = {
-                'periodicidad': '05',             # 01:Diaria, 02:Semanal, 03:Decenal, 04:Quincenal, 05:Mensual, 06:Bimestral
-                'meses': f"{dt.month:02d}",       # c_Meses (01..12)
-                'anio': str(dt.year),             # AAAA
-            }
-
-        return engine.generate_and_stamp(
-            origin_model='account.move',
-            origin_id=move.id,
-            tipo=self.tipo,
-            receptor_id=move.partner_id.id,
-            uso_cfdi=self.uso_cfdi,
-            metodo=(self.metodo if self.tipo in ('I','E') else None),
-            forma=(self.forma if self.tipo in ('I','E') else None),
-            conceptos=conceptos,
-            serie=self.serie, folio=self.folio,
-            extras=extras or None,               # ⬅️ aquí pasamos la info global cuando aplique
-        )
-
 
     # Botón futuro (Complemento de pago)
     def action_build_payment_cfdi(self):
@@ -313,11 +410,12 @@ class FacturaUI(models.Model):
         self.write({'tipo': 'E'})
         return True
 
+
 # models/factura.py (continúa)
 class FacturaUILine(models.Model):
     _name = 'facturas.factura.line'
     _description = 'Concepto a facturar (UI)'
-
+    _logger = _logger
     _sql_constraints = [
         ('uniq_tx_per_fact', 'unique(factura_id, transaccion_id)',
          'La misma transacción no puede agregarse dos veces a la misma factura.')
@@ -377,9 +475,9 @@ class FacturaUILine(models.Model):
                 ('active', '=', True),
             ]
             if 'company_id' in Tax._fields:
-                dom.append(('company_id', '=', company.id))  # ⬅️ evita “de otra empresa”
+                dom.append(('company_id', '=', company.id))  # evita “de otra empresa”
             return Tax.search(dom, limit=1)
-
+    
         for l in self:
             taxes = []
             if l.iva_ratio:
@@ -390,58 +488,120 @@ class FacturaUILine(models.Model):
                 t = _find_tax(l.ieps_ratio * 100.0)
                 if t:
                     taxes.append(t.id)
-
+    
+            # ---- Resolver product.product de forma segura (evita _unknown) ----
+            product_ref = False
+            prod = l.producto_id
+            Product = self.env['product.product']
+            self._logger.debug("CFDI FLOW | LINE MAP | line_id=%s qty=%s price=%s iva=%.4f ieps=%.4f taxes=%s product_ref=%s",
+                  l.id, l.cantidad, l.precio, l.iva_ratio, l.ieps_ratio, taxes, (product_ref and product_ref.id))
+            if prod:
+                # 1) Si tu modelo tiene helper explícito
+                ensure = getattr(prod, 'ensure_product_product', None)
+                if callable(ensure):
+                    try:
+                        pp = ensure()
+                        if pp and pp._name == 'product.product':
+                            product_ref = pp
+                    except Exception:
+                        pass
+                    
+                # 2) Si hay campo M2O product_id, leerlo con read() para evitar _unknown
+                if not product_ref and 'product_id' in getattr(prod, '_fields', {}):
+                    try:
+                        val = prod.sudo().read(['product_id'])[0].get('product_id')
+                        # val puede ser False, (id, name) o un recordset según la versión
+                        if isinstance(val, (list, tuple)) and val:
+                            product_ref = Product.browse(val[0])
+                        elif getattr(val, 'id', False):
+                            product_ref = val
+                    except Exception:
+                        product_ref = False
+    
+                # 3) Fallback por código interno
+                if not product_ref:
+                    code = getattr(prod, 'codigo', False) or getattr(prod, 'default_code', False)
+                    if code:
+                        product_ref = Product.search([('default_code', '=', str(code))], limit=1)
+    
+                # 4) Fallback por nombre
+                if not product_ref:
+                    pname = getattr(prod, 'name', False)
+                    if pname:
+                        product_ref = Product.search([('name', '=', pname)], limit=1)
+    
             vals = {
-                'name': l.descripcion or (l.producto_id.display_name or 'Producto'),
-                'product_id': (getattr(l.producto_id, 'product_id', False) and l.producto_id.product_id.id) or False,
-                'quantity': l.cantidad,
-                'price_unit': l.precio,
+                'name': l.descripcion or (getattr(prod, 'display_name', False) or 'Producto'),
+                'quantity': l.cantidad or 0.0,
+                'price_unit': l.precio or 0.0,
                 'tax_ids': [(6, 0, taxes)] if taxes else False,
             }
+            if product_ref and product_ref.exists():
+                vals['product_id'] = product_ref.id
+    
             cmds.append((0, 0, vals))
+    
         return cmds
+
 
     def _to_cfdi_conceptos(self):
         conceptos = []
         for l in self:
+            iva_factor = None
+            # ejemplo: si iva_ratio == 0 puedes decidir basado en producto o UI
+            if l.iva_ratio == 0.0:
+                # setea 'Exento' o 'Tasa' según tu regla/UI
+                iva_factor = getattr(l.producto_id, 'iva_factor', None)  # o desde la línea
+
             conceptos.append({
-                'clave_sat': getattr(l.producto_id, 'sat_clave_prod_serv', None) or '01010101',
-                'clave_unidad': getattr(l.producto_id, 'sat_clave_unidad', None) or 'H87',
+                'clave_sat': getattr(l.producto_id, 'sat_clave_prod_serv', None) or '',
+                'clave_unidad': getattr(l.producto_id, 'sat_clave_unidad', None) or '',
                 'no_identificacion': getattr(l.producto_id, 'default_code', None) or str(l.producto_id.id),
                 'descripcion': l.descripcion or (l.producto_id.display_name or 'Producto'),
                 'cantidad': l.cantidad or 1.0,
                 'valor_unitario': l.precio or 0.0,
-                'importe': round((l.cantidad or 0.0)*(l.precio or 0.0), 2),  # sin impuestos
-                'objeto_imp': '02' if (l.iva_ratio or l.ieps_ratio) else '01',
+                'importe': round((l.cantidad or 0.0)*(l.precio or 0.0), 2),
+                'objeto_imp': '02' if (l.iva_ratio or l.ieps_ratio or iva_factor) else '01',
                 'iva': float(l.iva_ratio or 0.0),
                 'ieps': float(l.ieps_ratio or 0.0),
+                'iva_factor': iva_factor,   # 'Tasa' o 'Exento' si lo conoces
             })
         return conceptos
+
 
     def _touch_invoice_links(self, move):
         """Después de timbrar, registra enlace y vuelve a validar disponible (doble guarda)."""
         EPS = 1e-6
         Link = self.env['ventas.transaccion.invoice.link']
+        
         for l in self.filtered(lambda x: x.transaccion_id):
-            tx = l.transaccion_id.sudo().with_for_update()  # “candado” de fila para concurrencia
+            # En Odoo 18, usa SQL directo para el bloqueo si es necesario
+            # O simplemente usa sudo() sin with_for_update()
+            tx = l.transaccion_id.sudo()
+            
+            # Opción 1: Sin bloqueo explícito (más simple)
             qty = l.qty_to_invoice or l.cantidad or 0.0
-
+            
             # Relee lo ya facturado (links abiertos)
             already = sum(tx.link_ids.filtered(lambda k: k.state != 'canceled').mapped('qty')) or 0.0
             total = tx.cantidad or 0.0
+            
             if already + qty - EPS > total:
                 raise ValidationError(_(
                     "Concurrencia: la transacción %s quedó sin disponible al timbrar. "
                     "Disponible: %.4f, intentando facturar: %.4f"
                 ) % (tx.display_name, max(total - already, 0.0), qty))
-
+            
             Link.create({
                 'transaccion_id': tx.id,
                 'move_id': move.id,
                 'qty': qty,
                 'state': 'open',
             })
-            tx._recompute_invoice_status()
+            
+            # Verifica si el modelo tiene este método
+            if hasattr(tx, '_recompute_invoice_status'):
+                tx._recompute_invoice_status()
 
     @api.constrains('transaccion_id', 'cantidad', 'qty_to_invoice')
     def _check_not_exceed_available(self):
@@ -458,4 +618,5 @@ class FacturaUILine(models.Model):
                 raise ValidationError(_(
                     "Cantidad a facturar (%.4f) excede lo disponible (%.4f) de la transacción %s."
                 ) % (this, max(total - already, 0.0), tx.display_name))
+    
     

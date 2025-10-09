@@ -6,6 +6,20 @@ from odoo import models, api, _
 from odoo.exceptions import UserError
 import time
 import logging
+import hashlib
+# --- DEBUG helpers (coloca junto a imports) ---
+def _tok_fp(tok: str) -> str:
+    try:
+        t = (tok or '').strip()
+        if not t:
+            return 'none'
+        import hashlib as _hh
+        return f"{t[:6]}…{t[-4:]}|sha1={_hh.sha1(t.encode()).hexdigest()[:8]}"
+    except Exception:
+        return 'na'
+    
+
+_logger = logging.getLogger(__name__)
 
 try:
     import requests
@@ -21,6 +35,8 @@ class CfdiProviderSW(models.AbstractModel):
  #==================== Configuración =====================#
     def _cfg(self):
         ICP = self.env['ir.config_parameter'].sudo()
+        debug_http = (ICP.get_param('mx_cfdi_sw.debug_http', '0') or '').lower() in ('1','true','yes')
+
         c = self.env.company
 
         sandbox  = c.cfdi_sw_sandbox if c.cfdi_sw_sandbox is not None \
@@ -45,6 +61,7 @@ class CfdiProviderSW(models.AbstractModel):
             'cer_b64':      _as_str(c.cfdi_sw_cer_file),
             'key_b64':      _as_str(c.cfdi_sw_key_file),
             'key_password': c.cfdi_sw_key_password or ICP.get_param('mx_cfdi_sw.key_password') or '',
+            'token_fp': _tok_fp(c.cfdi_sw_token or ICP.get_param('mx_cfdi_sw.token') or ''),
         }
     #==================== Métodos de utilidad =====================#
 
@@ -108,6 +125,10 @@ class CfdiProviderSW(models.AbstractModel):
         if not requests:
             raise UserError(_('El módulo requests no está disponible.'))
         cfg = self._cfg()
+        ICP = self.env['ir.config_parameter'].sudo()               # <-- agrega
+        debug_http = (ICP.get_param('mx_cfdi_sw.debug_http','0')   # <-- agrega
+                      or '').lower() in ('1','true','yes')
+
         cer_b64 = cfg.get('cer_b64') or ''
         key_b64 = cfg.get('key_b64') or ''
         pwd     = cfg.get('key_password') or ''
@@ -121,6 +142,10 @@ class CfdiProviderSW(models.AbstractModel):
             "b64Key": key_b64,  # ya está en base64
             "password": pwd,
         }
+        if debug_http:
+            _logger.warning("SW HTTP TRY | url=%s | token=%s", url, cfg.get('token_fp'))
+
+
         r = requests.post(url, headers=self._headers(cfg, json_ct=True),
                           data=json.dumps(payload), timeout=60)
         if r.status_code >= 400:
@@ -167,36 +192,186 @@ class CfdiProviderSW(models.AbstractModel):
 
     @api.model
     def _stamp_xml(self, xml_bytes):
-        """Timbrado por emisión (multipart), según docs SW:
-        POST {base}/cfdi33/issue/v4  con archivo XML."""
         if not requests:
             raise UserError(_('El módulo requests no está disponible.'))
         if isinstance(xml_bytes, str):
             xml_bytes = xml_bytes.encode('utf-8')
 
         cfg = self._cfg()
-        url = cfg['base_url'] + '/cfdi33/issue/v4'  # timbrado XML (multipart)
-        files = {'xml': ('cfdi.xml', xml_bytes, 'application/xml')}
-        resp = requests.post(url, headers=self._headers(cfg), files=files, timeout=60)
-        
-        if resp.status_code >= 400:
-            # muestra el mensaje real de SW para depurar
-            try:
-                err = resp.json()
-                msg = err.get('message') or err.get('Message') or resp.text
-            except Exception:
-                msg = resp.text
-            raise UserError(_('Error timbrando con SW: %s') % msg)
 
-        data = resp.json() if 'json' in resp.headers.get('Content-Type','') else {}
-        uuid = (data.get('data') or {}).get('uuid') or data.get('uuid') or ''
-        b64  = (data.get('data') or {}).get('cfdi') or data.get('cfdi') or data.get('Cfdi')
 
-        if not (uuid and b64):
-            raise UserError(_('SW no devolvió UUID/XML timbrado. Respuesta: %s') % (resp.text[:400],))
+        ICP = self.env['ir.config_parameter'].sudo()
+        debug_http = (ICP.get_param('mx_cfdi_sw.debug_http', '0') or '').lower() in ('1','true','yes')
 
-        xml_timbrado = base64.b64decode(b64)
-        return {'uuid': uuid, 'xml_timbrado': xml_timbrado}
+        resp_kb = int(ICP.get_param('mx_cfdi_sw.log_resp_body_kb', 16) or 16)
+
+        if debug_http:
+            _logger.warning("SW HTTP DEBUG | rfc=%s | token=%s | sandbox=%s",
+                            cfg.get('rfc'), cfg.get('token_fp'), cfg.get('sandbox'))
+            
+
+        is_v40 = (b'Version="4.0"' in xml_bytes) or (b"Version='4.0'" in xml_bytes)
+
+        # Asegura que el CSD esté cargado en SW (necesario para ISSUE)
+        try:
+            if not self._has_cert():
+                self._upload_cert_from_company()
+        except Exception as e:
+            raise UserError(_("No pude verificar/cargar el CSD en SW: %s") % e)
+
+        # Hosts a probar: base + espejo (prod/test) como fallback
+        base = cfg['base_url'].rstrip('/')
+        hosts = [base]
+
+        # dentro de _stamp_xml, donde construyes base_paths:
+        def _pats(ver):
+            paths = [
+                f'/{ver}/issue/v4', f'/{ver}/issue/v3', f'/{ver}/issue/v2', f'/{ver}/issue/v1', f'/{ver}/issue',
+                f'/{ver}/stamp/v4', f'/{ver}/stamp/v3', f'/{ver}/stamp/v2', f'/{ver}/stamp/v1', f'/{ver}/stamp',
+            ]
+            # Agregar rutas cfdi33 para compatibilidad cuando es v4.0
+            if ver == 'cfdi40':
+                paths.extend([
+                    '/cfdi33/issue/v4', '/cfdi33/issue/v3', '/cfdi33/issue/v2', '/cfdi33/issue/v1', '/cfdi33/issue',
+                ])
+            return paths
+
+        # Usa la versión detectada del XML
+        base_paths = _pats('cfdi40') if is_v40 else _pats('cfdi33')
+
+        # Permite sobreescribir/inyectar paths desde parámetros del sistema
+        ICP = self.env['ir.config_parameter'].sudo()
+
+        forced = (ICP.with_company(self.env.company.id).get_param('mx_cfdi_sw.issue_path')
+                  or ICP.get_param('mx_cfdi_sw.issue_path') or '').strip()
+
+        extras = []
+        for key in ('mx_cfdi_sw.issue_paths',):
+            v = (ICP.with_company(self.env.company.id).get_param(key) or ICP.get_param(key) or '').strip()
+            if v:
+                extras += [p.strip() for p in v.split(',') if p.strip()]
+
+        paths = []
+        for p in [forced] + extras + base_paths:
+            if p and p not in paths:
+                paths.append(p)
+
+        # Timeout configurable
+        try:
+            req_timeout = int(ICP.get_param('mx_cfdi_sw.http_timeout', 60))
+        except Exception:
+            req_timeout = 60
+
+        last_err = None
+        if debug_http:
+            _logger.warning("SW HTTP DEBUG | hosts=%s", hosts)
+            _logger.warning("SW HTTP DEBUG | paths=%s", paths[:8] + (['...'] if len(paths) > 8 else []))
+
+        for host in hosts:
+            for p in paths:
+                url = host.rstrip('/') + p
+                try:
+                    # Headers seguros (enmascara token si logueas)
+                    hdrs = self._headers(cfg)
+                    if debug_http:
+                        _logger.warning("SW HTTP TRY | url=%s | token=%s", url, cfg.get('token_fp'))
+
+
+                    resp = requests.post(url, headers=hdrs,
+                                         files={'xml': ('cfdi.xml', xml_bytes, 'application/xml')},
+                                         timeout=req_timeout)
+
+                    ct = (resp.headers.get('Content-Type') or '').lower()
+                    body = resp.text or ''
+                    if debug_http:
+                        _logger.warning("SW HTTP RESP | url=%s | code=%s | ct=%s | body<=%dkB:\n%s",
+                                        url, resp.status_code, ct, resp_kb, body[:resp_kb*1024])
+
+
+                except Exception as e:
+                    last_err = f"{url} -> {e}"
+                    continue
+
+                # Éxito → extrae uuid + xml timbrado
+                if resp.status_code < 400:
+                    data = resp.json() if 'json' in ct or 'application/json' in ct else {}
+                    uuid = (data.get('data') or {}).get('uuid') or data.get('uuid') or ''
+                    b64  = (data.get('data') or {}).get('cfdi') or data.get('cfdi') or data.get('Cfdi')
+                    if uuid and b64:
+                        return {'uuid': uuid, 'xml_timbrado': base64.b64decode(b64)}
+                    last_err = f"{url} -> respuesta sin uuid/cfdi"
+                    continue
+
+                # Normaliza errores de SW (para decidir retry vs fail)
+                detail = body
+                try:
+                    j = resp.json()
+                    msgs = []
+                    if isinstance(j, dict):
+                        if j.get('message') or j.get('Message'):
+                            msgs.append(j.get('message') or j.get('Message'))
+                        if j.get('messageDetail') or j.get('MessageDetail'):
+                            msgs.append(j.get('messageDetail') or j.get('MessageDetail'))
+                        for k in ('data','Data'):
+                            dd = j.get(k) or {}
+                            if isinstance(dd, dict) and (dd.get('messageDetail') or dd.get('MessageDetail')):
+                                msgs.append(dd.get('messageDetail') or dd.get('MessageDetail'))
+                            errs = dd.get('errors') or dd.get('Errors') or dd.get('detalle') or dd.get('Detalle')
+                            if isinstance(errs, list):
+                                msgs += [str(e) for e in errs if e]
+                            elif isinstance(errs, dict):
+                                msgs += [f"{a}: {b}" for a,b in errs.items()]
+                            
+                    if msgs:
+                        detail = ' | '.join(msgs)
+                except Exception:
+                    pass
+
+                low = (detail or '').lower()
+                # 404/405 → prueba siguiente path/host
+                if resp.status_code in (404, 405):
+                    last_err = f"{url} -> {resp.status_code} {detail[:200]}"
+                    continue
+                
+                # 400 → si trae detalle de validación, detén y muestra
+                if resp.status_code == 400:
+                    # errores típicos de validación (atributos faltantes, receptor/emisor, etc.)
+                    if any(word in low for word in ('attribute', 'atributo', 'base', 'receptor', 'emisor', 'regimen', 'uso')):
+                        raise UserError(_('Validación CFDI (400): %s') % detail[:800])
+                    # solo reintenta si es el genérico "no clasificado" sin pistas útiles
+                    if ('cfdi40999' in low) or ('no clasificado' in low):
+                        last_err = f"{url} -> 400 {detail[:200]}"
+                        continue
+
+                # 401 → token
+                if resp.status_code == 401:
+                    j = {}
+                    try:
+                        j = resp.json()
+                    except Exception:
+                        pass
+                    msg = (j.get('message') or j.get('Message') or body or resp.reason or '').strip()
+                    code = (j.get('code') or j.get('Code') or '').lower()
+                    if debug_http:
+                        _logger.warning("SW 401 DIAG | url=%s | token=%s | code=%s | msg=%s",
+                                        url, cfg.get('token_fp'), code, msg[:400])
+                    low = msg.lower()
+                    if 's2000' in low or 'saldo' in low:
+                        raise UserError(_('SW: saldo de timbres agotado para el RFC %(rfc)s.') % {'rfc': cfg.get('rfc')})
+                    # ← mensaje explícito cuando sea token/cuenta/entorno
+                    raise UserError(_('SW 401 (no saldo): token inválido/expirado o de otra cuenta/entorno. '
+                                      'RFC=%(rfc)s, url=%(url)s, detalle=%(det)s')
+                                    % {'rfc': cfg.get('rfc'), 'url': url, 'det': msg[:300]})
+
+
+
+
+                # Otros 4xx/5xx → falla inmediata
+                raise UserError(_('Error timbrando con SW (%s): %s') % (p, detail[:800]))
+
+        raise UserError(_('SW: sin endpoint activo para timbrar (probé: %s). Último error: %s')
+                        % (', '.join(paths), (last_err or 'N/A')))
+
 
 
     def _cancel(self, uuid, rfc=None, cer_pem=None, key_pem=None, password=None,
@@ -204,6 +379,9 @@ class CfdiProviderSW(models.AbstractModel):
         if not requests:
             raise UserError(_('El módulo requests no está disponible.'))
         cfg = self._cfg()
+        ICP = self.env['ir.config_parameter'].sudo()
+        debug_http = (ICP.get_param('mx_cfdi_sw.debug_http', '0') or '').lower() in ('1','true','yes')
+
         rfc = (rfc or cfg.get('rfc') or '').upper()
         url = cfg['base_url'] + '/cfdi33/cancel/csd'
         payload = {
@@ -215,6 +393,10 @@ class CfdiProviderSW(models.AbstractModel):
             'motivo': motivo,
             'folioSustitucion': folio_sustitucion or ''
         }
+        if debug_http:
+            _logger.warning("SW HTTP TRY | url=%s | token=%s", url, cfg.get('token_fp'))
+
+
         r = requests.post(url, headers=self._headers(cfg, json_ct=True),
                           data=json.dumps(payload), timeout=60)
         if r.status_code >= 400:
@@ -246,6 +428,10 @@ class CfdiProviderSW(models.AbstractModel):
             "b64Key": base64.b64encode(key_pem.encode('utf-8')).decode('ascii'),
             "password": pwd,
         }
+        if debug_http:
+            _logger.warning("SW HTTP TRY | url=%s | token=%s", url, cfg.get('token_fp'))
+
+
         r = requests.post(url, headers=self._headers(cfg, json_ct=True), data=json.dumps(payload), timeout=60)
         if r.status_code >= 400:
             try:
@@ -308,6 +494,7 @@ class CfdiProviderSW(models.AbstractModel):
             'base_url': cfg.get('base_url'),
             'rfc': cfg.get('rfc'),
             'token_present': bool(cfg.get('token')),
+            'token_fp': cfg.get('token_fp'),
             'cer_b64_len': len(cfg.get('cer_b64') or ''),
             'key_b64_len': len(cfg.get('key_b64') or ''),
             'has_pwd': bool(cfg.get('key_password')),
@@ -345,3 +532,5 @@ class CfdiProviderSW(models.AbstractModel):
             vto   = c.get('valid_to')   or c.get('not_after')  or c.get('validTo')
             _logger.info("SW CERT[%s]: RFC=%s valid_from=%s valid_to=%s raw=%s", i, rfc, vfrom, vto, c)
         return True
+    
+    

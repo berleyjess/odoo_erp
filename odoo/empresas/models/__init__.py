@@ -1,1 +1,1 @@
-from . import empresa, bodega
+from . import empresa, bodega, res_company_cfdi

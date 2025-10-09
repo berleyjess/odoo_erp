@@ -29,6 +29,7 @@
                         <field name="nombre"/>
                         <field name="telefono"/>
                         <field name="razonsocial"/>
+                        <field name="regimen_fiscal"/>
                         <field name="rfc"/>
                         <field name="cp"/>
                         <field name="calle"/>

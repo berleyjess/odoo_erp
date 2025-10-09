@@ -1,4 +1,5 @@
 <odoo>
+<!-- creditos/views/solcredito_button_print.xml -->
   <data>
     <record id="credito_form_add_print_btn" model="ir.ui.view">
       <field name="name">credito.form.add.print.btn</field>
@@ -11,7 +12,7 @@
                   string="Generar solicitud"
                   type="action"
                   class="oe_highlight"
-                  invisible="not id or is_editing"/>
+                  />
         </xpath>
       </field>
     </record>

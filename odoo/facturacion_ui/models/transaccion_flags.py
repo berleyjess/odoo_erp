@@ -1,10 +1,12 @@
 # models/transaccion_flags.py
+#me sirve para saber que transacciones,ventas,intereses o cargos ya fueron facturadas y cuales no
 
 from odoo import models, fields, api
 
 class TxInvoiceLink(models.Model):
     _name = 'ventas.transaccion.invoice.link'
     _description = 'Ligas transacción ↔ factura (parciales)'
+    _rec_name = 'display_name'
 
     transaccion_id = fields.Many2one('transacciones.transaccion', required=True, index=True, ondelete='cascade')
     move_id        = fields.Many2one('account.move', required=True, index=True, ondelete='cascade')

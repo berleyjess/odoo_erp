@@ -3,10 +3,9 @@
   "name": "Interfaz de Facturación (UI)",
   "version": "1.0",
   "depends": [
-    "base", "account",
-    "ventas",            # tu módulo
-    "cargos", "cargosdetail",
-    "mx_cfdi_core",      # motor CFDI
+    "base","mail","account",
+    "ventas","cargos","cargosdetail",
+    "mx_cfdi_core",
   ],
   "data": [
     "views/wizards_views.xml",      # define acciones de los wizards que usa el form
