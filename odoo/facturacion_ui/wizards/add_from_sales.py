@@ -1,6 +1,7 @@
 # wizards/add_from_sales.py
 from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
+
 
 class WizAddSales(models.TransientModel):
     _name = 'facturas.wiz.add.sales'

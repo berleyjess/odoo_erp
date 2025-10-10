@@ -11,6 +11,14 @@ class venta(models.Model):
     _description = 'Venta de artículos'
     _check_company_auto = True  # buenas prácticas multiempresa
     
+    invoice_status2 = fields.Selection([
+        ('none', 'No facturada'),
+        ('partial', 'Semifacturada'),
+        ('full', 'Facturada'),
+        ('canceled', 'Cancelada'),
+        ('semi_canceled', 'Semi cancelada'),
+    ], compute='_compute_agg_status', store=True, default='none', string="Estado de facturación")
+
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
     contrato = fields.Many2one('creditos.credito', string="Contrato",
                                domain="[('cliente', '=', cliente), ('status','=','active'), ('vencimiento', '>', context_today())]" if cliente else "[('id', '=', 0)]")
@@ -746,3 +754,40 @@ class venta(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+    
+    # ✅ No referenciamos campos “custom” del comodel en depends, para evitar el KeyError en el registro
+    @api.depends('detalle', 'detalle.write_date')
+    def _compute_agg_status(self):
+        EPS = 1e-6
+        for v in self:
+            if not v.detalle:
+                v.invoice_status2 = 'none'
+                continue
+
+            line_states = set()
+            for tx in v.detalle:
+                st = getattr(tx, 'invoice_status', False)
+                if not st:
+                    # Fallback por cantidades si el campo aún no está disponible en registro
+                    total = float(getattr(tx, 'cantidad', 0.0) or 0.0)
+                    inv = float(getattr(tx, 'qty_invoiced', 0.0) or 0.0)
+                    if inv <= EPS:
+                        st = 'none'
+                    elif total > 0.0 and inv + EPS >= total:
+                        st = 'full'
+                    else:
+                        st = 'partial'
+                line_states.add(st)
+
+            if line_states == {'canceled'}:
+                v.invoice_status2 = 'canceled'
+            elif 'canceled' in line_states and (line_states - {'canceled'}):
+                v.invoice_status2 = 'semi_canceled'
+            elif line_states == {'full'}:
+                v.invoice_status2 = 'full'
+            elif ('partial' in line_states) or ('full' in line_states and 'none' in line_states):
+                v.invoice_status2 = 'partial'
+            elif line_states == {'none'}:
+                v.invoice_status2 = 'none'
+            else:
+                v.invoice_status2 = 'partial'
