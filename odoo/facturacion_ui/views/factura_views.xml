@@ -5,13 +5,15 @@
     <field name="model">facturas.factura</field>
     <field name="arch" type="xml">
       <list>
-        <!-- Quita <field name="id"/> si no lo necesitas en UI -->
         <field name="empresa_id"/>
         <field name="sucursal_id"/>
         <field name="cliente_id"/>
         <field name="tipo"/>
         <field name="metodo"/>
         <field name="forma"/>
+        <field name="importe_total"/>
+        <field name="saldo"/>
+        <field name="origin_factura_id" invisible="tipo != 'E'"/>
         <field name="state" widget="badge" decoration-success="state == 'stamped'" decoration-warning="state == 'ready'" decoration-info="state == 'draft'"/>
         <field name="uuid"/>
         <button name="action_download_xml" type="object" icon="fa-download" string="Descargar XML" invisible="not uuid"/>
@@ -39,8 +41,9 @@
                   invisible="not uuid"/>
           <button name="action_build_payment_cfdi" type="object" string="Complemento de pago" 
                   invisible="tipo != 'P'"/>
-          <button name="action_prepare_credit_note" type="object" string="Nota de Crédito" 
-                  invisible="tipo != 'I' or state != 'stamped'"/>
+          <button name="action_prepare_credit_note" type="object" string="Nota de Crédito"
+                  class="btn-secondary"
+                  invisible="not (tipo == 'I' and state == 'stamped')"/>
           <button name="action_close_form" type="object" string="Cerrar" class="btn-secondary"/>
           <field name="state" widget="statusbar" statusbar_visible="draft,ready,stamped,canceled"/>
         </header>
@@ -62,11 +65,8 @@
             <field name="id" readonly="1" invisible="not id"/>
           </h1>
           
-          <!--group-->
-            <!--group colspan="4"-->
-              <!--div class="o_row"-->
                 <button name="%(action_wiz_add_sales)d" type="action" string="Agregar Ventas completas"
-                        invisible="state != 'draft'"
+                        invisible="state != 'draft' or tipo == 'E'"
                         context="{
                           'default_factura_id': id,
                           'empresa_id':  empresa_id,
@@ -76,7 +76,7 @@
                         class="btn-secondary"/>
 
                 <button name="%(action_wiz_add_lines)d" type="action" string="Agregar Transacciones"
-                        invisible="state != 'draft'"
+                        invisible="state != 'draft' or tipo == 'E'"
                         context="{
                           'default_factura_id': id,
                           'empresa_id':  empresa_id,
@@ -86,7 +86,7 @@
                         class="btn-secondary"/>
 
                 <button name="%(action_wiz_add_charges)d" type="action" string="Agregar Cargos"
-                        invisible="state != 'draft'"
+                        invisible="state != 'draft' or tipo == 'E'"
                         context="{
                           'default_factura_id': id,
                           'empresa_id':  empresa_id,
@@ -97,10 +97,7 @@
                 
                 <button name="action_placeholder_interest" type="object" string="Agregar Intereses" 
                         class="btn-secondary"
-                        invisible="state != 'draft'"/>
-              <!--/div-->
-            <!--/group>
-          </group-->
+                        invisible="state != 'draft' or tipo == 'E'"/>
           
           <group>
             <group>
@@ -109,6 +106,9 @@
               <field name="sucursal_id" required="1" readonly="state != 'draft'"/>
               <field name="cliente_id" readonly="state != 'draft'"/>
               <field name="tipo" readonly="state != 'draft'"/>
+              <field name="egreso_tipo" invisible="tipo != 'E'"/>
+              <field name="origin_factura_id" invisible="tipo != 'E'"/>
+              <field name="origin_move_id" invisible="tipo != 'E'" readonly="1"/>
             </group>
             <group>
               <field name="uso_cfdi" invisible="tipo == 'P'" readonly="state != 'draft'"/>
@@ -127,21 +127,24 @@
             <group>
               <field name="uuid" readonly="1"/>
               <field name="move_id" readonly="1"/>
+              <field name="importe_total" readonly="1"/>
+              <field name="saldo" readonly="1"/>
             </group>
           </group>
 
           <notebook>
             <page string="Productos/Servicios">
-              <field name="line_ids" readonly="state != 'draft'">
+              <!-- ===== Ingresos (tipo I): tu comportamiento actual ===== -->
+              <field name="line_ids" readonly="state != 'draft'" invisible="tipo != 'I'">
                 <list editable="bottom" create="state == 'draft'" delete="state == 'draft'">
-                  <field name="line_type" readonly="1"/>
-                  <field name="source_model" invisible="1"/>
-                  <field name="source_id" invisible="1"/>
+                  <field name="line_type" required="1" readonly="source_model"/>
+                  <!-- <field name="source_model" invisible="1"/>
+                  <field name="source_id" invisible="1"/> -->
                   <field name="empresa_id" readonly="1"/>
                   <field name="cliente_id" readonly="1"/>
-                  <field name="sale_id" readonly="1"/>
-                  <field name="transaccion_id" readonly="1"/>
-                  <field name="producto_id" readonly="1"/>
+                  <field name="sale_id" readonly="1" invisible="parent.tipo == 'E'"/>
+                  <field name="transaccion_id" readonly="1" invisible="parent.tipo == 'E'"/>
+                  <field name="producto_id" readonly="source_model"/>
                   <field name="descripcion" readonly="source_model"/>
                   <field name="cantidad" readonly="source_model"/>
                   <field name="precio" readonly="source_model"/>
@@ -151,16 +154,65 @@
                   <field name="iva_amount" readonly="1" sum="IVA"/>
                   <field name="ieps_amount" readonly="1" sum="IEPS"/>
                   <field name="total" readonly="1" sum="Total"/>
-                  <field name="qty_to_invoice" invisible="not transaccion_id"/>
-                  <field name="qty_invoiced" invisible="not transaccion_id" readonly="1"/>
+                  <!-- <field name="qty_to_invoice" invisible="parent.tipo == 'E' or (not transaccion_id)"/>
+                  <field name="qty_invoiced" invisible="parent.tipo == 'E' or (not transaccion_id)" readonly="1"/> -->
                 </list>
               </field>
+
+              <!-- ===== Egresos: Nota de crédito (E/nc) =====
+                   Solo permitimos editar importe/impuestos; cantidad queda bloqueada. -->
+              <field name="line_ids" readonly="state != 'draft'" invisible="not (tipo == 'E' and egreso_tipo == 'nc')">
+                <list editable="bottom" create="state == 'draft'" delete="state == 'draft'">
+                  <field name="line_type" required="1" readonly="1"/>
+                  <field name="empresa_id" readonly="1"/>
+                  <field name="cliente_id" readonly="1"/>
+                  <field name="sale_id" readonly="1" invisible="parent.tipo == 'E'"/>
+                  <field name="transaccion_id" readonly="1" invisible="parent.tipo == 'E'"/>
+                  <field name="producto_id" readonly="1"/>
+                  <field name="descripcion" readonly="1"/>
+                  <!-- cantidad bloqueada en NC -->
+                  <field name="cantidad" readonly="1"/>
+                  <!-- permitir ajustar importes/impuestos si se acredita por valor -->
+                  <field name="precio"/>
+                  <field name="iva_ratio"/>
+                  <field name="ieps_ratio"/>
+                  <field name="subtotal" readonly="1" sum="Total"/>
+                  <field name="iva_amount" readonly="1" sum="IVA"/>
+                  <field name="ieps_amount" readonly="1" sum="IEPS"/>
+                  <field name="total" readonly="1" sum="Total"/>
+                </list>
+              </field>                
+              <!-- ===== Egresos: Devolución (E/dev) =====
+                   Solo permitimos editar cantidad; precio/impuestos/producto/desc bloqueados. -->
+              <field name="line_ids" readonly="state != 'draft'" invisible="not (tipo == 'E' and egreso_tipo == 'dev')">
+                <list editable="bottom" create="state == 'draft'" delete="state == 'draft'">
+                  <field name="line_type" required="1" readonly="1"/>
+                  <field name="empresa_id" readonly="1"/>
+                  <field name="cliente_id" readonly="1"/>
+                  <field name="sale_id" readonly="1" invisible="parent.tipo == 'E'"/>
+                  <field name="transaccion_id" readonly="1" invisible="parent.tipo == 'E'"/>
+                  <field name="producto_id" readonly="1"/>
+                  <field name="descripcion" readonly="1"/>
+                  <!-- cantidad editable para devolución parcial -->
+                  <field name="cantidad"/>
+                  <!-- bloquear valores unitarios e impuestos -->
+                  <field name="precio" readonly="1"/>
+                  <field name="iva_ratio" readonly="1"/>
+                  <field name="ieps_ratio" readonly="1"/>
+                  <field name="subtotal" readonly="1" sum="Total"/>
+                  <field name="iva_amount" readonly="1" sum="IVA"/>
+                  <field name="ieps_amount" readonly="1" sum="IEPS"/>
+                  <field name="total" readonly="1" sum="Total"/>
+                </list>
+              </field>
+
             </page>
+
             
-            <page string="Ventas seleccionadas">
+            <page string="Ventas seleccionadas" invisible="tipo == 'E'">
               <field name="venta_ids" widget="many2many_tags" readonly="state != 'draft'"/>
             </page>
-            
+
             <page string="Adjuntos">
               <group>
                 <button name="action_open_attachments" type="object" string="Ver todos los adjuntos" class="btn-primary"/>
@@ -187,11 +239,6 @@
             </page>
           </notebook>
         </sheet>
-        
-        <!--div class="oe_chatter">
-          <field name="message_follower_ids"/>
-          <field name="message_ids"/>
-        </div-->
       </form>
     </field>
   </record>

@@ -31,8 +31,13 @@ class FacturaUI(models.Model):
 
     cliente_id = fields.Many2one('clientes.cliente', string='Cliente', index=True, ondelete='set null')
     tipo         = fields.Selection([('I','Ingresos'),('E','Egresos'),('P','Pago')], default='I', required=True)
+    egreso_tipo = fields.Selection(
+        [('nc', 'Nota de crédito'), ('dev', 'Devolución')],
+        string='Tipo de egreso',
+        default='nc'
+    )
     uso_cfdi = fields.Selection(
-        [('G03','G03'),('S01','S01')],
+        [('G03','G03'),('S01','S01'),('G02', 'G02')],
         string='Uso CFDI',
         required=True,
         default=False
@@ -155,6 +160,19 @@ class FacturaUI(models.Model):
         })
         move.action_post()
 
+        # Enlazar NC con factura origen + relación SAT 01 (nota de crédito)
+        if self.tipo == 'E' and self.origin_factura_id and self.origin_factura_id.move_id:
+            try:
+                move.write({'reversed_entry_id': self.origin_factura_id.move_id.id})
+            except Exception:
+                pass
+            # Campo de localización MX que establece TipoRelación|UUID
+            try:
+                if 'l10n_mx_edi_origin' in move._fields and (self.origin_factura_id.uuid or '').strip():
+                    move.write({'l10n_mx_edi_origin': '01|%s' % self.origin_factura_id.uuid})
+            except Exception:
+                pass
+
         try:
             from ..services.mapper import map_mx_edi_fields
             map_mx_edi_fields(move, uso=self.uso_cfdi, metodo=self.metodo, forma=forma)
@@ -162,11 +180,61 @@ class FacturaUI(models.Model):
             pass
         return move
     
+    @api.onchange('tipo')
+    def _onchange_tipo_force_pue(self):
+        """Si es Egreso, siempre PUE (contado)."""
+        for r in self:
+            if r.tipo == 'E':
+                r.metodo = 'PUE'   # solo método; no toco forma
+
+    @api.onchange('origin_factura_id', 'egreso_tipo')
+    def _onchange_origin_prefill_lines(self):
+        """
+        Al seleccionar factura origen en un Egreso:
+        - Setear cliente.
+        - Cargar **todos** los conceptos de la factura origen.
+        - Dejar las líneas sin source_model para que puedas quitar líneas o ajustar cantidades (devolución parcial).
+        """
+        for r in self:
+            if r.tipo != 'E' or not r.origin_factura_id:
+                continue
+            if r.state != 'draft':
+                continue
+
+            # Forzar método contado en egreso
+            r.metodo = 'PUE'
+            if not r.uso_cfdi:
+                r.uso_cfdi = 'G02'
+            # Tomar cliente de la factura origen si procede
+            if r.origin_factura_id.cliente_id:
+                r.cliente_id = r.origin_factura_id.cliente_id.id
+
+            # Vaciar y prellenar líneas desde la factura origen (UI)
+            new_lines = [(5, 0, 0)]
+            for ol in r.origin_factura_id.line_ids:
+                new_lines.append((0, 0, {
+                    'empresa_id':   r.empresa_id.id,
+                    'cliente_id':   r.origin_factura_id.cliente_id.id if r.origin_factura_id.cliente_id else False,
+                    'line_type':    ol.line_type or 'sale',
+                    'producto_id':  ol.producto_id.id,
+                    'descripcion':  ol.descripcion,
+                    'cantidad':     ol.cantidad,   # podrás ajustar para devolución parcial
+                    'precio':       ol.precio,
+                    'iva_ratio':    ol.iva_ratio,
+                    'ieps_ratio':   ol.ieps_ratio,
+                    # sin sale_id / transaccion_id / source_model para permitir edición
+                }))
+            r.line_ids = new_lines
+
+    
     # ========= Validaciones clave =========
 # Valida consistencia (primera accion en action_build_and_stamp)
     def _check_consistency(self):
         self.ensure_one()
         bad = self.line_ids.filtered(lambda l: l.sale_id and l.sale_id.sucursal_id != self.sucursal_id)
+        super(FacturaUI, self)._check_consistency() if hasattr(super(), '_check_consistency') else None
+        self.ensure_one()
+
         if not self.line_ids:
             raise ValidationError(_('Agrega al menos un concepto a la factura.'))
         if bad:
@@ -177,6 +245,23 @@ class FacturaUI(models.Model):
             raise ValidationError(_('Todas las líneas deben pertenecer a la misma empresa.'))
         if self.empresa_id and not emp_ids:
             self.line_ids.write({'empresa_id': self.empresa_id.id})
+
+        #super_exists = hasattr(super(), '_check_consistency')
+        #if super_exists:
+        #    super(FacturaUI, self)._check_consistency()
+        #self.ensure_one()
+
+        # Asegurar PUE en egresos (sin romper flujo)
+        if self.tipo == 'E' and (self.metodo or '').upper() != 'PUE':
+            self.metodo = 'PUE'
+
+        # Egresos: validar cliente y factura origen
+        if self.tipo == 'E':
+            if not self.origin_factura_id:
+                raise ValidationError(_('En un Egreso debes seleccionar la "Factura origen".'))
+            if (self.origin_factura_id.cliente_id and self.cliente_id 
+                and self.origin_factura_id.cliente_id.id != self.cliente_id.id):
+                raise ValidationError(_('El cliente del Egreso debe coincidir con el de la factura origen.'))
 
         # << aquí el cambio >>
         clientes = {l.cliente_id.id for l in self.line_ids if l.cliente_id}
@@ -228,6 +313,12 @@ class FacturaUI(models.Model):
         except Exception:
             pass
         self.env.cr.execute("SET LOCAL lock_timeout TO '30s'")
+
+        if self.tipo == 'E' and (self.origin_factura_id and (self.origin_factura_id.uuid or '').strip()):
+            extras.setdefault('relaciones', []).append({
+                'tipo': '01',           # Nota de crédito
+                'uuids': [self.origin_factura_id.uuid],
+            })
 
          # Logs de diagnóstico útiles
         self._logger.info(
@@ -412,10 +503,61 @@ class FacturaUI(models.Model):
         # Cierra la vista actual
         return {'type': 'ir.actions.act_window_close'}
     
+    # --- Helper para clonar conceptos desde la factura origen ---
+    def _prepare_lines_from_origin(self, origin):
+        """Devuelve comandos (0,0,vals) clonando conceptos de la factura origen."""
+        self.ensure_one()
+        new_lines = []
+        for ol in origin.line_ids:
+            new_lines.append((0, 0, {
+                'empresa_id':   self.empresa_id.id,
+                'cliente_id':   origin.cliente_id.id if origin.cliente_id else False,
+                'line_type':    ol.line_type or 'sale',
+                'producto_id':  ol.producto_id.id,
+                'descripcion':  ol.descripcion,
+                'cantidad':     ol.cantidad,   # editable para devoluciones parciales
+                'precio':       ol.precio,
+                'iva_ratio':    ol.iva_ratio,
+                'ieps_ratio':   ol.ieps_ratio,
+                # IMPORTANTE: NO poner sale_id / transaccion_id / source_model
+            }))
+        return new_lines
+
     def action_prepare_credit_note(self):
-        """Placeholder ultra simple: cambia tipo a 'E' (egreso)."""
-        self.write({'tipo': 'E'})
-        return True
+        """Desde Ingreso timbrado, crear NC (Egreso) prellenando conceptos del origen."""
+        self.ensure_one()
+        if self.tipo != 'I' or self.state != 'stamped':
+            raise ValidationError(_('Solo puedes crear una Nota de crédito desde un Ingreso timbrado.'))
+
+        nc_vals = {
+            'empresa_id': self.empresa_id.id,
+            'sucursal_id': self.sucursal_id.id,
+            'cliente_id': self.cliente_id.id,
+            'tipo': 'E',
+            'egreso_tipo': 'nc',        # ← explícito
+            'metodo': 'PUE',            # PUE en egresos
+            'forma': self.forma,
+            'moneda': self.moneda or 'MXN',
+            'uso_cfdi': self.uso_cfdi or 'G02',
+            'origin_factura_id': self.id,
+        }
+
+        # Prefill de conceptos exactamente como cuando eliges la factura origen
+        nc_lines = self._prepare_lines_from_origin(self)
+
+        # Crea la NC con encabezado + líneas
+        nc = self.create({**nc_vals, 'line_ids': nc_lines})
+
+        # Abrir la NC en formulario para revisar/ajustar (cantidades, etc.) y timbrar
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Nota de crédito'),
+            'res_model': self._name,
+            'view_mode': 'form',
+            'res_id': nc.id,
+            'target': 'current',
+        }
+
     
     # ===== Botones para descargar/recuperar XML =====
     # Busca el attachment XML del CFDI (prioriza account.move, luego pagos, luego factura_ui, luego mx.cfdi.document)
@@ -552,11 +694,57 @@ class FacturaUI(models.Model):
                 'target': 'self',
             }
         return self.action_open_attachments()
+    
+    # =================== Egresos y pagos ========================
+    currency_id = fields.Many2one(
+        'res.currency',
+        related='company_id.currency_id',
+        store=True, readonly=True
+    )
+
+
+    importe_total = fields.Monetary(string='Importe', currency_field='currency_id',
+                                    compute='_compute_totales', store=True)
+    saldo = fields.Monetary(string='Saldo', currency_field='currency_id',
+                            compute='_compute_totales', store=True)
+
+    # Egreso: relación obligatoria a la factura de Ingreso
+    origin_factura_id = fields.Many2one(
+        'facturas.factura',
+        string='Factura origen',
+        domain="[('tipo','=','I'), ('state','=','stamped'), \
+                 ('empresa_id','!=', False), ('empresa_id','=', empresa_id), \
+                 ('cliente_id','!=', False), ('cliente_id','=', cliente_id)]",
+        copy=False,
+        index=True,
+    )
+
+    origin_move_id = fields.Many2one(
+        'account.move', string='Factura contable origen',
+        related='origin_factura_id.move_id', store=True, readonly=True
+    )
+
+    @api.depends('line_ids.total', 'metodo', 'tipo')
+    def _compute_totales(self):
+        for r in self:
+            r.importe_total = sum((l.total or 0.0) for l in r.line_ids)
+            # Solo aplica a I/E como pediste
+            if r.tipo in ('I', 'E'):
+                r.saldo = r.importe_total if (r.metodo or '').upper() == 'PPD' else 0.0
+            else:
+                r.saldo = 0.0
+    @api.onchange('cliente_id', 'empresa_id', 'origin_factura_id')
+    def _onchange_origin_guard(self):
+        if self.origin_factura_id and (
+            (self.empresa_id and self.origin_factura_id.empresa_id != self.empresa_id) or
+            (self.cliente_id and self.origin_factura_id.cliente_id != self.cliente_id)
+        ):
+            self.origin_factura_id = False
 
 
 
 
-# models/factura.py (continúa)
+# models/factura.py
 class FacturaUILine(models.Model):
     _name = 'facturas.factura.line'
     _description = 'Concepto a facturar (UI)'
@@ -572,7 +760,7 @@ class FacturaUILine(models.Model):
 
 
     # Tipos de origen
-    line_type   = fields.Selection([('sale','Venta'), ('charge','Cargo'), ('interest','Interés')], required=True)
+    line_type   = fields.Selection([('sale','Venta'), ('charge','Cargo'), ('interest','Interés')], required=True, default='sale',)
     source_model= fields.Char()   # 'transacciones.transaccion' | 'cargosdetail.cargodetail' | ...
     source_id   = fields.Integer()
     sale_id     = fields.Many2one('ventas.venta', string='Venta')
@@ -763,5 +951,49 @@ class FacturaUILine(models.Model):
                 raise ValidationError(_(
                     "Cantidad a facturar (%.4f) excede lo disponible (%.4f) de la transacción %s."
                 ) % (this, max(total - already, 0.0), tx.display_name))
-    
-    
+            
+    @api.model
+    def create(self, vals):
+        # Heredar empresa/cliente del padre si faltan (tu código actual) ...
+        fact_id = vals.get('factura_id')
+        if fact_id:
+            parent = self.env['facturas.factura'].browse(fact_id)
+            if not vals.get('empresa_id') and parent.empresa_id:
+                vals['empresa_id'] = parent.empresa_id.id
+            if not vals.get('cliente_id') and parent.cliente_id:
+                vals['cliente_id'] = parent.cliente_id.id
+
+            # EGRESO: si falta producto, tomar 1ro de la factura origen (tu lógica actual)
+            if (not vals.get('producto_id')
+                and parent.tipo == 'E'
+                and parent.origin_factura_id
+                and parent.origin_factura_id.line_ids):
+                vals['producto_id'] = parent.origin_factura_id.line_ids[0].producto_id.id
+
+        # 👇 respaldo: si no vino line_type, ponemos 'sale'
+        if not vals.get('line_type'):
+            vals['line_type'] = 'sale'
+
+        # Tu búsqueda por nombre para producto (lo mantienes)
+        if not vals.get('producto_id') and vals.get('descripcion'):
+            Prod = self.env['productos.producto']
+            p = Prod.search([('name', '=', vals['descripcion'])], limit=1)
+            if p:
+                vals['producto_id'] = p.id
+
+        if not vals.get('producto_id'):
+            raise ValidationError(_('Debes seleccionar un Producto/Servicio en la línea.'))
+
+        return super().create(vals)
+
+
+
+    def write(self, vals):
+        res = super().write(vals)
+        # Auto-sanar registros existentes si quedaran sin empresa/cliente
+        for r in self:
+            if not r.empresa_id and r.factura_id and r.factura_id.empresa_id:
+                r.empresa_id = r.factura_id.empresa_id.id
+            if not r.cliente_id and r.factura_id and r.factura_id.cliente_id:
+                r.cliente_id = r.factura_id.cliente_id.id
+        return res

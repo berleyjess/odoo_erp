@@ -1,3 +1,4 @@
+#credito/models/transientmodel.py
 from odoo import models, fields, api
 from datetime import date, timedelta
 
