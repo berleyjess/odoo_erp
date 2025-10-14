@@ -1,4 +1,4 @@
-# services/mapper.py
+# /facturacion_ui/services/mapper.py
 from odoo import _
 
 def map_mx_edi_fields(move, *, uso=None, metodo=None, forma=None):

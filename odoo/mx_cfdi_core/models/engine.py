@@ -17,33 +17,33 @@ class CfdiEngine(models.AbstractModel):
     _name = "mx.cfdi.engine"
     _description = "CFDI Engine (service)"
 
-    @staticmethod
-    def _is_moral_rfc(rfc: str) -> bool:
-        rfc = (rfc or '').strip().upper()
-        if rfc in ('XAXX010101000', 'XEXX010101000'):
-            return False
-        return len(rfc) == 12
-    
-    @staticmethod
-    def _sat_norm_name(txt: str) -> str:
-        t = (txt or '').strip().upper()
-        t = ''.join(c for c in unicodedata.normalize('NFKD', t) if not unicodedata.combining(c))
-        t = re.sub(r'[^A-Z0-9 &]', ' ', t)
-        t = re.sub(r'\s+', ' ', t).strip()
-        return t
-    
-    def _clean_visible_spaces(self, txt: str) -> str:
-        # Reemplaza cualquier separador Unicode por espacio ASCII
-        tmp = ''.join((' ' if unicodedata.category(ch) == 'Zs' else ch) for ch in (txt or ''))
-        # Colapsa espacios múltiples y recorta
-        return re.sub(r'\s+', ' ', tmp).strip()
+    """
+    Orquesta el timbrado CFDI:
+    1) Construye el XML con _build_xml().
+    2) Obtiene el proveedor PAC con _get_provider() y loguea CSD.
+    3) Intenta timbrar; si detecta “305 (vigencia CSD)” reintenta con fecha UTC.
+    4) Si el PAC no regresa XML, lo descarga por UUID.
+    5) Crea mx.cfdi.document y adjunta el XML al origen con _attach_xml().
+    Parámetros clave (kwargs-only): origin_model, origin_id, empresa_id, tipo, receptor_id,
+    uso_cfdi, metodo, forma, relacion_tipo, relacion_moves, conceptos, moneda, serie, folio,
+    fecha, extras.
+    Retorna: dict {'uuid', 'attachment_id', 'document_id'}.
+    Efectos colaterales: crea/adjunta ir.attachment y mx.cfdi.document; escribe logs.
+    Lanza: UserError si falta empresa_id o si el PAC no devuelve UUID.
+    """
 
-    def generate_and_stamp(self, *, origin_model, origin_id, tipo, receptor_id,
+    def generate_and_stamp(self, *, origin_model, origin_id, empresa_id=None, tipo, receptor_id,
                        uso_cfdi=None, metodo=None, forma=None,
                        relacion_tipo=None, relacion_moves=None,
                        conceptos=None, moneda="MXN", serie=None, folio=None,
                        fecha=None, extras=None):
-
+        if not empresa_id:
+            empresa_id = self.env.context.get('empresa_id')
+        if not empresa_id:
+            raise UserError(_('Se requiere empresa_id para timbrar'))
+        
+        # Asegurar que el contexto tenga empresa_id
+        self = self.with_context(empresa_id=empresa_id)
         # 1) Construir XML
         xml = self._build_xml(
             tipo=tipo, receptor_id=receptor_id, conceptos=conceptos,
@@ -64,7 +64,7 @@ class CfdiEngine(models.AbstractModel):
         # 3) Timbrar (con retry 305)
         stamped, saw_305 = None, False
         try:
-#=============================Log cfdi 4.0============================================
+            #==============================Log cfdi 4.0==============================
             try:
                 txt = xml.decode("utf-8", errors="ignore") if isinstance(xml, (bytes, bytearray)) else str(xml)
                 max_bytes = 8192  # 8 KB de preview; ajusta a tu gusto
@@ -88,7 +88,7 @@ class CfdiEngine(models.AbstractModel):
             except Exception as e:
                 _logger.warning("CFDI DEBUG | provider precheck failed: %s", e)
 
-#=============================FIN Log cfdi 4.0============================================
+            #=============================FIN Log cfdi 4.0=============================
             stamped = provider._stamp_xml(xml)
         except Exception as e:
             try:
@@ -129,7 +129,7 @@ class CfdiEngine(models.AbstractModel):
                         'res_model': origin_model,
                         'res_id': origin_id,
                         'type': 'binary',
-                        'datas': base64.b64encode(dl['acuse']),
+                        'datas': base64.b64encode(dl['acuse']).decode('ascii'),
                         'mimetype': 'application/xml',
                         'description': _('Acuse CFDI %s (SW DW)') % (stamped['uuid'],),
                     })
@@ -163,6 +163,7 @@ class CfdiEngine(models.AbstractModel):
         
         xml_b64 = base64.b64encode(xml_bytes).decode("ascii")
         doc = self.env["mx.cfdi.document"].create({
+            "empresa_id": empresa_id,
             "origin_model": origin_model,
             "origin_id": origin_id,
             "tipo": tipo,
@@ -170,57 +171,23 @@ class CfdiEngine(models.AbstractModel):
             "xml": xml_b64,
             "state": "stamped",
         })
+
         att = self._attach_xml(origin_model, origin_id, stamped.get("xml_timbrado"), doc)
         return {"uuid": doc.uuid, "attachment_id": att.id, "document_id": doc.id}
 
 
-
-    @staticmethod
-    def _legal_name(p, *, normalize=False):
-        raw = (getattr(p, 'l10n_mx_edi_legal_name', None) or getattr(p, 'name', None) or '').strip()
-        if not raw:
-            return ''
-        return CfdiEngine._sat_norm_name(raw) if normalize else raw
-
-
     """
-    Arma <cfdi:Comprobante Version="4.0"> con:
-
-    Fecha (o reintento en UTC si detecta 305 vigencia CSD),
-
-    Moneda, TipoDeComprobante (I/E/P),
-
-    LugarExpedicion = CP del emisor (validado 5 dígitos),
-
-    Importes: SubTotal = suma bases; Total = subtotal + traslados – retenciones.
-
-    Deja vacíos: Sello, Certificado, NoCertificado (esto es clave).
-
-    Emisor: Rfc, Nombre, RegimenFiscal (valida coherencia PM/PF).
-
-    Receptor:
-
-    Para XAXX/XEXX usa reglas de genérico (CP 00000 si XEXX, si XAXX copia LugarExpedición).
-
-    Si no es genérico: exige Nombre legal y RegimenFiscalReceptor, calcula CP (5 dígitos).
-
-    UsoCFDI: ‘S01’ si genérico; si no, el que pases (default ‘G03’).
-
-    Conceptos:
-
-    Cada <cfdi:Concepto> con ClaveProdServ (default “01010101” si no envías), ClaveUnidad (default “H87”), ObjetoImp:
-
-    02 cuando hay IVA/IEPS o lo fuerzas vía iva_factor.
-
-    Impuestos por concepto en <cfdi:Impuestos><cfdi:Traslados>…</…>.
-
-    Impuestos globales:
-
-    Si hubo traslados/retenciones a nivel concepto, agrega <cfdi:Impuestos> con agregados por impuesto/tasa.
-
-    Relaciones opcionales y InformacionGlobal (si aplica).
-
-    Devuelve xml_bytes (UTF-8 con <?xml ...?>).
+    Arma el <cfdi:Comprobante Version="4.0"> completo listo para timbrar:
+        - Emisor desde empresas.empresa (RFC, Régimen, CP/LugarExpedicion, Nombre normalizado).
+        - Receptor (RFC genérico o específico; valida Régimen y C.P. 5 dígitos).
+        - Conceptos con claves SAT, unidad, cantidades, importes e impuestos por concepto.
+        - Impuestos globales agregados por (Impuesto, TipoFactor, TasaOCuota).
+        - Relaciones CFDI y/o InformacionGlobal (si viene en extras).
+        - TipoCambio cuando la moneda != MXN.
+    Parámetros: acepta kwargs (tipo, receptor_id, conceptos, uso_cfdi, metodo, forma,
+    moneda, fecha, relacion_tipo, relacion_moves, related_uuids, extras, serie, folio, empresa_id).
+    Retorna: bytes (XML UTF-8 con declaración).
+    Lanza: UserError ante datos faltantes/incorrectos (empresa_id, RFC/Regímenes, CP, claves SAT, etc.).
     """
 
     @api.model
@@ -237,7 +204,7 @@ class CfdiEngine(models.AbstractModel):
         tipo         = kw.get('tipo') or 'I'
         receptor_id  = kw.get('receptor_id')
         conceptos_in = kw.get('conceptos') or []
-        uso_default  = (kw.get('uso_cfdi') or '').strip() or 'G03'
+        uso_default  = (kw.get('uso_cfdi') or '').strip() 
         metodo       = (kw.get('metodo') or '').strip() or None
         forma        = (kw.get('forma') or '').strip() or None
         moneda       = kw.get('moneda') or 'MXN'
@@ -251,44 +218,30 @@ class CfdiEngine(models.AbstractModel):
         folio            = (kw.get('folio') or '').strip() or None
 
 
+        empresa_id = self.env.context.get('empresa_id') or kw.get('empresa_id')
+        if not empresa_id:
+            raise UserError(_('Se requiere empresa_id para generar CFDI'))
 
-        company = self.env.company
-        reg_company = (getattr(company, 'l10n_mx_edi_fiscal_regime', None)
-                       or getattr(company, 'cfdi_regimen_fiscal', None))
-        reg_partner = (getattr(company.partner_id, 'l10n_mx_edi_fiscal_regime', None)
-                       or getattr(company.partner_id, 'cfdi_regimen_fiscal', None))
+        empresa = self.env['empresas.empresa'].browse(empresa_id)
+        if not empresa.exists():
+            raise UserError(_('Empresa no encontrada'))
 
-        _logger.info("CFDI EMISOR | company_id=%s name=%s rfc=%s zip=%s reg_company=%s reg_partner=%s",
-                    company.id, company.display_name, (company.cfdi_sw_rfc or company.vat),
-                    (company.partner_id.zip or ''), reg_company, reg_partner)
-        cpostal = (company.partner_id.zip or '').strip()
+        # Usar datos directamente de empresa
+        cpostal = (empresa.cp or '').strip()
         if not (cpostal.isdigit() and len(cpostal) == 5):
             raise UserError(_("Configura el C.P. de la compañía (5 dígitos) para LugarExpedicion."))
 
         self._debug_dates(fecha, cpostal)
 
-        emisor_rfc = (company.cfdi_sw_rfc or company.vat or '').upper()
+        emisor_rfc = (empresa.rfc or '').upper()
         if not emisor_rfc:
             raise UserError(_("Configura el RFC Emisor (cfdi_sw_rfc o VAT)."))
 
         is_moral = self._is_moral_rfc(emisor_rfc)
-        reg_cfg = (
-            getattr(company, 'l10n_mx_edi_fiscal_regime', None)
-            or getattr(company, 'cfdi_regimen_fiscal', None)
-            or getattr(company.partner_id, 'l10n_mx_edi_fiscal_regime', None)
-            or getattr(company.partner_id, 'cfdi_regimen_fiscal', None)
-        )
-
+        reg_cfg = (empresa.regimen_fiscal or '').strip()
         if not reg_cfg:
-            raise UserError(_("Falta el Régimen Fiscal del emisor. "
-                              "Captúralo en tu Empresa (empresas.empresa.regimen_fiscal); "
-                              "se sincronizará a la Compañía Odoo."))
-        _logger.info("CFDI EMISOR | regimen_efectivo=%s (fuente=%s)",
-                    reg_cfg,
-                    'company.l10n' if getattr(company,'l10n_mx_edi_fiscal_regime',None) else
-                    'company.cfdi' if getattr(company,'cfdi_regimen_fiscal',None) else
-                    'partner.l10n' if getattr(company.partner_id,'l10n_mx_edi_fiscal_regime',None) else
-                    'partner.cfdi')
+            raise UserError(_("Falta el Régimen Fiscal de la empresa emisora."))
+        _logger.info("CFDI EMISOR | regimen_efectivo=%s (fuente=empresas.empresa)", reg_cfg)
 
 
         PM_CODES = {'601','603','620','623','624','628'}
@@ -299,7 +252,7 @@ class CfdiEngine(models.AbstractModel):
             raise UserError(_("El RFC %(rfc)s es de Persona Física pero el régimen %(reg)s es de PM.") % {'rfc': emisor_rfc, 'reg': reg_cfg})
 
         emisor_regimen = reg_cfg
-        emisor_nombre = (getattr(company, 'l10n_mx_edi_legal_name', None) or company.partner_id.name or '').strip()
+        emisor_nombre = (empresa.razonsocial or '').strip()
         if not emisor_nombre:
             raise UserError(_("Configura el nombre/razón social del emisor."))
         emisor_nombre = ' '.join(emisor_nombre.split()).upper()
@@ -396,18 +349,38 @@ class CfdiEngine(models.AbstractModel):
             elif imp_obj == '03':
                 traslados = []  # Objeto pero no obligado a desglose
 
+            idx = len(conceptos_calc) + 1
+            clave_sat = (c.get('clave_sat') or c.get('claveprodserv') or '').strip()
+            if not clave_sat:
+                raise UserError(_("Concepto #%s: falta ClaveProdServ (c_ClaveProdServ).") % idx)
+            # formato típico de catálogo (8 dígitos). Si manejas excepciones, quita esta verificación.
+            if not re.match(r'^\d{8}$', clave_sat):
+                raise UserError(_("Concepto #%s: ClaveProdServ debe ser 8 dígitos (catálogo c_ClaveProdServ).") % idx)
+
+            clave_unidad = (c.get('clave_unidad') or c.get('claveunidad') or '').strip()
+            if not clave_unidad:
+                raise UserError(_("Concepto #%s: falta ClaveUnidad (c_ClaveUnidad).") % idx)
+            # validación básica de forma (2–5 alfanum). No es el catálogo completo.
+            if not re.match(r'^[A-Z0-9]{2,5}$', clave_unidad):
+                raise UserError(_("Concepto #%s: ClaveUnidad inválida (usa c_ClaveUnidad).") % idx)
+
+            if ('valor_unitario' not in c and 'price' not in c):
+                raise UserError(_("Concepto #%s: falta ValorUnitario.") % idx)
+
+            if not (c.get('descripcion') or '').strip():
+                raise UserError(_("Concepto #%s: falta Descripción.") % idx)
+
             conceptos_calc.append({
                 'base': base,
                 'imp_obj': imp_obj,
                 'qty': qty,
                 'vu': vu,
-                'clave_sat': c.get('clave_sat', ''),     # validaremos abajo
-                'no_ident': str(c.get('no_identificacion', c.get('no_ident') or '1')),
-                'clave_unidad': c.get('clave_unidad', ''),  # validaremos abajo
-                'descripcion': c.get('descripcion', 'Producto'),
+                'clave_sat': clave_sat,
+                'no_ident': str(c.get('no_identificacion') or c.get('no_ident') or ''),
+                'clave_unidad': clave_unidad,
+                'descripcion': c.get('descripcion'),
+
                 'traslados': traslados,
-                'clave_sat': c.get('clave_sat') or '01010101',
-                'clave_unidad': c.get('clave_unidad') or 'H87',
             })
 
 
@@ -451,7 +424,7 @@ class CfdiEngine(models.AbstractModel):
             comprobante.set('TipoCambio', fmt6(tc))
         
         # Emisor
-        emisor_nombre_raw = (getattr(company, 'l10n_mx_edi_legal_name', None) or company.partner_id.name or '')
+        emisor_nombre_raw = (empresa.razonsocial or '')
         if not emisor_nombre_raw.strip():
             raise UserError(_("Configura el nombre/razón social del emisor."))
         emisor_nombre = CfdiEngine._sat_norm_name(emisor_nombre_raw)
@@ -474,7 +447,10 @@ class CfdiEngine(models.AbstractModel):
         if is_generic:
             rec_regimen = '616'
             rec_nombre  = 'PUBLICO EN GENERAL'
-            uso_cfdi_ok = 'S01'
+            uso_cfdi_ok = (uso_default or '')
+            if not uso_cfdi_ok:
+                raise UserError(_("Para RFC genérico (%s) debes indicar UsoCFDI (sugerido 'S01').") % rec_rfc)
+
             rec_cp = '00000' if rec_rfc == 'XEXX010101000' else cpostal
         else:
             rec_nombre = self._sat_norm_name(self._legal_name(receptor, normalize=False))
@@ -493,10 +469,14 @@ class CfdiEngine(models.AbstractModel):
                       or '').strip()
             rec_cp = ''.join(ch for ch in (rec_cp or '') if ch.isdigit())
             if not (rec_cp.isdigit() and len(rec_cp) == 5):
-                rec_cp = cpostal
+                raise UserError(_("Captura el C.P. fiscal (5 dígitos) del receptor en el contacto."))
+
 
             # Usa el uso_cfdi que te pasaron (o G03 por default), NO 'S01'
-            uso_cfdi_ok = ('G03' if (uso_default == 'S01') else (uso_default or 'G03'))
+            uso_cfdi_ok = uso_default
+            if not uso_cfdi_ok:
+                raise UserError(_("Debes indicar el UsoCFDI del receptor."))
+
 
 
         SubElement(comprobante, 'cfdi:Receptor', {
@@ -520,7 +500,7 @@ class CfdiEngine(models.AbstractModel):
 
         # Método/forma (solo I/E)
         if tipo in ('I','E'):
-            if not uso_default:
+            if not uso_cfdi_ok:
                 raise UserError(_("Debes indicar el UsoCFDI del receptor."))
             if metodo == 'PUE' and (not forma or forma == '99'):
                 raise UserError(_("Para PUE debes especificar una FormaPago distinta de '99'."))
@@ -535,16 +515,19 @@ class CfdiEngine(models.AbstractModel):
             cs = SubElement(comprobante, 'cfdi:Conceptos')
             for it in conceptos_calc:
                 
-                nodo = SubElement(cs, 'cfdi:Concepto', {
+                attrs_concepto = {
                     'ClaveProdServ': it['clave_sat'],
-                    'NoIdentificacion': it['no_ident'],
-                    'Cantidad': fmt2(it['qty']),
+                    'Cantidad': fmt6(it['qty']),
                     'ClaveUnidad': it['clave_unidad'],
                     'Descripcion': it['descripcion'],
-                    'ValorUnitario': fmt2(it['vu']),
+                    'ValorUnitario': fmt6(it['vu']),
                     'Importe': fmt2(it['base']),
                     'ObjetoImp': it['imp_obj'],
-                })
+                }
+                if it.get('no_ident'):
+                    attrs_concepto['NoIdentificacion'] = it['no_ident']
+                nodo = SubElement(cs, 'cfdi:Concepto', attrs_concepto)
+
                 if it['imp_obj'] in ('02','03') and it['traslados']:
                     imps = SubElement(nodo, 'cfdi:Impuestos')
                     tras = SubElement(imps, 'cfdi:Traslados')
@@ -588,20 +571,71 @@ class CfdiEngine(models.AbstractModel):
 
         xml_bytes = tostring(comprobante, encoding='utf-8', xml_declaration=True)
         self._debug_dump_xml(xml_bytes, label="PRE-STAMP XML", param_key="mx_cfdi_core.log_xml_full", limit_kb=256)
-
-
-
         return xml_bytes
 
+    # ======================== utils ================================
+    # Devuelve la fecha/hora actual en la zona del usuario (por defecto America/Mexico_City) usando la API de Odoo (context_timestamp).
+    def _mx_local_now(self):
+        tz = self.env.user.tz or 'America/Mexico_City'
+        return fields.Datetime.context_timestamp(self.with_context(tz=tz), fields.Datetime.now())
 
+    # Convierte un datetime a string CFDI “YYYY-MM-DDTHH:MM:SS” aplicando antiskew (-120s) para evitar rechazos por “fecha en el futuro” del PAC.
+    def _as_cfdi_fecha(self, dt):
+        # antiskew: -120s para evitar “futuro” vs PAC
+        return (dt - timedelta(seconds=120)).strftime('%Y-%m-%dT%H:%M:%S')
 
+    # Obtiene el certificado CSD de la empresa en formato PEM:
+        # - Usa texto PEM si está en empresas.empresa.cfdi_sw_cer_pem.
+        # - Si hay archivo en binario (cfdi_sw_cer_file), intenta DER→PEM; si ya es PEM lo usa.
+    # Retorna: str PEM o cadena vacía si no se pudo obtener.
+    def _empresa_cer_pem(self):
+        empresa_id = self.env.context.get('empresa_id')
+        empresa = self.env['empresas.empresa'].browse(empresa_id)
+        # 1) Si tuvieras PEM en texto (opcional):
+        txt = getattr(empresa, 'cfdi_sw_cer_pem', '') or ''
+        if isinstance(txt, str) and txt.strip().startswith('-----BEGIN CERTIFICATE-----'):
+            return txt.strip()
+
+        # 2) Si tienes archivo binario (.cer/.pem) en el campo Binary:
+        data = getattr(empresa, 'cfdi_sw_cer_file', False)
+        if data:
+            try:
+                from cryptography import x509
+                from cryptography.hazmat.primitives.serialization import Encoding
+                der_or_pem = base64.b64decode(data)
+                # intenta DER→PEM; si ya es PEM, úsalo tal cual
+                try:
+                    cert = x509.load_der_x509_certificate(der_or_pem)
+                    return cert.public_bytes(Encoding.PEM).decode('utf-8')
+                except Exception:
+                    pem_txt = der_or_pem.decode('utf-8', errors='ignore')
+                    if 'BEGIN CERTIFICATE' in pem_txt:
+                        return pem_txt
+            except Exception:
+                pass
+        return ''
+    
+    # Resuelve y devuelve el proveedor de timbrado (modelo PAC) para la empresa en contexto.
+    # Lee empresas.empresa.cfdi_provider o el parámetro del sistema 'mx_cfdi_engine.provider'.
+    # Devuelve el record del proveedor con contexto empresa_id.
+    # Lanza: UserError si falta empresa_id o si el modelo de proveedor es inválido.
     def _get_provider(self):
-        # lee siempre el provider de la compañía actual del env
-        provider_key = self.env.company.cfdi_provider or \
+        empresa_id = self.env.context.get('empresa_id')
+        if not empresa_id:
+            raise UserError(_('Se requiere empresa_id en el contexto'))
+    
+        empresa = self.env['empresas.empresa'].browse(empresa_id)
+        provider_key = empresa.cfdi_provider or \
                        self.env['ir.config_parameter'].sudo().get_param('mx_cfdi_engine.provider', 'mx.cfdi.engine.provider.dummy')
-        return self.env[provider_key].with_company(self.env.company)
+    
+        try:
+            return self.env[provider_key].with_context(empresa_id=empresa_id)
+        except KeyError:
+            raise UserError(_("Proveedor CFDI inválido: %s") % provider_key)
 
-
+    # Crea un ir.attachment (application/xml) con el CFDI timbrado y lo enlaza al documento de origen (origin_model, origin_id). Usa el UUID para nombrar el archivo.
+    # Retorna: ir.attachment (record).
+    # Lanza: UserError si no se recibió xml_bytes.
     def _attach_xml(self, origin_model, origin_id, xml_bytes, doc):
         if not xml_bytes:
             raise UserError(_("No se recibió XML desde el proveedor."))
@@ -619,6 +653,7 @@ class CfdiEngine(models.AbstractModel):
             'description': _('CFDI timbrado %s') % (doc.uuid or ''),
         })
     
+    # Adjunta el XML previo al timbrado (para auditoría/diagnóstico). No lanza error si falta xml_bytes; solo regresa.
     def _attach_prestamp(self, origin_model, origin_id, xml_bytes, note="pre-stamp"):
         if not xml_bytes:
             return
@@ -634,20 +669,25 @@ class CfdiEngine(models.AbstractModel):
             'description': _('XML previo a timbrado (%s)') % note,
         })
 
-
+    # Solicita la cancelación al PAC para un UUID de CFDI:
+        # - Usa el proveedor correspondiente a la empresa en contexto.
+        # - Marca el mx.cfdi.document como 'canceled' si existe.
+        # - Adjunta el acuse (si el PAC lo regresa) al origen.
+    # Parámetros (kwargs-only): origin_model, origin_id, uuid, motivo, folio_sustitucion.
+    # Retorna: dict/respuesta del proveedor.
+    # Lanza: UserError si faltan UUID o RFC emisor.
     @api.model
     def cancel_cfdi(self, *, origin_model, origin_id, uuid, motivo='02', folio_sustitucion=None):
         provider = self._get_provider()
-        company = self.env.company
-        rfc = (company.cfdi_sw_rfc or company.vat or '').upper()
-        cer_pem = company.cfdi_sw_cer_pem
-        key_pem = company.cfdi_sw_key_pem
-        password = company.cfdi_sw_key_password
-        if not (uuid and rfc and cer_pem and key_pem):
-            raise UserError(_('Faltan parámetros para cancelar: uuid/rfc/certificados.'))
+        empresa_id = self.env.context.get('empresa_id')
+        empresa = self.env['empresas.empresa'].browse(empresa_id)
+        rfc = (empresa.rfc or '').upper()
+        if not (uuid and rfc):
+            raise UserError(_('Faltan parámetros para cancelar: uuid o RFC del emisor(empresa).'))
 
-        res = provider._cancel(uuid, rfc=rfc, cer_pem=cer_pem, key_pem=key_pem,
-                           password=password, motivo=motivo, folio_sustitucion=folio_sustitucion)
+        # El proveedor SW ya lee CSD/KEY/Password desde empresas.empresa vía self._cfg()
+        res = provider._cancel(uuid, rfc=rfc, motivo=motivo, folio_sustitucion=folio_sustitucion)
+
         doc = self.env['mx.cfdi.document'].search([('uuid', '=', uuid)], limit=1)
         if doc:
             doc.write({'state': 'canceled'})
@@ -661,73 +701,27 @@ class CfdiEngine(models.AbstractModel):
                 'res_model': origin_model,
                 'res_id': origin_id,
                 'type': 'binary',
-                'datas': base64.b64encode(acuse),
+                'datas': base64.b64encode(acuse).decode('ascii'),
                 'mimetype': 'application/xml',
                 'description': _('Acuse de cancelación %s') % (uuid,),
             })
         return res
     
-    # ---------- Utils de fecha y CSD ----------
-    def _mx_local_now(self):
-        tz = self.env.user.tz or 'America/Mexico_City'
-        return fields.Datetime.context_timestamp(self.with_context(tz=tz), fields.Datetime.now())
+    # Obtiene el nombre legal de un partner (l10n_mx_edi_legal_name o name).
+    # Si normalize=True, aplica normalización SAT con _sat_norm_name.
+    # Retorna: str (puede ser vacío).
+    @staticmethod
+    def _legal_name(p, *, normalize=False):
+        raw = (getattr(p, 'l10n_mx_edi_legal_name', None) or getattr(p, 'name', None) or '').strip()
+        if not raw:
+            return ''
+        return CfdiEngine._sat_norm_name(raw) if normalize else raw
 
-    def _as_cfdi_fecha(self, dt):
-        # antiskew: -120s para evitar “futuro” vs PAC
-        return (dt - timedelta(seconds=120)).strftime('%Y-%m-%dT%H:%M:%S')
-
-    def _debug_dates(self, fecha_str, cpostal):
-        now_utc = fields.Datetime.now()
-        local_now = self._mx_local_now()
-        try:
-            dt_xml = fields.Datetime.from_string(fecha_str.replace('T', ' '))
-            delta = abs(now_utc - dt_xml)
-        #    _logger.info("CFDI DEBUG | delta(now_utc vs FECHA_XML)=%s", delta)
-        except Exception as e:
-            _logger.warning("CFDI DEBUG | No se pudo evaluar delta: %s", e)
-
-    def _company_cer_pem(self):
-        c = self.env.company
-        # 1) Si ya tienes PEM en texto:
-        txt = getattr(c, 'cfdi_sw_cer_pem', '') or ''
-        if txt.strip().startswith('-----BEGIN CERTIFICATE-----'):
-            return txt.strip()
-        # 2) Si tienes archivo (binario base64 del .cer DER):
-        data = getattr(c, 'cfdi_sw_cer_file', False)
-        if data:
-            
-            der = base64.b64decode(data)
-            try:
-                from cryptography import x509
-                from cryptography.hazmat.primitives.serialization import Encoding
-                cert = x509.load_der_x509_certificate(der)
-                return cert.public_bytes(Encoding.PEM).decode('utf-8')
-            except Exception:
-                pass
-        return ''
-
-    def _log_csd_validity(self):
-        pem = self._company_cer_pem()
-        if not pem:
-            _logger.warning("CSD DEBUG | No tengo PEM del CSD; no puedo leer vigencia.")
-            return
-        try:
-            from cryptography import x509
-            from cryptography.hazmat.backends import default_backend
-            cert = x509.load_pem_x509_certificate(pem.encode('utf-8'), default_backend())
-        except Exception as e:
-            _logger.warning("CSD DEBUG | No se pudo leer vigencia del CSD: %s", e)
-
-    def _is_305(self, payload=None, exc=None):
-        """Detecta '305 - La fecha de emisión no está dentro de la vigencia del CSD' en payload/exception."""
-        txt = ""
-        if isinstance(payload, dict):
-            txt = " ".join(str(payload.get(k, "")) for k in ("code", "message", "mensaje", "error", "detail", "Message"))
-        if exc:
-            txt += " " + str(exc)
-        txt_low = txt.lower()
-        return "305" in txt_low or "vigencia del csd" in txt_low
+    # ======================= debugs/logs =======================
     
+    # Loguea hash SHA256 y tamaño del XML y, opcionalmente, contenido completo/truncado.
+    # Se controla con el parámetro del sistema 'param_key' ('1/true/yes' para habilitar).
+    # No lanza; atrapa sus propias excepciones de logging.
     def _debug_dump_xml(self, xml_bytes, *, label="XML", param_key="mx_cfdi_core.log_xml_full", limit_kb=128):
         """Loggea el XML (completo o truncado) y su SHA256. Controlado por parámetro del sistema."""
         try:
@@ -747,4 +741,64 @@ class CfdiEngine(models.AbstractModel):
         except Exception as e:
             _logger.warning("CFDI DEBUG | Error en _debug_dump_xml(%s): %s", label, e)
 
+    # Intenta leer el certificado CSD en PEM y cargarlo con cryptography.x509 para
+    # validar que es legible (y dejar rastro en logs). No falla el flujo si no puede.
+    def _log_csd_validity(self):
+        pem = self._empresa_cer_pem()
+        if not pem:
+            _logger.warning("CSD DEBUG | No tengo PEM del CSD; no puedo leer vigencia.")
+            return
+        try:
+            from cryptography import x509
+            from cryptography.hazmat.backends import default_backend
+            cert = x509.load_pem_x509_certificate(pem.encode('utf-8'), default_backend())
+        except Exception as e:
+            _logger.warning("CSD DEBUG | No se pudo leer vigencia del CSD: %s", e)
+
+    # Utilidad de diagnóstico: compara la FECHA del XML con now_utc y registra delta (comentado) para detectar desfases. No interrumpe el flujo.
+    def _debug_dates(self, fecha_str, cpostal):
+        now_utc = fields.Datetime.now()
+        local_now = self._mx_local_now()
+        try:
+            dt_xml = fields.Datetime.from_string(fecha_str.replace('T', ' '))
+            delta = abs(now_utc - dt_xml)
+        #    _logger.info("CFDI DEBUG | delta(now_utc vs FECHA_XML)=%s", delta)
+        except Exception as e:
+            _logger.warning("CFDI DEBUG | No se pudo evaluar delta: %s", e)
+
+
+    # =============================== Validaciones  ================================
+
+    # Determina si un RFC es de Persona Moral (longitud 12, excluye RFC genéricos).
+    # Retorna: bool.
+    @staticmethod
+    def _is_moral_rfc(rfc: str) -> bool:
+        rfc = (rfc or '').strip().upper()
+        if rfc in ('XAXX010101000', 'XEXX010101000'):
+            return False
+        return len(rfc) == 12
     
+    # Normaliza una cadena a formato aceptado por SAT:
+        # - Mayúsculas, sin acentos, solo [A-Z0-9 &], espacios colapsados.
+    # Retorna: str.
+    @staticmethod
+    def _sat_norm_name(txt: str) -> str:
+        t = (txt or '').strip().upper()
+        t = ''.join(c for c in unicodedata.normalize('NFKD', t) if not unicodedata.combining(c))
+        t = re.sub(r'[^A-Z0-9 &]', ' ', t)
+        t = re.sub(r'\s+', ' ', t).strip()
+        return t
+    
+    # Detecta el error SAT/PAC “305 – la fecha de emisión no está dentro de la vigencia del CSD” en un payload o excepción.
+    # Retorna: bool (True si encuentra indicios del 305).
+    def _is_305(self, payload=None, exc=None):
+        """Detecta '305 - La fecha de emisión no está dentro de la vigencia del CSD' en payload/exception."""
+        txt = ""
+        if isinstance(payload, dict):
+            txt = " ".join(str(payload.get(k, "")) for k in ("code", "message", "mensaje", "error", "detail", "Message"))
+        if exc:
+            txt += " " + str(exc)
+        txt_low = txt.lower()
+        return "305" in txt_low or "vigencia del csd" in txt_low
+
+    # =============================== Fin Validaciones ================================

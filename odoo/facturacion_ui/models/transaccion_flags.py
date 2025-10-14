@@ -16,6 +16,8 @@ class TxInvoiceLink(models.Model):
     
     display_name = fields.Char(compute='_compute_display_name', store=True)
     
+    # Computa el 'display_name' del link en formato:
+    # "<Transacción> → <Factura> (<cantidad>)", usando transaccion_id, move_id y qty.
     @api.depends('transaccion_id', 'move_id', 'qty')
     def _compute_display_name(self):
         for r in self:
@@ -41,6 +43,11 @@ class Transaccion(models.Model):
         ('canceled', 'Cancelada'),
     ], compute='_compute_inv_stats', store=True, default='none', string="Estado de facturación")
 
+    # Reglas de facturación por transacción:
+    # - qty_invoiced: suma de qty en links activos (state != 'canceled').
+    # - qty_available: cantidad total (cantidad) menos lo ya facturado, sin negativos.
+    # - invoice_status: 'none' (0), 'partial' (entre 0 y total) o 'full' (>= total).
+    #   Ignora links cancelados. Usa EPS para tolerancia numérica.
     @api.depends('cantidad', 'link_ids.qty', 'link_ids.state')
     def _compute_inv_stats(self):
         EPS = 1e-6
@@ -58,6 +65,8 @@ class Transaccion(models.Model):
             else:
                 r.invoice_status = 'partial'
     
+    # Auxiliar para forzar el recálculo de qty_invoiced/qty_available/invoice_status.
+    # Útil tras crear/cancelar/reactivar links.
     def _recompute_invoice_status(self):
         """Método auxiliar para forzar recálculo"""
         self._compute_inv_stats()
@@ -73,6 +82,11 @@ class Venta(models.Model):
         ('canceled', 'Cancelada'),
     ], compute='_compute_agg_status', store=True, default='none', string="Estado facturación")
 
+    # Agrega el estado de facturación de los renglones (detalle.invoice_status) a nivel venta:
+    # - 'none' si todos los detalles están en 'none' o no hay detalle.
+    # - 'full' si todos están en 'full'.
+    # - 'partial' si hay mezcla (p. ej. 'none' y 'full', o aparece 'partial').
+    # - 'canceled' si todos están en 'canceled'.
     @api.depends('detalle.invoice_status')
     def _compute_agg_status(self):
         for v in self:

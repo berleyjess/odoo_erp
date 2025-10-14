@@ -12,14 +12,25 @@ class InvoicingBridgeFromUI(models.AbstractModel):
         """
         sale_like: dict con:
             - partner_id (res.partner)
-            - company_id (res.company)
+            - empresa_id (empresas.empresa)
             - transacciones: iterable con objetos que tengan:
                 .producto_id.name, .cantidad, .precio, .iva (0.16), .ieps (0.08) (ratios)
         """
         env = self.env
         Move = env['account.move']
         partner = env['res.partner'].browse(sale_like['partner_id'])
-        company = env['res.company'].browse(sale_like['company_id'])
+        empresa = env['empresas.empresa'].browse(sale_like.get('empresa_id'))
+        if not empresa:
+            raise ValidationError(_("Debes indicar 'empresa_id' en sale_like."))
+
+        # Compañía técnica para contabilidad (no depende del login)
+        ICP = env['ir.config_parameter'].sudo()
+        tech_company_id = int(ICP.get_param('facturacion_ui.technical_company_id', '0') or 0)
+        if not tech_company_id:
+            raise ValidationError(_("Configura el parámetro del sistema 'facturacion_ui.technical_company_id' con la compañía contable técnica."))
+        company = env['res.company'].browse(tech_company_id)
+
+
 
         # Cuentas / impuestos en contexto de la compañía de la venta
         Account = env['account.account'].with_company(company).with_context(allowed_company_ids=[company.id])

@@ -7,7 +7,9 @@ from odoo.exceptions import UserError
 import time
 import logging
 import hashlib
-# --- DEBUG helpers (coloca junto a imports) ---
+# --- DEBUG helpers ---
+# Enmascara el token y devuelve una huella corta (prefix…suffix|sha1=XXXX).
+# Útil para loggear sin exponer el token completo.
 def _tok_fp(tok: str) -> str:
     try:
         t = (tok or '').strip()
@@ -26,170 +28,61 @@ try:
 except Exception:  # pragma: no cover
     requests = None
 
-
+# Implementación del proveedor SW Sapien (REST) para timbrado/cancelación y utilidades asociadas (carga/verificación de CSD y descarga de XML).
 class CfdiProviderSW(models.AbstractModel):
     _name = "mx.cfdi.engine.provider.sw"
     _inherit = "mx.cfdi.engine.provider.base"
     _description = "CFDI Provider - SW Sapien"
 
- #==================== Configuración =====================#
-    def _cfg(self):
+    # Arma la configuración de SW leyendo parámetros del sistema e información de la empresa emisora (RFC y CSD). Devuelve un dict con:
+    #  sandbox/base_url/api_base_url/token/usuario/password/rfc/cer_b64/key_b64/key_password/token_fp.
+    # Requiere empresa_id en contexto o como argumento.
+    def _cfg(self, empresa_id=None):
         ICP = self.env['ir.config_parameter'].sudo()
-        debug_http = (ICP.get_param('mx_cfdi_sw.debug_http', '0') or '').lower() in ('1','true','yes')
-
-        c = self.env.company
-
-        sandbox  = c.cfdi_sw_sandbox if c.cfdi_sw_sandbox is not None \
-                   else (ICP.get_param('mx_cfdi_sw.sandbox', '1') in ('1','True','true'))
-        base_url = (c.cfdi_sw_base_url or ICP.get_param('mx_cfdi_sw.base_url')
-                    or ('https://services.sw.com.mx' if not sandbox else 'https://services.test.sw.com.mx'))
-
-        # NUEVO: base de API (datawarehouse)
+    
+        # --- GLOBAL (un solo login para todos) ---
+        sandbox  = (ICP.get_param('mx_cfdi_sw.sandbox', '1') or '').lower() in ('1','true','yes')
+        base_url = (ICP.get_param('mx_cfdi_sw.base_url') or
+                    ('https://services.sw.com.mx' if not sandbox else 'https://services.test.sw.com.mx')).rstrip('/')
         api_base = 'https://api.sw.com.mx' if not sandbox else 'https://api.test.sw.com.mx'
-        # Toma los binarios ya en b64 (Binary fields) — si son bytes, pásalos a str
+        token    = ICP.get_param('mx_cfdi_sw.token') or ''
+        user     = ICP.get_param('mx_cfdi_sw.user') or ''
+        pwd      = ICP.get_param('mx_cfdi_sw.password') or ''
+        key_pwd_default = ICP.get_param('mx_cfdi_sw.key_password') or ''
+    
+        # --- POR EMPRESA (CSD y RFC emisor) ---
+        if not empresa_id:
+            empresa_id = self.env.context.get('empresa_id')
+        if not empresa_id:
+            raise UserError(_('Se requiere empresa_id en el contexto o como parámetro'))
+    
+        emp = self.env['empresas.empresa'].browse(empresa_id)
+        if not emp.exists():
+            raise UserError(_('Empresa no encontrada'))
+    
         def _as_str(v):
             return v.decode('ascii') if isinstance(v, (bytes, bytearray)) else (v or '')
-
+    
         return {
             'sandbox': sandbox,
-            'base_url': base_url.rstrip('/'),
+            'base_url': base_url,
             'api_base_url': api_base,
-            'token':        c.cfdi_sw_token        or ICP.get_param('mx_cfdi_sw.token') or '',
-            'user':         c.cfdi_sw_user         or ICP.get_param('mx_cfdi_sw.user') or '',
-            'password':     c.cfdi_sw_password     or ICP.get_param('mx_cfdi_sw.password') or '',
-            'rfc':         (c.cfdi_sw_rfc or c.vat or ICP.get_param('mx_cfdi_sw.rfc') or '').upper(),
-            'cer_b64':      _as_str(c.cfdi_sw_cer_file),
-            'key_b64':      _as_str(c.cfdi_sw_key_file),
-            'key_password': c.cfdi_sw_key_password or ICP.get_param('mx_cfdi_sw.key_password') or '',
-            'token_fp': _tok_fp(c.cfdi_sw_token or ICP.get_param('mx_cfdi_sw.token') or ''),
+            'token': token,
+            'user': user,
+            'password': pwd,
+            'rfc': (emp.rfc or '').upper(),                     # RFC de la empresa
+            'cer_b64': _as_str(emp.cfdi_sw_cer_file),           # CSD por empresa
+            'key_b64': _as_str(emp.cfdi_sw_key_file),           # CSD por empresa
+            'key_password': emp.cfdi_sw_key_password or key_pwd_default,
+            'token_fp': _tok_fp(token),
         }
-    #==================== Métodos de utilidad =====================#
 
-    # --- NUEVO: consulta datawarehouse por UUID y descarga XML/acuse ---
-    def _dw_lookup(self, uuid):
-        """Devuelve el objeto del DW para ese UUID o None si aún no aparece."""
-        if not requests:
-            raise UserError(_('El módulo requests no está disponible.'))
-        cfg = self._cfg()
-        url = f"{cfg['api_base_url'].rstrip('/')}/datawarehouse/v1/live/{uuid}"
-        r = requests.get(url, headers=self._headers(cfg), timeout=30)
-        if r.status_code >= 400:
-            return None
-        try:
-            js = r.json()
-        except Exception:
-            return None
-
-        # Forma oficial: data.records[] (ver documentación)
-        data = js.get('data') if isinstance(js, dict) else None
-        recs = (data or {}).get('records') if isinstance(data, dict) else None
-
-        # Fallbacks por si cambian nombres clave
-        if not isinstance(recs, list):
-            for k in ('records', 'items', 'Data'):
-                v = js.get(k) if isinstance(js, dict) else None
-                if isinstance(v, list):
-                    recs = v
-                    break
-
-        if isinstance(recs, list) and recs:
-            return recs[0]
-        return None
-
-    def download_xml_by_uuid(self, uuid, tries=30, delay=1.0):
-        """Devuelve {'xml': bytes, 'acuse': bytes|None} desde SW DW."""
-        if not requests:
-            raise UserError(_('El módulo requests no está disponible.'))
-        start = time.monotonic()
-        for attempt in range(max(1, int(tries))):   # ← no pises _
-            rec = self._dw_lookup(uuid)
-            if rec and rec.get('urlXml'):
-                xml = requests.get(rec['urlXml'], timeout=60).content
-                ack = None
-                if rec.get('urlAckCfdi'):
-                    try:
-                        ack = requests.get(rec['urlAckCfdi'], timeout=60).content
-                    except Exception:
-                        ack = None
-                return {'xml': xml, 'acuse': ack}
-            time.sleep(max(0.1, float(delay)))
-
-        waited = time.monotonic() - start
-        # usa _() correctamente con % dict (y sin pisarlo en este scope)
-        raise UserError(
-            _("SW aún no expone el XML del UUID %(uuid)s (esperé %(sec).1f s). "
-              "Inténtalo de nuevo en unos segundos.") % {'uuid': uuid, 'sec': waited}
-        )
-    
-    def _upload_cert_from_company(self):
-        if not requests:
-            raise UserError(_('El módulo requests no está disponible.'))
-        cfg = self._cfg()
-        ICP = self.env['ir.config_parameter'].sudo()               # <-- agrega
-        debug_http = (ICP.get_param('mx_cfdi_sw.debug_http','0')   # <-- agrega
-                      or '').lower() in ('1','true','yes')
-
-        cer_b64 = cfg.get('cer_b64') or ''
-        key_b64 = cfg.get('key_b64') or ''
-        pwd     = cfg.get('key_password') or ''
-        if not (cer_b64 and key_b64 and pwd):
-            raise UserError(_('Falta CSD en Ajustes (CER/KEY/Password).'))
-
-        url = cfg['base_url'] + '/certificates/save'
-        payload = {
-            "type": "stamp",
-            "b64Cer": cer_b64,  # ya está en base64
-            "b64Key": key_b64,  # ya está en base64
-            "password": pwd,
-        }
-        if debug_http:
-            _logger.warning("SW HTTP TRY | url=%s | token=%s", url, cfg.get('token_fp'))
-
-
-        r = requests.post(url, headers=self._headers(cfg, json_ct=True),
-                          data=json.dumps(payload), timeout=60)
-        if r.status_code >= 400:
-            try:
-                data = r.json(); msg = data.get('message') or data.get('Message') or r.text
-            except Exception:
-                msg = r.text
-            raise UserError(_('SW: error al cargar CSD: %s') % msg)
-        return True
-    
-    #==================== Métodos de la API SW =====================#
-
-
-    def _headers(self, cfg, *, json_ct=False):
-        # No fijes Content-Type salvo que sea JSON; para multipart lo define requests.
-        h = {}
-        if json_ct:
-            h['Content-Type'] = 'application/json'
-        if cfg.get('token'):
-            h['Authorization'] = f"Bearer {cfg['token']}"
-        return h
-
-    @api.model
-    def _ping(self):
-        """Verifica conectividad con SW.
-        No existe /ping público; probamos la raíz y consideramos OK cualquier
-        status <500 (incluye 200/401/403/404 según el edge/API gateway)."""
-        if not requests:
-            return False, 'Python package requests no disponible'
-        cfg = self._cfg()
-        url = cfg['base_url'].rstrip('/') + '/'  # probar raíz
-        try:
-            r = requests.get(url, headers=self._headers(cfg), timeout=10)
-            code = r.status_code
-            # Host accesible aunque la ruta raíz no tenga recurso
-            if code < 500:
-                # mensaje uniforme para el botón "Probar conexión"
-                if code == 404:
-                    return True, f'Host accesible, endpoint no disponible ({url}) [{code}]'
-                return True, f'Conexión OK ({url}) [{code}]'
-            return False, f'Respuesta {code}: {r.text[:200]}'
-        except Exception as e:
-            return False, f'Error de conexión: {e}'
-
+    # Timbrado principal:
+    #  - Verifica/carga CSD en SW si no existe.
+    #  - Intenta múltiples endpoints (issue/stamp, cfdi40 y compat cfdi33).
+    #  - En éxito: regresa {'uuid': str, 'xml_timbrado': bytes}.
+    #  - En errores 4xx/5xx: normaliza mensajes y lanza UserError con diagnóstico.
+    # Respeta parámetros de depuración (mx_cfdi_sw.debug_http, log_resp_body_kb, http_timeout).
     @api.model
     def _stamp_xml(self, xml_bytes):
         if not requests:
@@ -197,7 +90,7 @@ class CfdiProviderSW(models.AbstractModel):
         if isinstance(xml_bytes, str):
             xml_bytes = xml_bytes.encode('utf-8')
 
-        cfg = self._cfg()
+        cfg = self._cfg(self.env.context.get('empresa_id'))
 
 
         ICP = self.env['ir.config_parameter'].sudo()
@@ -241,15 +134,14 @@ class CfdiProviderSW(models.AbstractModel):
 
         # Permite sobreescribir/inyectar paths desde parámetros del sistema
         ICP = self.env['ir.config_parameter'].sudo()
-
-        forced = (ICP.with_company(self.env.company.id).get_param('mx_cfdi_sw.issue_path')
-                  or ICP.get_param('mx_cfdi_sw.issue_path') or '').strip()
-
+        forced = (ICP.get_param('mx_cfdi_sw.issue_path') or '').strip()
+        
         extras = []
         for key in ('mx_cfdi_sw.issue_paths',):
-            v = (ICP.with_company(self.env.company.id).get_param(key) or ICP.get_param(key) or '').strip()
+            v = (ICP.get_param(key) or '').strip()
             if v:
                 extras += [p.strip() for p in v.split(',') if p.strip()]
+
 
         paths = []
         for p in [forced] + extras + base_paths:
@@ -372,13 +264,111 @@ class CfdiProviderSW(models.AbstractModel):
         raise UserError(_('SW: sin endpoint activo para timbrar (probé: %s). Último error: %s')
                         % (', '.join(paths), (last_err or 'N/A')))
 
+    # =========================== utils ===========================
+    # Consulta el DataWarehouse "live" de SW por UUID y devuelve el primer
+    # registro encontrado (dict) o None si aún no está disponible.
+    def _dw_lookup(self, uuid):
+        """Devuelve el objeto del DW para ese UUID o None si aún no aparece."""
+        if not requests:
+            raise UserError(_('El módulo requests no está disponible.'))
+        cfg = self._cfg(self.env.context.get('empresa_id'))
+        url = f"{cfg['api_base_url'].rstrip('/')}/datawarehouse/v1/live/{uuid}"
+        r = requests.get(url, headers=self._headers(cfg), timeout=30)
+        if r.status_code >= 400:
+            return None
+        try:
+            js = r.json()
+        except Exception:
+            return None
+
+        # Forma oficial: data.records[] (ver documentación)
+        data = js.get('data') if isinstance(js, dict) else None
+        recs = (data or {}).get('records') if isinstance(data, dict) else None
+
+        # Fallbacks por si cambian nombres clave
+        if not isinstance(recs, list):
+            for k in ('records', 'items', 'Data'):
+                v = js.get(k) if isinstance(js, dict) else None
+                if isinstance(v, list):
+                    recs = v
+                    break
+
+        if isinstance(recs, list) and recs:
+            return recs[0]
+        return None
+
+    # Hace polling al DataWarehouse hasta obtener el XML y, si existe, # el acuse de timbrado. Devuelve {'xml': bytes, 'acuse': bytes|None}.
+    # Lanza UserError si no aparece tras 'tries' intentos (con 'delay' entre cada uno).
+    def download_xml_by_uuid(self, uuid, tries=30, delay=1.0):
+        """Devuelve {'xml': bytes, 'acuse': bytes|None} desde SW DW."""
+        if not requests:
+            raise UserError(_('El módulo requests no está disponible.'))
+        start = time.monotonic()
+        for attempt in range(max(1, int(tries))):   # ← no pises _
+            rec = self._dw_lookup(uuid)
+            if rec and rec.get('urlXml'):
+                xml = requests.get(rec['urlXml'], timeout=60).content
+                ack = None
+                if rec.get('urlAckCfdi'):
+                    try:
+                        ack = requests.get(rec['urlAckCfdi'], timeout=60).content
+                    except Exception:
+                        ack = None
+                return {'xml': xml, 'acuse': ack}
+            time.sleep(max(0.1, float(delay)))
+
+        waited = time.monotonic() - start
+        # usa _() correctamente con % dict (y sin pisarlo en este scope)
+        raise UserError(
+            _("SW aún no expone el XML del UUID %(uuid)s (esperé %(sec).1f s). "
+              "Inténtalo de nuevo en unos segundos.") % {'uuid': uuid, 'sec': waited}
+        )
+    
+    # Sube a SW el CSD (CER/KEY/PASSWORD) tomando los binarios base64
+    # guardados en la empresa. Útil cuando SW aún no tiene el CSD registrado.
+    # Devuelve True o lanza UserError ante error de API.
+    def _upload_cert_from_company(self):
+        if not requests:
+            raise UserError(_('El módulo requests no está disponible.'))
+        cfg = self._cfg(self.env.context.get('empresa_id'))
+        ICP = self.env['ir.config_parameter'].sudo()               # <-- agrega
+        debug_http = (ICP.get_param('mx_cfdi_sw.debug_http','0')   # <-- agrega
+                      or '').lower() in ('1','true','yes')
+
+        cer_b64 = cfg.get('cer_b64') or ''
+        key_b64 = cfg.get('key_b64') or ''
+        pwd     = cfg.get('key_password') or ''
+        if not (cer_b64 and key_b64 and pwd):
+            raise UserError(_('Falta CSD en Ajustes (CER/KEY/Password).'))
+
+        url = cfg['base_url'] + '/certificates/save'
+        payload = {
+            "type": "stamp",
+            "b64Cer": cer_b64,  # ya está en base64
+            "b64Key": key_b64,  # ya está en base64
+            "password": pwd,
+        }
+        if debug_http:
+            _logger.warning("SW HTTP TRY | url=%s | token=%s", url, cfg.get('token_fp'))
 
 
+        r = requests.post(url, headers=self._headers(cfg, json_ct=True),
+                          data=json.dumps(payload), timeout=60)
+        if r.status_code >= 400:
+            try:
+                data = r.json(); msg = data.get('message') or data.get('Message') or r.text
+            except Exception:
+                msg = r.text
+            raise UserError(_('SW: error al cargar CSD: %s') % msg)
+        return True
+
+    # Cancela un CFDI vía endpoint CSD de SW usando el CSD de la empresa.
+    # Devuelve {'status': ..., 'acuse': bytes|None}. Lanza UserError si la API falla.
     def _cancel(self, uuid, rfc=None, cer_pem=None, key_pem=None, password=None,
                 motivo='02', folio_sustitucion=None):
         if not requests:
             raise UserError(_('El módulo requests no está disponible.'))
-        cfg = self._cfg()
+        cfg = self._cfg(self.env.context.get('empresa_id'))
         ICP = self.env['ir.config_parameter'].sudo()
         debug_http = (ICP.get_param('mx_cfdi_sw.debug_http', '0') or '').lower() in ('1','true','yes')
 
@@ -410,41 +400,12 @@ class CfdiProviderSW(models.AbstractModel):
         acuse_b64 = data.get('acuse') or data.get('Acuse') or None
         acuse = base64.b64decode(acuse_b64) if acuse_b64 else None
         return {'status': data.get('status') or data.get('Status'), 'acuse': acuse}
-
-    def _upload_cert_from_config(self):
-        if not requests:
-            raise UserError(_('El módulo requests no está disponible.'))
-        cfg = self._cfg()
-        cer_pem = cfg.get('cer_pem') or ''
-        key_pem = cfg.get('key_pem') or ''
-        pwd = cfg.get('key_password') or ''
-        if not (cer_pem and key_pem and pwd):
-            raise UserError(_('Falta CSD en Ajustes (CER/KEY/Password).'))
     
-        url = cfg['base_url'] + '/certificates/save'
-        payload = {
-            "type": "stamp",
-            "b64Cer": base64.b64encode(cer_pem.encode('utf-8')).decode('ascii'),
-            "b64Key": base64.b64encode(key_pem.encode('utf-8')).decode('ascii'),
-            "password": pwd,
-        }
-        if debug_http:
-            _logger.warning("SW HTTP TRY | url=%s | token=%s", url, cfg.get('token_fp'))
-
-
-        r = requests.post(url, headers=self._headers(cfg, json_ct=True), data=json.dumps(payload), timeout=60)
-        if r.status_code >= 400:
-            try:
-                data = r.json(); msg = data.get('message') or data.get('Message') or r.text
-            except Exception:
-                msg = r.text
-            raise UserError(_('SW: error al cargar CSD: %s') % msg)
-        return True
-    
+    # Consulta a SW los certificados cargados y confirma si existe uno para el RFC de la empresa. Devuelve True/False con parsing robusto del JSON de respuesta.
     def _has_cert(self, rfc=None):
         if not requests:
             raise UserError(_('El módulo requests no está disponible.'))
-        cfg = self._cfg()
+        cfg = self._cfg(self.env.context.get('empresa_id'))
         url = cfg['base_url'] + '/certificates'
         resp = requests.get(url, headers=self._headers(cfg), timeout=30)
 
@@ -486,9 +447,49 @@ class CfdiProviderSW(models.AbstractModel):
 
         rfc = (rfc or cfg.get('rfc') or '').upper()
         return any(_issuer_rfc(c) == rfc for c in data)
+    
+    # Construye encabezados HTTP para SW. Inserta Authorization Bearer si hay token.
+    # Si 'json_ct' es True, añade 'Content-Type: application/json'.
+    def _headers(self, cfg, *, json_ct=False):
+        # No fijes Content-Type salvo que sea JSON; para multipart lo define requests.
+        h = {}
+        if json_ct:
+            h['Content-Type'] = 'application/json'
+        if cfg.get('token'):
+            h['Authorization'] = f"Bearer {cfg['token']}"
+        return h
 
+    # Prueba conectividad con SW contra la raíz del host configurado.
+    # Devuelve (ok: bool, mensaje: str) con el detalle del resultado.
+    # Pensado para un botón de "Probar conexión".
+    @api.model
+    def _ping(self):
+        """Verifica conectividad con SW.
+        No existe /ping público; probamos la raíz y consideramos OK cualquier
+        status <500 (incluye 200/401/403/404 según el edge/API gateway)."""
+        if not requests:
+            return False, 'Python package requests no disponible'
+        cfg = self._cfg(self.env.context.get('empresa_id'))
+        url = cfg['base_url'].rstrip('/') + '/'  # probar raíz
+        try:
+            r = requests.get(url, headers=self._headers(cfg), timeout=10)
+            code = r.status_code
+            # Host accesible aunque la ruta raíz no tenga recurso
+            if code < 500:
+                # mensaje uniforme para el botón "Probar conexión"
+                if code == 404:
+                    return True, f'Host accesible, endpoint no disponible ({url}) [{code}]'
+                return True, f'Conexión OK ({url}) [{code}]'
+            return False, f'Respuesta {code}: {r.text[:200]}'
+        except Exception as e:
+            return False, f'Error de conexión: {e}'
+
+    # =========================== Fin utils ===========================
+    
+    # =========================== debug / logs ===========================
+    # Loggea una versión segura de la configuración (sin exponer token) y devuelve el dict con los campos resumidos para diagnósticos.
     def _debug_cfg(self):
-        cfg = self._cfg()
+        cfg = self._cfg(self.env.context.get('empresa_id'))
         safe = {
             'sandbox': cfg.get('sandbox'),
             'base_url': cfg.get('base_url'),
@@ -502,11 +503,13 @@ class CfdiProviderSW(models.AbstractModel):
         _logger.info("SW DEBUG CFG: %s", safe)
         return safe
 
+    # Lista los certificados que SW reporta y loggea posibles vigencias por entrada.
+    # Devuelve True. Útil solo para diagnóstico manual.
     def debug_list_certificates(self):
         """Listar lo que SW dice tener cargado y loggear vigencias si las expone."""
         if not requests:
             return False
-        cfg = self._cfg()
+        cfg = self._cfg(self.env.context.get('empresa_id'))
         url = cfg['base_url'] + '/certificates'
         r = requests.get(url, headers=self._headers(cfg), timeout=30)
         try:
@@ -532,5 +535,7 @@ class CfdiProviderSW(models.AbstractModel):
             vto   = c.get('valid_to')   or c.get('not_after')  or c.get('validTo')
             _logger.info("SW CERT[%s]: RFC=%s valid_from=%s valid_to=%s raw=%s", i, rfc, vfrom, vto, c)
         return True
+    
+    # =========================== FIN debugs ===========================
     
     

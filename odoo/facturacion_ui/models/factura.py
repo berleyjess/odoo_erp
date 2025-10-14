@@ -1,7 +1,7 @@
 # models/factura.py
 # objeto interfaz + líneas + enlaces a origen
 from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 import logging
 _logger = logging.getLogger(__name__)
 import base64
@@ -17,18 +17,10 @@ class FacturaUI(models.Model):
         'empresas.empresa', string='Empresa', required=True, index=True,
         default=lambda s: s.env.user.empresa_actual_id.id
     )
-    
     sucursal_id = fields.Many2one(
         'sucursales.sucursal', string='Sucursal', required=True,
         default=lambda s: s.env.user.sucursal_actual_id.id
     )
-    # compañía Odoo (de empresa, si existe; si no, de usuario)
-    company_id = fields.Many2one(
-        'res.company', string='Compañía Odoo',
-        related='empresa_id.res_company_id', store=True, readonly=True, index=True
-    )
-
-
     cliente_id = fields.Many2one('clientes.cliente', string='Cliente', index=True, ondelete='set null')
     tipo         = fields.Selection([('I','Ingresos'),('E','Egresos'),('P','Pago')], default='I', required=True)
     egreso_tipo = fields.Selection(
@@ -42,18 +34,15 @@ class FacturaUI(models.Model):
         required=True,
         default=False
     )
-
     metodo       = fields.Selection([('PUE','PUE (Contado)'),('PPD','PPD (Crédito)')], default='PPD', string='Método')
     forma        = fields.Selection(selection=lambda s: s._forma_pago_selection(), string='Forma de pago')
     moneda       = fields.Char(default='MXN')
     serie        = fields.Char()
     folio        = fields.Char()
     fecha        = fields.Datetime(default=fields.Datetime.now)
-
     # Relación con ventas/cargos elegidos
     venta_ids    = fields.Many2many('ventas.venta', 'fact_ui_sale_rel', 'fact_id', 'sale_id', string='Ventas')
     line_ids     = fields.One2many('facturas.factura.line', 'factura_id', string='Conceptos')
-
     # CFDI result
     state        = fields.Selection([
         ('draft','Borrador'),
@@ -64,83 +53,23 @@ class FacturaUI(models.Model):
     uuid         = fields.Char(copy=False, index=True, tracking=True)
     move_id      = fields.Many2one('account.move', string='Factura contable', copy=False)
     attachment_count = fields.Integer(compute='_compute_attachment_count')
+    currency_id = fields.Many2one('res.currency', compute='_compute_currency', store=True, readonly=True)
 
-    # ========= Construcción de la factura contable + timbrado =========
-#Valida consistencia (_check_consistency), construye el account.move en la compañía fiscal de la empresa (_build_account_move) y luego llama a _stamp_move_with_engine.    
-    def action_build_and_stamp(self):
-        for r in self:
-            self._logger.info("CFDI FLOW | START | fact_id=%s tipo=%s empresa_id=%s company_id=%s cliente_id=%s",
-                         r.id, r.tipo, r.empresa_id.id, r.company_id.id, r.cliente_id.id if r.cliente_id else None)
-            try:
-                if not r.cliente_id and not r.line_ids:
-                    raise ValidationError(_("Selecciona un cliente en el encabezado o agrega al menos una línea con cliente."))
-                r._check_consistency()
-                move = r._build_account_move()
-                self._logger.info("CFDI FLOW | MOVE | id=%s company_id=%s partner_id=%s lines=%s",
-                             move.id, move.company_id.id, move.partner_id.id, len(move.invoice_line_ids))
-                stamped = r._stamp_move_with_engine(move)
-                self._logger.info("CFDI FLOW | STAMPED | uuid=%s", stamped.get('uuid'))
-                r.write({'state':'stamped', 'uuid': stamped.get('uuid'), 'move_id': move.id})
-                r.line_ids._touch_invoice_links(move)
-            except Exception as e:
-                self._logger.exception("CFDI FLOW | ERROR | fact_id=%s", r.id)  # stacktrace completo
-                # deja rastro en el chatter
-                try:
-                    r.message_post(body="CFDI ERROR:<br/>%s" % (str(e) or repr(e)), subtype_xmlid="mail.mt_note")
-                except Exception:
-                    pass
-                raise
-
-    @api.model
-    def _forma_pago_selection(self):
-        # catálogo mínimo; si tienes modelo de catálogo, puedes poblarlo
-        return [('01','Efectivo'),('03','Transferencia'),('04','TDC'),('28','TDD'),('99','Por definir')]
-
-    @api.onchange('empresa_id')
-    def _sync_companies(self):
-        for r in self:
-            if r.sucursal_id and r.sucursal_id.empresa != r.empresa_id:
-                r.sucursal_id = False
-
-
-
-    def _compute_attachment_count(self):
-        Att = self.env['ir.attachment']
-        for r in self:
-            r.attachment_count = Att.search_count([('res_model', '=', r._name), ('res_id', '=', r.id)])
-
-    @api.onchange('sucursal_id')
-    def _onchange_sucursal(self):
-        for r in self:
-            if r.sucursal_id and r.sucursal_id.empresa:
-                r.empresa_id = r.sucursal_id.empresa.id
-
-    @api.onchange('metodo','tipo')
-    def _onchange_metodo_forma(self):
-        """Si es I/E y método PPD, fuerza forma 99; si PUE deja elegir."""
-        for r in self:
-            if r.tipo in ('I','E'):
-                if (r.metodo or '').upper() == 'PPD':
-                    r.forma = '99'
-            else:
-                r.forma = False  # en tipo P no aplica
-    #BOTÓN TIMBRAR: ----------------------------------------
-#Resuelve partner_id a partir de tu clientes.cliente (con _ensure_partner_from_cliente).
-#Crea la factura contable en la compañía fiscal (empresa_id.res_company_id), postea, e intenta mapear campos l10n (uso/metodo/forma).
+    # Crea y publica el account.move (factura/refund) en la compañía técnica indicada por parámetro
+    # 'facturacion_ui.technical_company_id'. Mapea impuestos/productos, enlaza NC con origen y
+    # (si está disponible) setea l10n_mx_edi_origin con TipoRelación|UUID. Devuelve el move.
     def _build_account_move(self):
-        self.ensure_one()
-        if not (self.empresa_id and self.empresa_id.res_company_id):   # ← fiscal
-            raise ValidationError(_("Configura la 'Compañía fiscal (Odoo)' en la Empresa seleccionada."))
-
         partner = self._partner_from_context()
         if not partner:
-            raise ValidationError(_('Falta cliente.'))
+            raise ValidationError(_("Selecciona un cliente en el encabezado o agrega al menos una línea con cliente."))
 
-        forma = self.forma
-        if self.tipo in ('I','E') and (self.metodo or '').upper() == 'PPD' and not forma:
-            forma = '99'
-
-        inv_company = self.empresa_id.res_company_id                   # ← crear el move en la fiscal
+        self.ensure_one()
+        ICP = self.env['ir.config_parameter'].sudo()
+        tech_company_id = int(ICP.get_param('facturacion_ui.technical_company_id', '0') or 0)
+        if not tech_company_id:
+            raise ValidationError(_("Configura el parámetro del sistema 'facturacion_ui.technical_company_id' con la compañía contable técnica."))
+        inv_company = self.env['res.company'].browse(tech_company_id)
+                   # ← crear el move en la fiscal
         lines_cmd = self.with_context(allowed_company_ids=[inv_company.id])\
                         .line_ids._to_move_line_cmds(inv_company)
     
@@ -175,11 +104,13 @@ class FacturaUI(models.Model):
 
         try:
             from ..services.mapper import map_mx_edi_fields
-            map_mx_edi_fields(move, uso=self.uso_cfdi, metodo=self.metodo, forma=forma)
+            map_mx_edi_fields(move, uso=self.uso_cfdi, metodo=self.metodo, forma=self.forma)
+
         except Exception:
             pass
         return move
     
+    # Onchange: si el tipo es ‘E’ (egreso), fuerza método = PUE (contado). No cambia la forma.
     @api.onchange('tipo')
     def _onchange_tipo_force_pue(self):
         """Si es Egreso, siempre PUE (contado)."""
@@ -187,6 +118,8 @@ class FacturaUI(models.Model):
             if r.tipo == 'E':
                 r.metodo = 'PUE'   # solo método; no toco forma
 
+    # Onchange (Egreso con factura origen): fija cliente/método/uso y clona TODAS las líneas
+# de la factura origen en la UI para permitir devoluciones parciales (sin source_model).
     @api.onchange('origin_factura_id', 'egreso_tipo')
     def _onchange_origin_prefill_lines(self):
         """
@@ -226,61 +159,15 @@ class FacturaUI(models.Model):
                 }))
             r.line_ids = new_lines
 
-    
-    # ========= Validaciones clave =========
-# Valida consistencia (primera accion en action_build_and_stamp)
-    def _check_consistency(self):
-        self.ensure_one()
-        bad = self.line_ids.filtered(lambda l: l.sale_id and l.sale_id.sucursal_id != self.sucursal_id)
-        super(FacturaUI, self)._check_consistency() if hasattr(super(), '_check_consistency') else None
-        self.ensure_one()
-
-        if not self.line_ids:
-            raise ValidationError(_('Agrega al menos un concepto a la factura.'))
-        if bad:
-            raise ValidationError(_('Todas las transacciones deben pertenecer a la sucursal seleccionada.'))
-
-        emp_ids = {l.empresa_id.id for l in self.line_ids if l.empresa_id}
-        if len(emp_ids) > 1 or (self.empresa_id and emp_ids and self.empresa_id.id not in emp_ids):
-            raise ValidationError(_('Todas las líneas deben pertenecer a la misma empresa.'))
-        if self.empresa_id and not emp_ids:
-            self.line_ids.write({'empresa_id': self.empresa_id.id})
-
-        #super_exists = hasattr(super(), '_check_consistency')
-        #if super_exists:
-        #    super(FacturaUI, self)._check_consistency()
-        #self.ensure_one()
-
-        # Asegurar PUE en egresos (sin romper flujo)
-        if self.tipo == 'E' and (self.metodo or '').upper() != 'PUE':
-            self.metodo = 'PUE'
-
-        # Egresos: validar cliente y factura origen
-        if self.tipo == 'E':
-            if not self.origin_factura_id:
-                raise ValidationError(_('En un Egreso debes seleccionar la "Factura origen".'))
-            if (self.origin_factura_id.cliente_id and self.cliente_id 
-                and self.origin_factura_id.cliente_id.id != self.cliente_id.id):
-                raise ValidationError(_('El cliente del Egreso debe coincidir con el de la factura origen.'))
-
-        # << aquí el cambio >>
-        clientes = {l.cliente_id.id for l in self.line_ids if l.cliente_id}
-        if len(clientes) > 1:
-            raise ValidationError(_('Todas las líneas deben ser del mismo cliente.'))
-
-        if any(l.source_model == 'transacciones.transaccion' and l.sale_state == 'cancelled' for l in self.line_ids):
-            raise ValidationError(_('Hay transacciones de ventas canceladas.'))
-
-#Calcula conceptos desde tus líneas (line_ids._to_cfdi_conceptos()).
-#Prepara extras (p.ej. InformacionGlobal para Público en General).
-#Forza contexto a la compañía emisor fiscal y llama al servicio:
+    # Arma los “conceptos” CFDI desde las líneas UI, calcula extras (p.ej. Información Global
+    # para Público en General), asegura locking por empresa y llama al engine con empresa_id
+    # del emisor fiscal para timbrar (Version 4.0). Devuelve dict con uuid/attachment/document.
 
     def _stamp_move_with_engine(self, move):
         """Timbrar obligando el contexto de compañía del emisor fiscal (empresas.empresa)."""
         self.ensure_one()
 
-        invoice_company = move.company_id
-        emisor_company  = self._emisor_company(move)   # ← ahora en este modelo
+        invoice_company = move.company_id  # solo para log/diagnóstico
 
         # Conceptos CFDI
         conceptos = self.line_ids._to_cfdi_conceptos()
@@ -298,21 +185,16 @@ class FacturaUI(models.Model):
                 'anio': str(dt.year),
             }
         self._logger.info(
-            "CFDI FLOW | EMISOR | empresa=%s company=%s partner=%s zip='%s'",
-            self.empresa_id.display_name, emisor_company.display_name,
-            emisor_company.partner_id.display_name, (emisor_company.partner_id.zip or '')
+            "CFDI FLOW | EMISOR | empresa=%s (cp=%s) invoice_company=%s",
+            self.empresa_id.display_name, (self.empresa_id.cp or ''), invoice_company.id
         )
-
-        # Validar ZIP de emisor (Lugar de expedición)
-        zip_code = (emisor_company.partner_id.zip or '').strip()
-        if not (zip_code.isdigit() and len(zip_code) == 5):
-            raise ValidationError(_("Configura el C.P. (5 dígitos) en la compañía fiscal '%s'.") % emisor_company.display_name)
-        # 🔒 (opcional) serializar timbrados por emisor y acotar espera por locks en adjuntos
+        # Serializar por empresa para evitar colisiones
         try:
-            self.env.cr.execute("SELECT pg_advisory_xact_lock(%s)", [emisor_company.id])
+            self.env.cr.execute("SELECT pg_advisory_xact_lock(%s)", [self.empresa_id.id])
         except Exception:
             pass
         self.env.cr.execute("SET LOCAL lock_timeout TO '30s'")
+        
 
         if self.tipo == 'E' and (self.origin_factura_id and (self.origin_factura_id.uuid or '').strip()):
             extras.setdefault('relaciones', []).append({
@@ -320,21 +202,16 @@ class FacturaUI(models.Model):
                 'uuids': [self.origin_factura_id.uuid],
             })
 
-         # Logs de diagnóstico útiles
-        self._logger.info(
-            "CFDI FLOW | ENGINE CONTEXT | company_invoice=%s company_fiscal=%s partner_fiscal=%s zip=%s",
-            invoice_company.id, emisor_company.id, emisor_company.partner_id.id, zip_code
-        )
-
         # Timbrar en el contexto de la compañía EMISOR (no la logueada)
-        engine = (self.env['mx.cfdi.engine']
-                .with_company(emisor_company)
-                .with_context(allowed_company_ids=[emisor_company.id, invoice_company.id]))
+        engine = self.env['mx.cfdi.engine'].with_context(
+            empresa_id=self.empresa_id.id
+        )
 
 
         return engine.generate_and_stamp(
             origin_model='account.move',
             origin_id=move.id,
+            empresa_id=self.empresa_id.id,
             tipo=self.tipo,
             receptor_id=rec.id,
             uso_cfdi=self.uso_cfdi,
@@ -346,7 +223,8 @@ class FacturaUI(models.Model):
             extras=(extras or None),
         )
 
-    # ========= Helpers =========
+    # A partir de clientes.cliente crea/actualiza (si es necesario) un res.partner con RFC,
+    # nombre legal, CP y régimen fiscal (usa 616/99999 para Público en General). Devuelve partner.
     def _ensure_partner_from_cliente(self, cli):
         """cli: record de clientes.cliente. Devuelve un res.partner (crea si no existe)."""
         Partner = self.env['res.partner']
@@ -458,17 +336,68 @@ class FacturaUI(models.Model):
             self._logger.info("CFDI FLOW | PARTNER UPDATE | partner_id=%s updates=%s", partner.id, updates)
 
         return partner
+
+
+    # ============================== utils ==============================
+
+    # Construye y valida la factura UI, genera el account.move en la “compañía técnica”,
+    # timbra con el engine CFDI, guarda uuid/estado/enlace al move y registra links de líneas.
+    # Publica en el chatter errores si falla.
+    def action_build_and_stamp(self):
+        for r in self:
+            
+            try:
+                if not r.cliente_id and not r.line_ids:
+                    raise ValidationError(_("Selecciona un cliente en el encabezado o agrega al menos una línea con cliente."))
+                r._check_consistency()
+                move = r._build_account_move()
+                
+                stamped = r._stamp_move_with_engine(move)
+                self._logger.info("CFDI FLOW | STAMPED | uuid=%s", stamped.get('uuid'))
+                r.write({'state':'stamped', 'uuid': stamped.get('uuid'), 'move_id': move.id})
+                r.line_ids._touch_invoice_links(move)
+            except Exception as e:
+                self._logger.exception("CFDI FLOW | ERROR | fact_id=%s", r.id)  # stacktrace completo
+                # deja rastro en el chatter
+                try:
+                    r.message_post(body="CFDI ERROR:<br/>%s" % (str(e) or repr(e)), subtype_xmlid="mail.mt_note")
+                except Exception:
+                    pass
+                raise
     
-    # En FacturaUI._emisor_company
-    def _emisor_company(self, move):
-        self.ensure_one()
-        emisor = self.empresa_id.res_company_id              # ← fiscal
-        if not emisor:
-            raise ValidationError(_("Configura la 'Compañía fiscal (Odoo)' en la Empresa seleccionada."))
-        return emisor
+    # Devuelve el catálogo mínimo de formas de pago para el campo 'forma' en la UI.
+    @api.model
+    def _forma_pago_selection(self):
+        # catálogo mínimo; si tienes modelo de catálogo, puedes poblarlo
+        return [('01','Efectivo'),('03','Transferencia'),('04','TDC'),('28','TDD'),('99','Por definir')]
 
+    # Onchange: si la sucursal elegida pertenece a otra empresa, limpia el campo sucursal.
+    @api.onchange('empresa_id')
+    def _sync_companies(self):
+        for r in self:
+            if r.sucursal_id and r.sucursal_id.empresa != r.empresa_id:
+                r.sucursal_id = False
 
+    # Onchange: al cambiar la sucursal, sincroniza automáticamente la empresa del encabezado.
+    @api.onchange('sucursal_id')
+    def _onchange_sucursal(self):
+        for r in self:
+            if r.sucursal_id and r.sucursal_id.empresa:
+                r.empresa_id = r.sucursal_id.empresa.id
 
+    # Onchange: en I/E, si método = PPD fuerza forma = '99'; para tipo P limpia la forma (no aplica).
+    @api.onchange('metodo','tipo')
+    def _onchange_metodo_forma(self):
+        """Si es I/E y método PPD, fuerza forma 99; si PUE deja elegir."""
+        for r in self:
+            if r.tipo in ('I','E'):
+                if (r.metodo or '').upper() == 'PPD':
+                    r.forma = '99'
+            else:
+                r.forma = False  # en tipo P no aplica
+
+    # Obtiene el res.partner a usar: prioriza cliente del encabezado y, si no, toma el de la
+    # primera línea con cliente, normalizándolo con _ensure_partner_from_cliente().
     def _partner_from_context(self):
         # prioriza el del encabezado; si no, toma de líneas
         if self.cliente_id:
@@ -478,11 +407,12 @@ class FacturaUI(models.Model):
                 return self._ensure_partner_from_cliente(l.cliente_id)
         return False
 
-    # Botón futuro (Complemento de pago)
+    # Placeholder para complemento de pago (tipo P). Lanza excepción “pendiente”.
     def action_build_payment_cfdi(self):
         self.ensure_one()
         raise ValidationError(_('Complemento de pago (tipo P) pendiente de implementar.'))
     
+    # Abre una acción de ventana list/form con los adjuntos del registro actual.
     def action_open_attachments(self):
         self.ensure_one()
         return {
@@ -494,16 +424,18 @@ class FacturaUI(models.Model):
             'context': {'default_res_model': self._name, 'default_res_id': self.id},
             'target': 'current',
         }
-
+    # Placeholder de “Intereses” (no implementado). Lanza excepción “pendiente”.
     def action_placeholder_interest(self):
         self.ensure_one()
         raise ValidationError(_('Intereses: pendiente de implementar.'))
     
+    # Devuelve la acción estándar para cerrar el formulario actua
     def action_close_form(self):
         # Cierra la vista actual
         return {'type': 'ir.actions.act_window_close'}
     
-    # --- Helper para clonar conceptos desde la factura origen ---
+    # Helper: genera comandos (0,0,vals) clonando conceptos de una factura origen (sin enlaces)
+    # para precargar egresos/NC y permitir ajustes posteriores.
     def _prepare_lines_from_origin(self, origin):
         """Devuelve comandos (0,0,vals) clonando conceptos de la factura origen."""
         self.ensure_one()
@@ -523,6 +455,8 @@ class FacturaUI(models.Model):
             }))
         return new_lines
 
+    # Desde un Ingreso timbrado, crea una Nota de crédito (Egreso) precargada (encabezado/líneas)
+    # y abre el formulario de la nueva NC para revisión/timbrado.
     def action_prepare_credit_note(self):
         """Desde Ingreso timbrado, crear NC (Egreso) prellenando conceptos del origen."""
         self.ensure_one()
@@ -560,7 +494,8 @@ class FacturaUI(models.Model):
 
     
     # ===== Botones para descargar/recuperar XML =====
-    # Busca el attachment XML del CFDI (prioriza account.move, luego pagos, luego factura_ui, luego mx.cfdi.document)
+    # Localiza el adjunto XML del CFDI priorizando: account.move → pagos relacionados → la propia
+    # FacturaUI → documentos del engine (mx.cfdi.document). Devuelve el attachment o vacío.
     def _find_cfdi_xml_attachment(self):
         """Regresa attachment XML si existe (prioriza account.move → pagos → facturas.factura → mx.cfdi.document)."""
         self.ensure_one()
@@ -618,7 +553,7 @@ class FacturaUI(models.Model):
 
         return self.env['ir.attachment']  # vacío
 
-
+    # Fuerza la descarga del XML CFDI hallado por _find_cfdi_xml_attachment(). Valida que exista uuid.
     def action_download_xml(self):
         """Forzar descarga del XML CFDI (igual que ventas.action_download_cfdi)."""
         self.ensure_one()
@@ -635,7 +570,8 @@ class FacturaUI(models.Model):
             'target': 'self',
         }
 
-
+    # Consulta al proveedor SW por UUID (DataWarehouse), adjunta el XML (y acuse si llega) a
+    # account.move y a la FacturaUI, y dispara la descarga. Requiere contexto empresa_id (se usa self.empresa_id).
     def action_fetch_xml_from_sw(self):
         """Descarga el XML desde SW (PAC) y lo adjunta al move y a la FacturaUI; luego fuerza descarga."""
         self.ensure_one()
@@ -643,7 +579,9 @@ class FacturaUI(models.Model):
             raise ValidationError(_('No hay UUID para recuperar.'))
 
         # Usa exactamente el mismo proveedor que en ventas
-        provider = self.env['mx.cfdi.engine']._get_provider()
+        engine = self.env['mx.cfdi.engine'].with_context(empresa_id=self.empresa_id.id)
+        provider = engine._get_provider()
+
         data = provider.download_xml_by_uuid(self.uuid, tries=10, delay=1.0)
         if not data or not data.get('xml'):
             raise UserError(_('SW no devolvió XML para el UUID %s.') % self.uuid)
@@ -695,12 +633,31 @@ class FacturaUI(models.Model):
             }
         return self.action_open_attachments()
     
-    # =================== Egresos y pagos ========================
-    currency_id = fields.Many2one(
-        'res.currency',
-        related='company_id.currency_id',
-        store=True, readonly=True
-    )
+    # ==== fin botones XML ====
+
+    
+    # Onchange: si la factura origen no coincide en empresa/cliente con el encabezado, la limpia.
+    @api.onchange('cliente_id', 'empresa_id', 'origin_factura_id')
+    def _onchange_origin_guard(self):
+        if self.origin_factura_id and (
+            (self.empresa_id and self.origin_factura_id.empresa_id != self.empresa_id) or
+            (self.cliente_id and self.origin_factura_id.cliente_id != self.cliente_id)
+        ):
+            self.origin_factura_id = False
+
+    
+    # ============================== Fin utils ==============================
+
+    # =========================== Helpers ===========================
+    # Establece la moneda de la UI a partir del parámetro 'facturacion_ui.currency_id' o MXN por defecto.
+    @api.depends('empresa_id')
+    def _compute_currency(self):
+        ICP = self.env['ir.config_parameter'].sudo()
+        cid = int(ICP.get_param('facturacion_ui.currency_id', '0') or 0)
+        cur = self.env['res.currency'].browse(cid) if cid else self.env.ref('base.MXN', raise_if_not_found=False)
+        for r in self:
+            r.currency_id = cur or False  # si no hay MXN instalado, deja vacío (forzará configurar param)
+
 
 
     importe_total = fields.Monetary(string='Importe', currency_field='currency_id',
@@ -724,6 +681,7 @@ class FacturaUI(models.Model):
         related='origin_factura_id.move_id', store=True, readonly=True
     )
 
+    # Calcula importes por encabezado (suma de líneas) y, para I/E con PPD, el saldo = importe total.
     @api.depends('line_ids.total', 'metodo', 'tipo')
     def _compute_totales(self):
         for r in self:
@@ -733,13 +691,55 @@ class FacturaUI(models.Model):
                 r.saldo = r.importe_total if (r.metodo or '').upper() == 'PPD' else 0.0
             else:
                 r.saldo = 0.0
-    @api.onchange('cliente_id', 'empresa_id', 'origin_factura_id')
-    def _onchange_origin_guard(self):
-        if self.origin_factura_id and (
-            (self.empresa_id and self.origin_factura_id.empresa_id != self.empresa_id) or
-            (self.cliente_id and self.origin_factura_id.cliente_id != self.cliente_id)
-        ):
-            self.origin_factura_id = False
+
+    # Calcula cuántos adjuntos (ir.attachment) tiene el registro para mostrar un contador.
+    def _compute_attachment_count(self):
+        Att = self.env['ir.attachment']
+        for r in self:
+            r.attachment_count = Att.search_count([('res_model', '=', r._name), ('res_id', '=', r.id)])
+
+    # Valida reglas de negocio antes de timbrar:
+        # - Debe haber al menos una línea y todas de la misma sucursal/empresa/cliente.
+        # - En Egreso: requiere factura origen y mismo cliente que el origen.
+        # - Evita facturar transacciones canceladas.
+        # - En Egreso, si el método no es PUE lo corrige a PUE.
+    def _check_consistency(self):
+        self.ensure_one()
+        bad = self.line_ids.filtered(lambda l: l.sale_id and l.sale_id.sucursal_id != self.sucursal_id)
+        super(FacturaUI, self)._check_consistency() if hasattr(super(), '_check_consistency') else None
+        self.ensure_one()
+
+        if not self.line_ids:
+            raise ValidationError(_('Agrega al menos un concepto a la factura.'))
+        if bad:
+            raise ValidationError(_('Todas las transacciones deben pertenecer a la sucursal seleccionada.'))
+
+        emp_ids = {l.empresa_id.id for l in self.line_ids if l.empresa_id}
+        if len(emp_ids) > 1 or (self.empresa_id and emp_ids and self.empresa_id.id not in emp_ids):
+            raise ValidationError(_('Todas las líneas deben pertenecer a la misma empresa.'))
+        if self.empresa_id and not emp_ids:
+            self.line_ids.write({'empresa_id': self.empresa_id.id})
+
+        # Asegurar PUE en egresos (sin romper flujo)
+        if self.tipo == 'E' and (self.metodo or '').upper() != 'PUE':
+            self.metodo = 'PUE'
+
+        # Egresos: validar cliente y factura origen
+        if self.tipo == 'E':
+            if not self.origin_factura_id:
+                raise ValidationError(_('En un Egreso debes seleccionar la "Factura origen".'))
+            if (self.origin_factura_id.cliente_id and self.cliente_id 
+                and self.origin_factura_id.cliente_id.id != self.cliente_id.id):
+                raise ValidationError(_('El cliente del Egreso debe coincidir con el de la factura origen.'))
+
+        # << aquí el cambio >>
+        clientes = {l.cliente_id.id for l in self.line_ids if l.cliente_id}
+        if len(clientes) > 1:
+            raise ValidationError(_('Todas las líneas deben ser del mismo cliente.'))
+
+        if any(l.source_model == 'transacciones.transaccion' and l.sale_state == 'cancelled' for l in self.line_ids):
+            raise ValidationError(_('Hay transacciones de ventas canceladas.'))
+    # =========================== Fin Helpers ===========================
 
 
 
@@ -783,16 +783,8 @@ class FacturaUILine(models.Model):
     qty_to_invoice = fields.Float(default=0.0)  # para parciales
     qty_invoiced   = fields.Float(default=0.0)
 
-    @api.depends('cantidad','precio','iva_ratio','ieps_ratio')
-    def _calc_totals(self):
-        for l in self:
-            base = (l.cantidad or 0.0) * (l.precio or 0.0)
-            l.subtotal = base
-            l.iva_amount = round(base * (l.iva_ratio or 0.0), 2)
-            l.ieps_amount = round(base * (l.ieps_ratio or 0.0), 2)
-            l.total = round(base + l.iva_amount + l.ieps_amount, 2)
-
-    # ===== Mappers hacia account.move y CFDI =====
+    # Transforma líneas UI a comandos (0,0,vals) para account.move.invoice_line_ids en ‘company’:
+    # resuelve taxes por porcentaje, busca product.product de forma robusta y arma los vals.
     def _to_move_line_cmds(self, company):
         """Devuelve comandos (0,0,vals) para account.move.invoice_line_ids."""
         cmds = []
@@ -876,82 +868,9 @@ class FacturaUILine(models.Model):
     
         return cmds
 
-
-    def _to_cfdi_conceptos(self):
-        conceptos = []
-        for l in self:
-            iva_factor = None
-            # ejemplo: si iva_ratio == 0 puedes decidir basado en producto o UI
-            if l.iva_ratio == 0.0:
-                # setea 'Exento' o 'Tasa' según tu regla/UI
-                iva_factor = getattr(l.producto_id, 'iva_factor', None)  # o desde la línea
-
-            conceptos.append({
-                'clave_sat': getattr(l.producto_id, 'sat_clave_prod_serv', None) or '',
-                'clave_unidad': getattr(l.producto_id, 'sat_clave_unidad', None) or '',
-                'no_identificacion': getattr(l.producto_id, 'default_code', None) or str(l.producto_id.id),
-                'descripcion': l.descripcion or (l.producto_id.display_name or 'Producto'),
-                'cantidad': l.cantidad or 1.0,
-                'valor_unitario': l.precio or 0.0,
-                'importe': round((l.cantidad or 0.0)*(l.precio or 0.0), 2),
-                'objeto_imp': '02' if (l.iva_ratio or l.ieps_ratio or iva_factor) else '01',
-                'iva': float(l.iva_ratio or 0.0),
-                'ieps': float(l.ieps_ratio or 0.0),
-                'iva_factor': iva_factor,   # 'Tasa' o 'Exento' si lo conoces
-            })
-        return conceptos
-
-
-    def _touch_invoice_links(self, move):
-        """Después de timbrar, registra enlace y vuelve a validar disponible (doble guarda)."""
-        EPS = 1e-6
-        Link = self.env['ventas.transaccion.invoice.link']
-        
-        for l in self.filtered(lambda x: x.transaccion_id):
-            # En Odoo 18, usa SQL directo para el bloqueo si es necesario
-            # O simplemente usa sudo() sin with_for_update()
-            tx = l.transaccion_id.sudo()
-            
-            # Opción 1: Sin bloqueo explícito (más simple)
-            qty = l.qty_to_invoice or l.cantidad or 0.0
-            
-            # Relee lo ya facturado (links abiertos)
-            already = sum(tx.link_ids.filtered(lambda k: k.state != 'canceled').mapped('qty')) or 0.0
-            total = tx.cantidad or 0.0
-            
-            if already + qty - EPS > total:
-                raise ValidationError(_(
-                    "Concurrencia: la transacción %s quedó sin disponible al timbrar. "
-                    "Disponible: %.4f, intentando facturar: %.4f"
-                ) % (tx.display_name, max(total - already, 0.0), qty))
-            
-            Link.create({
-                'transaccion_id': tx.id,
-                'move_id': move.id,
-                'qty': qty,
-                'state': 'open',
-            })
-            
-            # Verifica si el modelo tiene este método
-            if hasattr(tx, '_recompute_invoice_status'):
-                tx._recompute_invoice_status()
-
-    @api.constrains('transaccion_id', 'cantidad', 'qty_to_invoice')
-    def _check_not_exceed_available(self):
-        EPS = 1e-6
-        for l in self.filtered(lambda x: x.transaccion_id):
-            tx = l.transaccion_id.sudo()  # por si
-            total = tx.cantidad or 0.0
-            already = tx.qty_invoiced or 0.0  # sólo lo timbrado
-            this = l.qty_to_invoice or l.cantidad or 0.0
-            # Si ya está FULL, no permitir
-            if (already + EPS) >= total:
-                raise ValidationError(_("La transacción %s ya está completamente facturada.") % tx.display_name)
-            if already + this - EPS > total:
-                raise ValidationError(_(
-                    "Cantidad a facturar (%.4f) excede lo disponible (%.4f) de la transacción %s."
-                ) % (this, max(total - already, 0.0), tx.display_name))
-            
+    #============================== Utils ==============================
+    # Al crear línea UI: hereda empresa/cliente del padre si faltan, asume line_type='sale' por defecto,
+    # intenta resolver producto por nombre y exige producto obligatorio.
     @api.model
     def create(self, vals):
         # Heredar empresa/cliente del padre si faltan (tu código actual) ...
@@ -986,8 +905,7 @@ class FacturaUILine(models.Model):
 
         return super().create(vals)
 
-
-
+    # Postwrite de línea UI: auto-sana empresa/cliente desde el padre si quedaron vacíos.
     def write(self, vals):
         res = super().write(vals)
         # Auto-sanar registros existentes si quedaran sin empresa/cliente
@@ -997,3 +915,104 @@ class FacturaUILine(models.Model):
             if not r.cliente_id and r.factura_id and r.factura_id.cliente_id:
                 r.cliente_id = r.factura_id.cliente_id.id
         return res
+    
+    # Mapea la línea UI a dicts “concepto” para el engine CFDI (clave SAT, unidad, descripción,
+    # cantidades, valores, objeto de impuesto y tasas).
+    def _to_cfdi_conceptos(self):
+        conceptos = []
+        for l in self:
+            iva_factor = None
+            # ejemplo: si iva_ratio == 0 puedes decidir basado en producto o UI
+            if l.iva_ratio == 0.0:
+                # setea 'Exento' o 'Tasa' según tu regla/UI
+                iva_factor = getattr(l.producto_id, 'iva_factor', None)  # o desde la línea
+
+            clave_sat = (getattr(l.producto_id.codigosat, 'code', '') or '').strip()
+            clave_unidad = (getattr(l.producto_id, 'unidad', '') or '').strip()
+            if not clave_sat:
+                raise UserError(_("Línea %s: el producto '%s' no tiene Código SAT (campo 'codigosat').") % (l.id, l.producto_id.display_name))
+            if not clave_unidad:
+                raise UserError(_("Línea %s: el producto '%s' no tiene ClaveUnidad (campo 'unidad').") % (l.id, l.producto_id.display_name))
+
+
+            conceptos.append({
+                'clave_sat': (getattr(l.producto_id.codigosat, 'code', '') or '').strip(),
+                'clave_unidad': (getattr(l.producto_id, 'unidad', '') or '').strip(),
+                'no_identificacion': getattr(l.producto_id, 'codigo', None) or getattr(l.producto_id, 'default_code', None) or str(l.producto_id.id),
+                'descripcion': l.descripcion or (getattr(l.producto_id, 'name', None) or l.producto_id.display_name or 'Producto'),
+                'cantidad': l.cantidad or 1.0,
+                'valor_unitario': l.precio or 0.0,
+                'importe': round((l.cantidad or 0.0)*(l.precio or 0.0), 2),
+                'objeto_imp': '02' if (l.iva_ratio or l.ieps_ratio or iva_factor) else '01',
+                'iva': float(l.iva_ratio or 0.0),
+                'ieps': float(l.ieps_ratio or 0.0),
+                'iva_factor': iva_factor,   # 'Tasa' o 'Exento' si lo conoces
+            })
+        return conceptos
+
+    # Tras timbrar: crea el vínculo ventas.transaccion.invoice.link por cada línea con transacción,
+    # valida concurrencia (no sobre-facturar) y recomputa estado de facturación si aplica.
+    def _touch_invoice_links(self, move):
+        """Después de timbrar, registra enlace y vuelve a validar disponible (doble guarda)."""
+        EPS = 1e-6
+        Link = self.env['ventas.transaccion.invoice.link']
+        
+        for l in self.filtered(lambda x: x.transaccion_id):
+            # En Odoo 18, usa SQL directo para el bloqueo si es necesario
+            # O simplemente usa sudo() sin with_for_update()
+            tx = l.transaccion_id.sudo()
+            
+            # Opción 1: Sin bloqueo explícito (más simple)
+            qty = l.qty_to_invoice or l.cantidad or 0.0
+            
+            # Relee lo ya facturado (links abiertos)
+            already = sum(tx.link_ids.filtered(lambda k: k.state != 'canceled').mapped('qty')) or 0.0
+            total = tx.cantidad or 0.0
+            
+            if already + qty - EPS > total:
+                raise ValidationError(_(
+                    "Concurrencia: la transacción %s quedó sin disponible al timbrar. "
+                    "Disponible: %.4f, intentando facturar: %.4f"
+                ) % (tx.display_name, max(total - already, 0.0), qty))
+            
+            Link.create({
+                'transaccion_id': tx.id,
+                'move_id': move.id,
+                'qty': qty,
+                'state': 'open',
+            })
+            
+            # Verifica si el modelo tiene este método
+            if hasattr(tx, '_recompute_invoice_status'):
+                tx._recompute_invoice_status()
+
+    # Constraint: evita crear/guardar líneas que excedan la cantidad disponible a facturar de la
+    # transacción origen (considerando lo ya facturado).
+    @api.constrains('transaccion_id', 'cantidad', 'qty_to_invoice')
+    def _check_not_exceed_available(self):
+        EPS = 1e-6
+        for l in self.filtered(lambda x: x.transaccion_id):
+            tx = l.transaccion_id.sudo()  # por si
+            total = tx.cantidad or 0.0
+            already = tx.qty_invoiced or 0.0  # sólo lo timbrado
+            this = l.qty_to_invoice or l.cantidad or 0.0
+            # Si ya está FULL, no permitir
+            if (already + EPS) >= total:
+                raise ValidationError(_("La transacción %s ya está completamente facturada.") % tx.display_name)
+            if already + this - EPS > total:
+                raise ValidationError(_(
+                    "Cantidad a facturar (%.4f) excede lo disponible (%.4f) de la transacción %s."
+                ) % (this, max(total - already, 0.0), tx.display_name))
+
+    # Calcula subtotal, impuestos (IVA/IEPS) y total de la línea a partir de cantidad/precio/ratios.
+    @api.depends('cantidad','precio','iva_ratio','ieps_ratio')
+    def _calc_totals(self):
+        for l in self:
+            base = (l.cantidad or 0.0) * (l.precio or 0.0)
+            l.subtotal = base
+            l.iva_amount = round(base * (l.iva_ratio or 0.0), 2)
+            l.ieps_amount = round(base * (l.ieps_ratio or 0.0), 2)
+            l.total = round(base + l.iva_amount + l.ieps_amount, 2)
+
+
+    # ============================== Fin utils ==============================

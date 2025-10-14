@@ -3,6 +3,9 @@ from odoo import models, fields, api
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
+    # Override: al cancelar la factura contable, marca como 'canceled' los links
+    # ventas.transaccion.invoice.link asociados (state='open') y recomputa el estado
+    # de facturación de las transacciones afectadas. Llama a super() primero.
     def button_cancel(self):
         """Si se cancela la factura, marca enlaces como cancelados"""
         res = super().button_cancel()
@@ -22,6 +25,9 @@ class AccountMove(models.Model):
         
         return res
     
+    # Override: al regresar la factura a borrador, reactiva links previamente
+    # cancelados (state='open') y recomputa el estado de facturación de las
+    # transacciones afectadas. Llama a super() primero.
     def button_draft(self):
         """Si se pasa a borrador, reactiva los links"""
         res = super().button_draft()

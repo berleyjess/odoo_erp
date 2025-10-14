@@ -17,4 +17,3 @@ class CfdiProviderBase(models.AbstractModel):
     @api.model
     def _status(self, uuid, rfc=None):
         raise UserError(_("Implementa _status en un proveedor."))
-

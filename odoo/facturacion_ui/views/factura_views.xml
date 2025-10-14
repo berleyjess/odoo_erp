@@ -16,7 +16,7 @@
         <field name="origin_factura_id" invisible="tipo != 'E'"/>
         <field name="state" widget="badge" decoration-success="state == 'stamped'" decoration-warning="state == 'ready'" decoration-info="state == 'draft'"/>
         <field name="uuid"/>
-        <button name="action_download_xml" type="object" icon="fa-download" string="Descargar XML" invisible="not uuid"/>
+        <button name="action_fetch_xml_from_sw" type="object" icon="fa-download" string="Descargar XML" invisible="not uuid"/>
       </list>
     </field>
   </record>
@@ -33,9 +33,9 @@
           <button name="action_build_and_stamp" type="object" string="Timbrar" 
                   class="btn-primary" 
                   invisible="state != 'draft'"/>
-          <button name="action_download_xml" type="object" string="Descargar XML" 
+          <!--button name="action_download_xml" type="object" string="Descargar XML" 
                   class="btn-info"
-                  invisible="not uuid"/>
+                  invisible="not uuid"/-->
           <button name="action_fetch_xml_from_sw" type="object" string="Recuperar XML de SW" 
                   class="btn-warning"
                   invisible="not uuid"/>
@@ -53,9 +53,9 @@
             <button name="action_open_attachments" type="object" class="oe_stat_button" icon="fa-paperclip">
               <field name="attachment_count" widget="statinfo" string="Adjuntos"/>
             </button>
-            <button name="action_download_xml" type="object" class="oe_stat_button" icon="fa-file-code-o" invisible="not uuid">
+            <!--button name="action_download_xml" type="object" class="oe_stat_button" icon="fa-file-code-o" invisible="not uuid">
               <field name="uuid" widget="statinfo" string="XML"/>
-            </button>
+            </button-->
           </div>
           
           <widget name="web_ribbon" title="Timbrado" invisible="state != 'stamped'" bg_color="bg-success"/>
@@ -102,7 +102,7 @@
           <group>
             <group>
               <field name="empresa_id" required="1" readonly="state != 'draft'"/>
-              <field name="company_id" readonly="1"/>
+              
               <field name="sucursal_id" required="1" readonly="state != 'draft'"/>
               <field name="cliente_id" readonly="state != 'draft'"/>
               <field name="tipo" readonly="state != 'draft'"/>
@@ -216,7 +216,7 @@
             <page string="Adjuntos">
               <group>
                 <button name="action_open_attachments" type="object" string="Ver todos los adjuntos" class="btn-primary"/>
-                <button name="action_download_xml" type="object" string="Descargar XML CFDI" class="btn-info" invisible="not uuid"/>
+                <!--button name="action_download_xml" type="object" string="Descargar XML CFDI" class="btn-info" invisible="not uuid"/-->
                 <button name="action_fetch_xml_from_sw" type="object" string="Recuperar XML desde PAC" class="btn-warning" invisible="not uuid"/>
               </group>
               <group>
@@ -233,7 +233,7 @@
                 </group>
                 <group string="Compañías">
                   <field name="empresa_id"/>
-                  <field name="company_id"/>
+                  
                 </group>
               </group>
             </page>
