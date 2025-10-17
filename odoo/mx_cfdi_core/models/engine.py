@@ -625,13 +625,32 @@ class CfdiEngine(models.AbstractModel):
             raise UserError(_('Se requiere empresa_id en el contexto'))
     
         empresa = self.env['empresas.empresa'].browse(empresa_id)
-        provider_key = empresa.cfdi_provider or \
-                       self.env['ir.config_parameter'].sudo().get_param('mx_cfdi_engine.provider', 'mx.cfdi.engine.provider.dummy')
+        ICP = self.env['ir.config_parameter'].sudo()
+    
+        # 1) Valor elegido en Ajustes (res.config.settings) -> icp param
+        provider_key = (ICP.get_param('mx_cfdi_engine.provider', '') or '').strip()
+    
+        # 2) (Opcional) Por empresa, si lo manejas
+        #if not provider_key:
+        #    provider_key = (getattr(empresa, 'cfdi_provider', '') or '').strip()
+    #
+        ## 3) Fallback
+        if not provider_key:
+            raise UserError(_('Se requiere que seleccione el proveedor de CFDI en Ajustes.'))
+        #    provider_key = 'mx.cfdi.engine.provider.dummy'
+    
+        _logger.info(
+            "CFDI PROVIDER | resolved=%s | empresa=%s | icp=%s",
+            provider_key, getattr(empresa, 'cfdi_provider', None),
+            ICP.get_param('mx_cfdi_engine.provider', '')
+        )
     
         try:
             return self.env[provider_key].with_context(empresa_id=empresa_id)
         except KeyError:
             raise UserError(_("Proveedor CFDI inválido: %s") % provider_key)
+
+
 
     # Crea un ir.attachment (application/xml) con el CFDI timbrado y lo enlaza al documento de origen (origin_model, origin_id). Usa el UUID para nombrar el archivo.
     # Retorna: ir.attachment (record).

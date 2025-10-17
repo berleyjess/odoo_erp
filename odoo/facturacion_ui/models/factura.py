@@ -78,12 +78,38 @@ class FacturaUI(models.Model):
             .with_context(allowed_company_ids=[inv_company.id])
 
         mxn = self.env.ref('base.MXN', raise_if_not_found=False)
+
+        # Asegurar invoice_origin correcto
+        origin_codes = []
+        if self.tipo == 'E' and self.origin_factura_id:
+            # Usar folios de venta de la factura ORIGEN (aunque las líneas del egreso no traigan sale_id)
+            if self.origin_factura_id.venta_ids:
+                origin_codes = [v.codigo for v in self.origin_factura_id.venta_ids if v.codigo]
+            else:
+                origin_codes = list({
+                    l.sale_id.codigo
+                    for l in self.origin_factura_id.line_ids
+                    if l.sale_id and l.sale_id.codigo
+                })
+        else:
+            if self.venta_ids:
+                origin_codes = [v.codigo for v in self.venta_ids if v.codigo]
+            else:
+                origin_codes = list({
+                    l.sale_id.codigo
+                    for l in self.line_ids
+                    if l.sale_id and l.sale_id.codigo
+                })
+
+        invoice_origin = ' '.join(origin_codes) if origin_codes else (self.display_name or (f"FacturaUI {self.id}"))
+
+
         move = Move.create({
             'move_type': 'out_invoice' if self.tipo == 'I' else 'out_refund',
             'partner_id': partner.id,
             'company_id': inv_company.id,
             'currency_id': (mxn.id if mxn else inv_company.currency_id.id),
-            'invoice_origin': self.display_name,
+            'invoice_origin': invoice_origin,
             'invoice_date': fields.Date.context_today(self),
             'invoice_line_ids': lines_cmd,
         })
@@ -166,12 +192,12 @@ class FacturaUI(models.Model):
     def _stamp_move_with_engine(self, move):
         """Timbrar obligando el contexto de compañía del emisor fiscal (empresas.empresa)."""
         self.ensure_one()
-
+    
         invoice_company = move.company_id  # solo para log/diagnóstico
-
+    
         # Conceptos CFDI
         conceptos = self.line_ids._to_cfdi_conceptos()
-
+    
         # Extras: Información Global para PÚBLICO EN GENERAL
         rec = move.partner_id
         extras = {}
@@ -194,20 +220,30 @@ class FacturaUI(models.Model):
         except Exception:
             pass
         self.env.cr.execute("SET LOCAL lock_timeout TO '30s'")
-        
-
+    
         if self.tipo == 'E' and (self.origin_factura_id and (self.origin_factura_id.uuid or '').strip()):
             extras.setdefault('relaciones', []).append({
                 'tipo': '01',           # Nota de crédito
                 'uuids': [self.origin_factura_id.uuid],
             })
-
+    
         # Timbrar en el contexto de la compañía EMISOR (no la logueada)
-        engine = self.env['mx.cfdi.engine'].with_context(
-            empresa_id=self.empresa_id.id
-        )
-
-
+        # + Override opcional del proveedor por CONTEXTO (dummy/sw/nombre-modelo)
+        _prov = (self.env.context.get('cfdi_provider') or '').strip().lower()
+        if not _prov and str(self.env.context.get('cfdi_dummy', '')).lower() in ('1', 'true', 'yes'):
+            _prov = 'dummy'
+    
+        ctx = {'empresa_id': self.empresa_id.id}
+        if _prov:
+            if _prov in ('dummy', 'mx.cfdi.engine.provider.dummy'):
+                ctx['cfdi_provider'] = 'mx.cfdi.engine.provider.dummy'
+            elif _prov in ('sw', 'mx.cfdi.engine.provider.sw'):
+                ctx['cfdi_provider'] = 'mx.cfdi.engine.provider.sw'
+            else:
+                ctx['cfdi_provider'] = _prov  # nombre completo del modelo, si lo pasas así
+    
+        engine = self.env['mx.cfdi.engine'].with_context(**ctx)
+    
         return engine.generate_and_stamp(
             origin_model='account.move',
             origin_id=move.id,
@@ -222,6 +258,7 @@ class FacturaUI(models.Model):
             folio=(self.folio or None),
             extras=(extras or None),
         )
+
 
     # A partir de clientes.cliente crea/actualiza (si es necesario) un res.partner con RFC,
     # nombre legal, CP y régimen fiscal (usa 616/99999 para Público en General). Devuelve partner.
@@ -345,17 +382,50 @@ class FacturaUI(models.Model):
     # Publica en el chatter errores si falla.
     def action_build_and_stamp(self):
         for r in self:
-            
             try:
                 if not r.cliente_id and not r.line_ids:
                     raise ValidationError(_("Selecciona un cliente en el encabezado o agrega al menos una línea con cliente."))
                 r._check_consistency()
                 move = r._build_account_move()
-                
+
                 stamped = r._stamp_move_with_engine(move)
                 self._logger.info("CFDI FLOW | STAMPED | uuid=%s", stamped.get('uuid'))
-                r.write({'state':'stamped', 'uuid': stamped.get('uuid'), 'move_id': move.id})
+                r.write({'state': 'stamped', 'uuid': stamped.get('uuid'), 'move_id': move.id})
                 r.line_ids._touch_invoice_links(move)
+
+                # === Actualizar Ventas relacionadas: estado -> 'invoiced' y, si es una sola, ligar move ===
+                ventas_from_lines = self.env['ventas.venta'].browse(
+                    list({l.sale_id.id for l in r.line_ids if l.sale_id})
+                )
+                ventas = (r.venta_ids | ventas_from_lines).sudo()
+
+                if ventas:
+                    if move.state == 'posted':
+                        if len(ventas) == 1:
+                            ventas.write({'state': 'invoiced', 'move_id': move.id})
+                        else:
+                            ventas.write({'state': 'invoiced'})
+                    else:
+                        ventas.write({'state': 'invoiced'})  # por si cambias el posteo más arriba
+
+                # === NUEVO: si es EGRESO, forzar que la factura ORIGEN y sus VENTAS reflejen el cambio de saldo ===
+                if r.tipo == 'E' and r.origin_factura_id:
+                    origin = r.origin_factura_id
+                    # 1) Recompute en FacturaUI origen (usa _applied_credits_total)
+                    try:
+                        origin.write({'state': origin.state})  # no-op para disparar recompute store
+                    except Exception:
+                        pass
+                    # 2) Recompute en ventas ligadas a la factura origen
+                    ventas_orig = origin.venta_ids | self.env['ventas.venta'].browse(
+                        list({l.sale_id.id for l in origin.line_ids if l.sale_id})
+                    )
+                    if ventas_orig:
+                        try:
+                            ventas_orig.write({'state': ventas_orig[0].state})  # no-op para disparar @depends
+                        except Exception:
+                            pass
+
             except Exception as e:
                 self._logger.exception("CFDI FLOW | ERROR | fact_id=%s", r.id)  # stacktrace completo
                 # deja rastro en el chatter
@@ -364,6 +434,7 @@ class FacturaUI(models.Model):
                 except Exception:
                     pass
                 raise
+
     
     # Devuelve el catálogo mínimo de formas de pago para el campo 'forma' en la UI.
     @api.model
@@ -429,10 +500,67 @@ class FacturaUI(models.Model):
         self.ensure_one()
         raise ValidationError(_('Intereses: pendiente de implementar.'))
     
-    # Devuelve la acción estándar para cerrar el formulario actua
+    # Devuelve la acción estándar para cerrar el formulario actual y regresar a la lista principal.
     def action_close_form(self):
-        # Cierra la vista actual
-        return {'type': 'ir.actions.act_window_close'}
+        """Regresa a la lista principal de facturas UI (tree/form)."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Facturas'),
+            'res_model': self._name,
+            'view_mode': 'list,form',
+            'target': 'current',
+            'domain': [],  # sin filtro
+        }
+    
+    # === BLOQUEO: no agregar nuevas líneas en Egresos ===
+    # === BLOQUEO en Egresos: permitir reemplazos (unlink+create) pero NO nuevas altas netas ===
+    def write(self, vals):
+        if 'line_ids' in vals:
+            cmds = vals['line_ids'] or []
+            for rec in self:
+                if rec.tipo != 'E':
+                    continue
+
+                start = len(rec.line_ids)
+                end_count = start
+                saw_add = False
+                saw_del = False
+
+                for c in cmds:
+                    if not (isinstance(c, (list, tuple)) and c):
+                        continue
+                    op = c[0]
+                    if op == 0:              # (0,0,vals) -> create
+                        end_count += 1
+                        saw_add = True
+                    elif op == 1:            # (1,id,vals) -> update
+                        pass
+                    elif op == 2:            # (2,id) -> unlink
+                        end_count -= 1
+                        saw_del = True
+                    elif op == 5:            # (5,0,0) -> clear
+                        end_count = 0
+                        saw_del = True
+                    elif op == 6:            # (6,0,[ids]) -> replace set
+                        ids = c[2] if len(c) > 2 else []
+                        end_count = len(ids)
+                        # esto puede actuar como clear+add, lo tratamos como reemplazo controlado
+                        saw_add = bool(ids)
+                        saw_del = True
+
+                # Si el conteo final es MAYOR que el inicial (altas netas) y no es prefill → bloquear
+                if end_count > start and not self.env.context.get('egreso_prefill'):
+                    raise ValidationError(_("En Egresos no puedes agregar nuevas líneas. Ajusta cantidades o elimina las existentes."))
+
+            # Si detectamos patrón de reemplazo (hay create y también delete), pasamos una bandera
+            # para que el create de líneas lo permita como "swap" y no como alta nueva.
+            if any(isinstance(c, (list, tuple)) and c and c[0] == 0 for c in cmds) and \
+               any(isinstance(c, (list, tuple)) and c and c[0] in (2, 5, 6) for c in cmds):
+                return super(FacturaUI, self.with_context(egreso_line_swap=True)).write(vals)
+
+        return super().write(vals)
+
+
     
     # Helper: genera comandos (0,0,vals) clonando conceptos de una factura origen (sin enlaces)
     # para precargar egresos/NC y permitir ajustes posteriores.
@@ -480,7 +608,8 @@ class FacturaUI(models.Model):
         nc_lines = self._prepare_lines_from_origin(self)
 
         # Crea la NC con encabezado + líneas
-        nc = self.create({**nc_vals, 'line_ids': nc_lines})
+        nc = self.with_context(egreso_prefill=True).create({**nc_vals, 'line_ids': nc_lines})
+
 
         # Abrir la NC en formulario para revisar/ajustar (cantidades, etc.) y timbrar
         return {
@@ -682,15 +811,42 @@ class FacturaUI(models.Model):
     )
 
     # Calcula importes por encabezado (suma de líneas) y, para I/E con PPD, el saldo = importe total.
-    @api.depends('line_ids.total', 'metodo', 'tipo')
+    @api.depends('line_ids.total', 'metodo', 'tipo', 'state')
     def _compute_totales(self):
         for r in self:
             r.importe_total = sum((l.total or 0.0) for l in r.line_ids)
-            # Solo aplica a I/E como pediste
-            if r.tipo in ('I', 'E'):
-                r.saldo = r.importe_total if (r.metodo or '').upper() == 'PPD' else 0.0
-            else:
-                r.saldo = 0.0
+    
+            # Por defecto, saldo = 0 salvo I/E PPD
+            base = 0.0
+            if r.tipo in ('I', 'E') and (r.metodo or '').upper() == 'PPD':
+                base = r.importe_total
+    
+            # Si soy una FACTURA de Ingreso en PPD, resta Egresos (NC/devoluciones) ya timbrados que me aplican
+            if r.tipo == 'I' and (r.metodo or '').upper() == 'PPD':
+                try:
+                    base -= (r._applied_credits_total() or 0.0)
+                except Exception:
+                    # no rompas el compute si algo falla, deja el base
+                    pass
+                
+            # En tipo 'E' forzamos PUE en otros puntos; aquí normaliza
+            if r.tipo == 'E':
+                base = 0.0  # el saldo relevante es el de la factura original
+    
+            r.saldo = max(base, 0.0)
+
+
+    def _applied_credits_total(self):
+        """Total de Egresos timbrados que aplican a esta factura (por origin_factura_id)."""
+        self.ensure_one()
+        E = self.env['facturas.factura']
+        egresos = E.search([
+            ('tipo', '=', 'E'),
+            ('state', '=', 'stamped'),
+            ('origin_factura_id', '=', self.id),
+        ])
+        return sum(e.importe_total or 0.0 for e in egresos)
+
 
     # Calcula cuántos adjuntos (ir.attachment) tiene el registro para mostrar un contador.
     def _compute_attachment_count(self):
@@ -877,6 +1033,17 @@ class FacturaUILine(models.Model):
         fact_id = vals.get('factura_id')
         if fact_id:
             parent = self.env['facturas.factura'].browse(fact_id)
+            # --- BLOQUEO extra si intentan crear líneas directo en E ---
+            if parent and parent.tipo == 'E':
+                # Permitimos SOLO:
+                # - prellenado inicial (egreso_prefill), o
+                # - reemplazos coordinados (egreso_line_swap) hechos por Odoo (unlink+create)
+                allowed = (self.env.context.get('egreso_prefill') or
+                           self.env.context.get('egreso_line_swap'))
+                if not allowed:
+                    raise ValidationError(_('En Egresos no puedes agregar nuevas líneas.'))
+
+
             if not vals.get('empresa_id') and parent.empresa_id:
                 vals['empresa_id'] = parent.empresa_id.id
             if not vals.get('cliente_id') and parent.cliente_id:

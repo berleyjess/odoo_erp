@@ -101,10 +101,10 @@
           
           <group>
             <group>
-              <field name="empresa_id" required="1" readonly="state != 'draft'"/>
+              <field name="empresa_id" required="1" readonly="state != 'draft'" options="{'no_open': True}"/>
               
-              <field name="sucursal_id" required="1" readonly="state != 'draft'"/>
-              <field name="cliente_id" readonly="state != 'draft'"/>
+              <field name="sucursal_id" required="1" readonly="state != 'draft'" options="{'no_open': True}"/>
+              <field name="cliente_id" readonly="state != 'draft'" options="{'no_open': True}"/>
               <field name="tipo" readonly="state != 'draft'"/>
               <field name="egreso_tipo" invisible="tipo != 'E'"/>
               <field name="origin_factura_id" invisible="tipo != 'E'"/>
@@ -161,7 +161,7 @@
 
               <!-- ===== Egresos: Nota de crédito (E/nc) =====
                    Solo permitimos editar importe/impuestos; cantidad queda bloqueada. -->
-              <field name="line_ids" readonly="state != 'draft'" invisible="not (tipo == 'E' and egreso_tipo == 'nc')">
+              <field name="line_ids" readonly="state != 'draft'" invisible="not (tipo == 'E' and egreso_tipo == 'nc')" options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True}">
                 <list editable="bottom" create="state == 'draft'" delete="state == 'draft'">
                   <field name="line_type" required="1" readonly="1"/>
                   <field name="empresa_id" readonly="1"/>
@@ -184,7 +184,7 @@
               </field>                
               <!-- ===== Egresos: Devolución (E/dev) =====
                    Solo permitimos editar cantidad; precio/impuestos/producto/desc bloqueados. -->
-              <field name="line_ids" readonly="state != 'draft'" invisible="not (tipo == 'E' and egreso_tipo == 'dev')">
+              <field name="line_ids" readonly="state != 'draft'" invisible="not (tipo == 'E' and egreso_tipo == 'dev')" options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True}">
                 <list editable="bottom" create="state == 'draft'" delete="state == 'draft'">
                   <field name="line_type" required="1" readonly="1"/>
                   <field name="empresa_id" readonly="1"/>

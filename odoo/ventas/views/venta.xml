@@ -183,7 +183,7 @@
                 <header>
                     <button name="action_confirm" type="object" string="Confirmar" class="btn-primary" invisible="state != 'draft'"/>
                     <button name="action_cancel"  type="object" string="Cancelar" class="btn-secondary" invisible="state not in ['confirmed','invoiced']"/>
-                    <button name="action_open_edit" type="object" string="Editar" class="btn-primary" confirm="¿Editar este registro?" invisible="state == 'cancelled'"/>
+                    <button name="action_open_edit" type="object" string="Editar" class="btn-primary" confirm="¿Editar este registro?" invisible="state == 'cancelled' or state == 'invoiced'"/>
                     <button name="%(ventas.action_ventas)d" type="action" string="Volver" class="btn-secondary"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,invoiced,cancelled"/>
                     <field name="invoice_status2" widget="badge"/>
@@ -215,7 +215,7 @@
                     <group string="Datos" colspan="4">
                       <group colspan="2">
                         <field name="cliente" readonly="1" options="{'no_open': True}"/>
-                        <field name="empresa_id" readonly="1"/>
+                        <field name="empresa_id" readonly="1" options="{'no_open': True}"/>
                         <field name="sucursal_id" readonly="1" options="{'no_open': True}"/>
                         <field name="metododepago" readonly="1" widget="radio" options="{'horizontal': true}"/>
                         <field name="formadepago" readonly="1" invisible="metododepago != 'PUE'"/>
