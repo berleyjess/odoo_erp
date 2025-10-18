@@ -29,9 +29,15 @@ class FacturaUI(models.Model):
         default='nc'
     )
     uso_cfdi = fields.Selection(
-        [('G03','G03'),('S01','S01'),('G02', 'G02')],
+        [('G01','G01 - Adquisición de mercancías'),('G02', 'G02 - Devoluciones, descuentos o bonificaciones'),('G03','G03 - Gastos en general'),
+         ('S01','S01 - Sin efectos fiscales'),('CP01','CP01 - Pagos'),('CN01','CN01 - Nómina'),
+         ('I01','I01 Construcciones'),('I02','I02 - Mobiliario y equipo de oficina para inversiones'),('I03','I03 - Equipo de transporte'), ('I04','I04 - Equipo de computo y accesorios'),
+         ('I05','I05 - Dados, troqueles, moldes, matrices y herramientas'),('I06','I06 - Comunicaciones telefónicas'),('I07','I07 - Comunicaciones satelitales'),('I08','I08 - Otra maquinaria y equipo'),('D01','D01 - Honorarios médicos, dentales y gastos hospitalarios'),
+         ('D02','D02 - Gastos médicos por incapacidad o discapacidad'),('D03','D03 - Gastos funerales'),('D04','D04 - Donativos'),('D05','D05 - Intereses reales efectivamente pagados por créditos hipotecarios (casa habitación)'),
+         ('D06','D06 - Aportaciones voluntarias al SAR'),('D07','D07 - Primas por seguros de gastos médicos'),('D08','D08 - Gastos de transportación escolar obligatoria'),('D09','D09 - Depósitos en cuentas para el ahorro, primas que tengan como base planes de pensiones'),
+         ('D10','D10 - Pagos por servicios educativos (colegiaturas)'),
+         ],
         string='Uso CFDI',
-        required=True,
         default=False
     )
     metodo       = fields.Selection([('PUE','PUE (Contado)'),('PPD','PPD (Crédito)')], default='PPD', string='Método')
@@ -54,6 +60,22 @@ class FacturaUI(models.Model):
     move_id      = fields.Many2one('account.move', string='Factura contable', copy=False)
     attachment_count = fields.Integer(compute='_compute_attachment_count')
     currency_id = fields.Many2one('res.currency', compute='_compute_currency', store=True, readonly=True)
+    # === Pago (tipo P) ===
+    pago_importe = fields.Monetary(string='Importe del pago', currency_field='currency_id', default=0.0)
+
+
+    def _precheck_stock(self):
+        Stock = self.env['stock.sucursal.producto'].sudo()
+        faltantes = []
+        for l in self.line_ids:
+            if not l.producto_id or self._is_service_line(l):
+                continue
+            disp = Stock.get_available(self.sucursal_id, l.producto_id)
+            if (l.cantidad or 0.0) > disp + 1e-6:
+                faltantes.append(f"- {l.producto_id.display_name}: req={l.cantidad:.4f} disp={disp:.4f}")
+        if faltantes:
+            raise ValidationError(_("Stock insuficiente:\n%s") % "\n".join(faltantes))
+
 
     # Crea y publica el account.move (factura/refund) en la compañía técnica indicada por parámetro
     # 'facturacion_ui.technical_company_id'. Mapea impuestos/productos, enlaza NC con origen y
@@ -136,13 +158,21 @@ class FacturaUI(models.Model):
             pass
         return move
     
-    # Onchange: si el tipo es ‘E’ (egreso), fuerza método = PUE (contado). No cambia la forma.
+    # Onchange: si el tipo es ‘E’ (egreso), fuerza método = PUE (contado).
+    # Si el tipo es ‘P’ (pago), método/forma/uso no aplican.
     @api.onchange('tipo')
     def _onchange_tipo_force_pue(self):
-        """Si es Egreso, siempre PUE (contado)."""
         for r in self:
             if r.tipo == 'E':
-                r.metodo = 'PUE'   # solo método; no toco forma
+                r.metodo = 'PUE'
+            elif r.tipo == 'P':
+                # En Pago no aplica método/uso; la forma SÍ se usa en el nodo Pago
+                r.metodo = False
+                if not r.forma:
+                    r.forma = '03'  # Transferencia, default razonable
+                r.uso_cfdi = False
+
+
 
     # Onchange (Egreso con factura origen): fija cliente/método/uso y clona TODAS las líneas
 # de la factura origen en la UI para permitir devoluciones parciales (sin source_model).
@@ -184,6 +214,22 @@ class FacturaUI(models.Model):
                     # sin sale_id / transaccion_id / source_model para permitir edición
                 }))
             r.line_ids = new_lines
+
+    @api.onchange('tipo', 'origin_factura_id')
+    def _onchange_payment_origin(self):
+        for r in self:
+            if r.tipo == 'P' and r.origin_factura_id:
+                r.cliente_id  = r.origin_factura_id.cliente_id.id
+                r.empresa_id  = r.origin_factura_id.empresa_id.id
+                r.sucursal_id = r.origin_factura_id.sucursal_id.id
+                # En pagos no hay conceptos
+                r.line_ids = [(5, 0, 0)]
+                # Prefill: importe = saldo actual de la factura origen
+                r.pago_importe = max(r.origin_factura_id.saldo or 0.0, 0.0)
+                if not r.forma:
+                    r.forma = '03'
+
+
 
     # Arma los “conceptos” CFDI desde las líneas UI, calcula extras (p.ej. Información Global
     # para Público en General), asegura locking por empresa y llama al engine con empresa_id
@@ -258,6 +304,78 @@ class FacturaUI(models.Model):
             folio=(self.folio or None),
             extras=(extras or None),
         )
+    
+    def _build_payment_extras(self):
+        """Arma el payload para el complemento de pagos 2.0 (monto, forma, saldos, parcialidad)."""
+        self.ensure_one()
+        origin = self.origin_factura_id
+        saldo_ant = float(max(origin.saldo or 0.0, 0.0))
+        monto     = float(self.pago_importe or 0.0)
+        saldo_ins = max(saldo_ant - monto, 0.0)
+        parc_prev = self.env['facturas.factura'].search_count([
+            ('tipo', '=', 'P'),
+            ('state', '=', 'stamped'),
+            ('origin_factura_id', '=', origin.id),
+        ])
+        num_parc = int(parc_prev) + 1
+
+        # Nota: tu engine puede esperar 'pagos' o 'payment'; dejamos la clave 'pagos'
+        return {
+            'pagos': [{
+                'fecha': fields.Datetime.context_timestamp(
+                    self, self.fecha or fields.Datetime.now()
+                ).strftime('%Y-%m-%dT%H:%M:%S'),
+                'forma': self.forma or '03',        # SAT FormaDePago del nodo <pago>
+                'moneda': self.moneda or 'MXN',
+                'monto': monto,
+                'docs': [{
+                    'uuid': (origin.uuid or '').strip(),
+                    'serie': origin.serie or '',
+                    'folio': origin.folio or '',
+                    'num_parcialidad': num_parc,
+                    'saldo_anterior': saldo_ant,
+                    'importe_pagado': monto,
+                    'saldo_insoluto': saldo_ins,
+                }],
+            }]
+        }
+
+    def _stamp_payment_with_engine(self):
+        """Timbrar complemento de pago SIN crear account.move; origen = esta FacturaUI."""
+        self.ensure_one()
+        rec = self._partner_from_context()
+
+        # Ajuste de proveedor por contexto (igual que en _stamp_move_with_engine)
+        _prov = (self.env.context.get('cfdi_provider') or '').strip().lower()
+        if not _prov and str(self.env.context.get('cfdi_dummy', '')).lower() in ('1', 'true', 'yes'):
+            _prov = 'dummy'
+        ctx = {'empresa_id': self.empresa_id.id}
+        if _prov:
+            if _prov in ('dummy', 'mx.cfdi.engine.provider.dummy'):
+                ctx['cfdi_provider'] = 'mx.cfdi.engine.provider.dummy'
+            elif _prov in ('sw', 'mx.cfdi.engine.provider.sw'):
+                ctx['cfdi_provider'] = 'mx.cfdi.engine.provider.sw'
+            else:
+                ctx['cfdi_provider'] = _prov
+
+        engine = self.env['mx.cfdi.engine'].with_context(**ctx)
+        extras = self._build_payment_extras()
+
+        return engine.generate_and_stamp(
+            origin_model=self._name,
+            origin_id=self.id,
+            empresa_id=self.empresa_id.id,
+            tipo='P',
+            receptor_id=rec.id,
+            uso_cfdi=None,
+            metodo='CP01',          # método para pagos
+            forma=None,
+            conceptos=[],                 # en pago no hay conceptos
+            serie=(self.serie or None),
+            folio=(self.folio or None),
+            extras=(extras or None),
+        )
+
 
 
     # A partir de clientes.cliente crea/actualiza (si es necesario) un res.partner con RFC,
@@ -383,15 +501,84 @@ class FacturaUI(models.Model):
     def action_build_and_stamp(self):
         for r in self:
             try:
-                if not r.cliente_id and not r.line_ids:
-                    raise ValidationError(_("Selecciona un cliente en el encabezado o agrega al menos una línea con cliente."))
+                # Validaciones de negocio
                 r._check_consistency()
+
+                # ====== TIPO P (Complemento de pago) ======
+                if r.tipo == 'P':
+                    # 1) Timbrar complemento de pago (sin account.move)
+                    stamped = r._stamp_payment_with_engine()
+                    self._logger.info("CFDI FLOW | PAYMENT STAMPED | uuid=%s", stamped.get('uuid'))
+                    r.write({'state': 'stamped', 'uuid': stamped.get('uuid'), 'move_id': False})
+
+                    # 2) Registrar efectos internos: transacción de abono y bajar saldo disponible del origen
+                    try:
+                        r._apply_payment_effects()
+                    except Exception as _e:
+                        self._logger.warning("PAGO | no se pudo crear transacción de pago / ajustar counters: %s", _e)
+
+                    # 3) Recomputar saldo en la factura origen y ventas ligadas
+                    if r.origin_factura_id:
+                        origin = r.origin_factura_id
+                        try:
+                            origin.write({'state': origin.state})  # no-op para disparar recompute store
+                        except Exception:
+                            pass
+                        ventas_orig = origin.venta_ids | self.env['ventas.venta'].browse(
+                            list({l.sale_id.id for l in origin.line_ids if l.sale_id})
+                        )
+                        if ventas_orig:
+                            try:
+                                ventas_orig.write({'state': ventas_orig[0].state})  # no-op para @depends
+                            except Exception:
+                                pass
+                    # Listo con P; pasa al siguiente registro
+                    continue
+
+                # ====== TIPOS I/E (como ya lo tenías) ======
                 move = r._build_account_move()
 
                 stamped = r._stamp_move_with_engine(move)
                 self._logger.info("CFDI FLOW | STAMPED | uuid=%s", stamped.get('uuid'))
                 r.write({'state': 'stamped', 'uuid': stamped.get('uuid'), 'move_id': move.id})
                 r.line_ids._touch_invoice_links(move)
+
+                if r.tipo == 'I':
+                    # stock en ingresos
+                    try:
+                        r._apply_stock_on_ingreso()
+                    except Exception as _e:
+                        self._logger.warning("STOCK | no se pudo descontar en ingreso: %s", _e)
+
+                # === Efectos post-timbrado por tipo ===
+                if r.tipo == 'I':
+                    # Inicializa contadores disponibles por línea si no estaban seteados
+                    for l in r.line_ids:
+                        vals = {}
+                        if not l.qty_dev_available:
+                            vals['qty_dev_available'] = (l.cantidad or 0.0)
+                        if not l.total_dev_available:
+                            vals['total_dev_available'] = (l.total or 0.0)
+                        if vals:
+                            l.write(vals)
+
+                elif r.tipo == 'E' and r.origin_factura_id:
+                    # 1) Crear transacciones por cada línea **ANTES** de tocar contadores
+                    try:
+                        r._create_transactions_for_egreso(move)
+                    except Exception as _e:
+                        self._logger.warning("DEV/NC tx | error: %s", _e)
+                    # 2) Stock (solo DEV)
+                    if (r.egreso_tipo or '') == 'dev':
+                        try:
+                            r._return_devolucion_to_stock()
+                        except Exception as _e:
+                            self._logger.warning("DEV STOCK | no se pudo ajustar stock: %s", _e)
+                    # 3) Descontar contadores en la factura origen
+                    try:
+                        r._apply_credit_counters_on_origin()
+                    except Exception as _e:
+                        self._logger.warning("DEV/NC counters | error: %s", _e)
 
                 # === Actualizar Ventas relacionadas: estado -> 'invoiced' y, si es una sola, ligar move ===
                 ventas_from_lines = self.env['ventas.venta'].browse(
@@ -408,39 +595,400 @@ class FacturaUI(models.Model):
                     else:
                         ventas.write({'state': 'invoiced'})  # por si cambias el posteo más arriba
 
-                # === NUEVO: si es EGRESO, forzar que la factura ORIGEN y sus VENTAS reflejen el cambio de saldo ===
+                # === si es EGRESO, recomputar origen y sus ventas (ya lo tenías)
                 if r.tipo == 'E' and r.origin_factura_id:
                     origin = r.origin_factura_id
-                    # 1) Recompute en FacturaUI origen (usa _applied_credits_total)
                     try:
-                        origin.write({'state': origin.state})  # no-op para disparar recompute store
+                        origin.write({'state': origin.state})  # no-op para recompute store
                     except Exception:
                         pass
-                    # 2) Recompute en ventas ligadas a la factura origen
                     ventas_orig = origin.venta_ids | self.env['ventas.venta'].browse(
                         list({l.sale_id.id for l in origin.line_ids if l.sale_id})
                     )
                     if ventas_orig:
                         try:
-                            ventas_orig.write({'state': ventas_orig[0].state})  # no-op para disparar @depends
+                            ventas_orig.write({'state': ventas_orig[0].state})
                         except Exception:
                             pass
 
             except Exception as e:
-                self._logger.exception("CFDI FLOW | ERROR | fact_id=%s", r.id)  # stacktrace completo
-                # deja rastro en el chatter
+                self._logger.exception("CFDI FLOW | ERROR | fact_id=%s", r.id)
                 try:
                     r.message_post(body="CFDI ERROR:<br/>%s" % (str(e) or repr(e)), subtype_xmlid="mail.mt_note")
                 except Exception:
                     pass
                 raise
 
+
+    # === Helpers post-operación ===
+
+    def _return_devolucion_to_stock(self):
+        """Regresa a stock las cantidades devueltas (por sucursal) usando stock.sucursal.producto."""
+        self.ensure_one()
+        if (self.egreso_tipo or '') != 'dev':
+            return
+        Stock = self.env['stock.sucursal.producto'].sudo()
+        for l in self.line_ids:
+            if not l.producto_id or self._is_service_line(l):
+                continue
+            qty = l.cantidad or 0.0
+            if qty > 0:
+                Stock.add_stock(self.sucursal_id, l.producto_id, qty)
+
+
+    def _apply_credit_counters_on_origin(self):
+        """Descuenta contadores en líneas de la factura origen según egreso_tipo."""
+        self.ensure_one()
+        origin = self.origin_factura_id
+        if not origin:
+            return
+        if (self.egreso_tipo or '') == 'dev':
+            # Descontar cantidades por producto (consume de líneas del origen en orden)
+            pend_by_prod = {}
+            for l in self.line_ids:
+                if l.producto_id:
+                    pend_by_prod[l.producto_id.id] = pend_by_prod.get(l.producto_id.id, 0.0) + (l.cantidad or 0.0)
+            for ol in origin.line_ids.sorted('id'):
+                pid = ol.producto_id.id if ol.producto_id else False
+                if not pid:
+                    continue
+                pend = pend_by_prod.get(pid, 0.0)
+                if pend <= 0:
+                    continue
+                take = min(ol.qty_dev_available or 0.0, pend)
+                if take > 0:
+                    # Reducir cantidad disponible y proporcionalmente su total acreditable
+                    new_qty = max((ol.qty_dev_available or 0.0) - take, 0.0)
+                    ratio = 0.0
+                    if (ol.cantidad or 0.0) > 1e-9:
+                        ratio = take / (ol.cantidad or 1.0)
+                    new_total_av = max((ol.total_dev_available or 0.0) - (ol.total or 0.0) * ratio, 0.0)
+                    ol.write({'qty_dev_available': new_qty, 'total_dev_available': new_total_av})
+                    pend_by_prod[pid] = pend - take
+
+        elif (self.egreso_tipo or '') == 'nc':
+            # Descontar del total acreditable (sin tocar cantidades)
+            pend = sum((l.total or 0.0) for l in self.line_ids)
+            for ol in origin.line_ids.sorted('id'):
+                if pend <= 1e-9:
+                    break
+                take = min(ol.total_dev_available or 0.0, pend)
+                if take > 0:
+                    new_total_av = max((ol.total_dev_available or 0.0) - take, 0.0)
+                    ol.write({'total_dev_available': new_total_av})
+                    pend -= take
+
+    def _create_transactions_for_egreso(self, move):
+        """Crea transacciones por cada línea del EGRESO.
+           DEV (devolución): tipo '6' (Entrada lógica).
+           NC (nota de crédito): tipo '10' (Sin efecto de stock).
+           Importante: NO usar cliente_id (ese campo no existe en transacciones.transaccion).
+        """
+        self.ensure_one()
+        if not self.origin_factura_id:
+            return
+
+        Tx = self.env['transacciones.transaccion'].sudo() if self.env.registry.get('transacciones.transaccion') else False
+        if not Tx:
+            self._logger.warning("EGRESO TX | modelo 'transacciones.transaccion' no disponible; omitiendo creación.")
+            return
+
+        ref = (getattr(move, 'name', False) or (self.uuid or 'EGRESO')).strip()
+
+        # RFC helper (si lo tienes en clientes.cliente)
+        def _cli_rfc():
+            cli = self.cliente_id
+            return ((getattr(cli, 'rfc', False) or getattr(cli, 'vat', False) or
+                     (getattr(getattr(cli, 'persona_id', False), 'rfc', False) or '')) or '').strip().upper()
+
+        created = 0
+        origin = self.origin_factura_id
+
+        # Buckets FIFO por (venta, producto) con disponibles del ORIGEN
+        buckets = []
+        for ol in origin.line_ids.sorted('id'):
+            sale = ol.sale_id
+            prod = ol.producto_id
+            if not sale:
+                continue
+            buckets.append({
+                'sale': sale,
+                'producto': prod,
+                'qty_av': float(ol.qty_dev_available or 0.0),   # para DEV
+                'amt_av': float(ol.total_dev_available or 0.0), # para NC
+            })
+
+        def _fallback_sale():
+            if origin.venta_ids:
+                return origin.venta_ids[0]
+            for ol in origin.line_ids:
+                if ol.sale_id:
+                    return ol.sale_id
+            return False
+
+        rfc = _cli_rfc()
+
+        if (self.egreso_tipo or '') == 'dev':
+            # Repartir por CANTIDAD (mismo producto)
+            for l in self.line_ids:
+                if not l.producto_id:
+                    continue
+                need_qty = float(l.cantidad or 0.0)
+                if need_qty <= 0:
+                    continue
+
+                # 1) Consumir buckets del mismo producto
+                for b in buckets:
+                    if need_qty <= 1e-9:
+                        break
+                    if not b['producto'] or b['producto'].id != l.producto_id.id:
+                        continue
+                    take = min(need_qty, b['qty_av'])
+                    if take <= 1e-9:
+                        continue
+
+                    vals = {
+                        'fecha': fields.Date.context_today(self),
+                        'venta_id': b['sale'].id if b['sale'] else False,
+                        'producto_id': l.producto_id.id,
+                        'cantidad': -take,                         # negativa → importe negativo
+                        'precio': l.precio or 0.0,                 # positivo
+                        'referencia': ref,
+                        'sucursal_id': self.sucursal_id.id,
+                        'tipo': '6',                               # Dev de Cliente (Entrada lógica)
+                        # helpers
+                        'empresa_id_helper': self.empresa_id.id,
+                        'cliente_rfc_helper': rfc or False,
+                    }
+                    try:
+                        Tx.create(vals)
+                        created += 1
+                    except Exception as e:
+                        self._logger.warning("EGRESO TX | create(dev/1) falló: %s", e)
+
+                    b['qty_av'] -= take
+                    need_qty    -= take
+
+                # 2) Si falta, crea 1 transacción ligada a alguna venta del origen
+                if need_qty > 1e-9:
+                    sale = _fallback_sale()
+                    vals = {
+                        'fecha': fields.Date.context_today(self),
+                        'venta_id': sale.id if sale else False,
+                        'producto_id': l.producto_id.id,
+                        'cantidad': -need_qty,
+                        'precio': l.precio or 0.0,
+                        'referencia': ref,
+                        'sucursal_id': self.sucursal_id.id,
+                        'tipo': '6',
+                        'empresa_id_helper': self.empresa_id.id,
+                        'cliente_rfc_helper': rfc or False,
+                    }
+                    try:
+                        Tx.create(vals)
+                        created += 1
+                    except Exception as e:
+                        self._logger.warning("EGRESO TX | create(dev/2) falló: %s", e)
+
+        else:
+            # Nota de crédito: repartir por IMPORTE, priorizando (venta, producto)
+            for l in self.line_ids:
+                need_amt = float(l.total or 0.0)
+                if need_amt <= 1e-9:
+                    continue
+
+                # 1) Buckets de mismo producto
+                for b in buckets:
+                    if need_amt <= 1e-9:
+                        break
+                    same_prod = (b['producto'] and l.producto_id and b['producto'].id == l.producto_id.id)
+                    if not same_prod:
+                        continue
+
+                    take = min(need_amt, b['amt_av'])
+                    if take <= 1e-9:
+                        continue
+
+                    ratio = (take / (l.total or 1.0))
+                    qty_part = (l.cantidad or 0.0) * ratio
+
+                    vals = {
+                        'fecha': fields.Date.context_today(self),
+                        'venta_id': b['sale'].id if b['sale'] else False,
+                        'producto_id': l.producto_id.id,
+                        'cantidad': -qty_part,                     # negativa
+                        'precio': l.precio or 0.0,
+                        'referencia': ref,
+                        'sucursal_id': self.sucursal_id.id,
+                        'tipo': '10',                              # sin efecto de stock
+                        'empresa_id_helper': self.empresa_id.id,
+                        'cliente_rfc_helper': rfc or False,
+                    }
+                    try:
+                        Tx.create(vals)
+                        created += 1
+                    except Exception as e:
+                        self._logger.warning("EGRESO TX | create(nc/1) falló: %s", e)
+
+                    b['amt_av'] -= take
+                    need_amt    -= take
+
+                # 2) Consumir cualquier bucket con amt_av
+                if need_amt > 1e-9:
+                    for b in buckets:
+                        if need_amt <= 1e-9:
+                            break
+                        take = min(need_amt, b['amt_av'])
+                        if take <= 1e-9:
+                            continue
+
+                        ratio = (take / (l.total or 1.0))
+                        qty_part = (l.cantidad or 0.0) * ratio
+
+                        vals = {
+                            'fecha': fields.Date.context_today(self),
+                            'venta_id': b['sale'].id if b['sale'] else False,
+                            'producto_id': l.producto_id.id,
+                            'cantidad': -qty_part,
+                            'precio': l.precio or 0.0,
+                            'referencia': ref,
+                            'sucursal_id': self.sucursal_id.id,
+                            'tipo': '10',
+                            'empresa_id_helper': self.empresa_id.id,
+                            'cliente_rfc_helper': rfc or False,
+                        }
+                        try:
+                            Tx.create(vals)
+                            created += 1
+                        except Exception as e:
+                            self._logger.warning("EGRESO TX | create(nc/2) falló: %s", e)
+
+                        b['amt_av'] -= take
+                        need_amt    -= take
+
+                    # 3) Último recurso: una sola ligada a alguna venta
+                    if need_amt > 1e-9:
+                        sale = _fallback_sale()
+                        ratio = (need_amt / (l.total or 1.0))
+                        qty_part = (l.cantidad or 0.0) * ratio
+                        vals = {
+                            'fecha': fields.Date.context_today(self),
+                            'venta_id': sale.id if sale else False,
+                            'producto_id': l.producto_id.id,
+                            'cantidad': -qty_part,
+                            'precio': l.precio or 0.0,
+                            'referencia': ref,
+                            'sucursal_id': self.sucursal_id.id,
+                            'tipo': '10',
+                            'empresa_id_helper': self.empresa_id.id,
+                            'cliente_rfc_helper': rfc or False,
+                        }
+                        try:
+                            Tx.create(vals)
+                            created += 1
+                        except Exception as e:
+                            self._logger.warning("EGRESO TX | create(nc/3) falló: %s", e)
+
+        # Asegura escritura en DB antes de continuar
+        try:
+            self.env['transacciones.transaccion'].flush()
+        except Exception:
+            pass
+        self._logger.info("EGRESO TX | creadas %s transacciones ref=%s (egreso_tipo=%s)", created, ref, (self.egreso_tipo or 'nc'))
+
+
+
+    def _get_payment_product(self):
+        ICP = self.env['ir.config_parameter'].sudo()
+        pid = int(ICP.get_param('facturacion_ui.payment_product_id', '0') or 0)
+        if pid:
+            p = self.env['productos.producto'].browse(pid)
+            if p and p.exists():
+                return p
+        # fallback por nombre
+        p = self.env['productos.producto'].search([('name', 'ilike', 'pago')], limit=1)
+        if not p:
+            raise ValidationError(_("Configura el parámetro 'facturacion_ui.payment_product_id' con un producto de PAGO/ABONO (sin impuestos)."))
+        return p
+
+    def _apply_payment_effects(self):
+        """Crea transacción (una) de pago sin producto de la factura original y descuenta crédito."""
+        self.ensure_one()
+        origin = self.origin_factura_id
+        if not origin:
+            return
+
+        # 👇 Forma robusta: intenta obtener el modelo y captura KeyError si no existe
+        try:
+            Tx = self.env['transacciones.transaccion'].sudo()
+        except KeyError:
+            self._logger.warning("PAGO | modelo 'transacciones.transaccion' no disponible; no se crean transacciones.")
+            return
+    
+        if (self.pago_importe or 0.0) > 0.0:
+            pago_prod = self._get_payment_product()
+    
+            # elegir alguna venta del origen
+            venta = origin.venta_ids[:1] and origin.venta_ids[0] or False
+            if not venta:
+                for ol in origin.line_ids:
+                    if ol.sale_id:
+                        venta = ol.sale_id
+                        break
+                    
+            vals = {
+                'fecha': fields.Date.context_today(self),
+                'venta_id': venta.id if venta else False,
+                'producto_id': pago_prod.id,
+                'cantidad': 1.0,
+                'precio': -(self.pago_importe or 0.0),
+                'referencia': "Pago a factura %s" % (getattr(origin.move_id, 'name', origin.display_name or '') or ''),
+                'sucursal_id': (venta.sucursal_id.id if venta else origin.sucursal_id.id),
+                'tipo': '11',  # sin efecto de stock
+                'empresa_id_helper': self.empresa_id.id,
+                'cliente_rfc_helper': (getattr(self.cliente_id, 'rfc', False) or getattr(self.cliente_id, 'vat', False) or '') or False,
+            }
+            tx_rec = Tx.create(vals)
+    
+            # Asegura escritura inmediata
+            try:
+                self.env['transacciones.transaccion'].flush()
+            except Exception:
+                pass
+            
+            self._logger.info(
+                "PAGO | transacción creada id=%s, venta_id=%s, sucursal_id=%s, importe=%.2f",
+                getattr(tx_rec, 'id', None),
+                (venta.id if venta else None),
+                (venta.sucursal_id.id if venta else origin.sucursal_id.id),
+                -(self.pago_importe or 0.0),
+            )
+
+        # Descontar del total acreditable del origen (como NC global)
+        pend = (self.pago_importe or 0.0)
+        for ol in origin.line_ids.sorted('id'):
+            if pend <= 1e-9:
+                break
+            take = min(ol.total_dev_available or 0.0, pend)
+            if take > 1e-9:
+                ol.write({'total_dev_available': max((ol.total_dev_available or 0.0) - take, 0.0)})
+                pend -= take
+
+
+
     
     # Devuelve el catálogo mínimo de formas de pago para el campo 'forma' en la UI.
     @api.model
     def _forma_pago_selection(self):
         # catálogo mínimo; si tienes modelo de catálogo, puedes poblarlo
-        return [('01','Efectivo'),('03','Transferencia'),('04','TDC'),('28','TDD'),('99','Por definir')]
+        return [('01','Efectivo'),('03','Transferencia'),('04','Tarjeta de crédito'),('28','Tarjeta de débito'),('99','Por definir'),
+                ('02','Cheque nominativo'),('05','Monedero electrónico'),('06','Dinero electrónico'),
+                ('08','Vales de despensa'),('12','Dación en pago'),('13','Pago por subrogación'),
+                ('14','Pago por consignación'),('15','Condonación'),('17','Compensación'),
+                ('23','Novación'),('24','Confusión'),('25','Remisión de deuda'),
+                ('26','Prescripción o caducidad'),('27','A satisfacción del acreedor'),
+                ('29','Tarjeta de servicios'),('30','Aplicación de anticipos')
+                ]
 
     # Onchange: si la sucursal elegida pertenece a otra empresa, limpia el campo sucursal.
     @api.onchange('empresa_id')
@@ -459,13 +1007,15 @@ class FacturaUI(models.Model):
     # Onchange: en I/E, si método = PPD fuerza forma = '99'; para tipo P limpia la forma (no aplica).
     @api.onchange('metodo','tipo')
     def _onchange_metodo_forma(self):
-        """Si es I/E y método PPD, fuerza forma 99; si PUE deja elegir."""
+        """Si es I/E y método PPD, fuerza forma 99; en Pago permite forma (default 03)."""
         for r in self:
             if r.tipo in ('I','E'):
                 if (r.metodo or '').upper() == 'PPD':
                     r.forma = '99'
-            else:
-                r.forma = False  # en tipo P no aplica
+            elif r.tipo == 'P':
+                if not r.forma:
+                    r.forma = '03'
+
 
     # Obtiene el res.partner a usar: prioriza cliente del encabezado y, si no, toma el de la
     # primera línea con cliente, normalizándolo con _ensure_partner_from_cliente().
@@ -478,10 +1028,6 @@ class FacturaUI(models.Model):
                 return self._ensure_partner_from_cliente(l.cliente_id)
         return False
 
-    # Placeholder para complemento de pago (tipo P). Lanza excepción “pendiente”.
-    def action_build_payment_cfdi(self):
-        self.ensure_one()
-        raise ValidationError(_('Complemento de pago (tipo P) pendiente de implementar.'))
     
     # Abre una acción de ventana list/form con los adjuntos del registro actual.
     def action_open_attachments(self):
@@ -620,6 +1166,35 @@ class FacturaUI(models.Model):
             'res_id': nc.id,
             'target': 'current',
         }
+    
+    def action_prepare_payment(self):
+        """Desde Ingreso timbrado, crear Pago (tipo P) prellenando encabezado y monto=saldo."""
+        self.ensure_one()
+        if self.tipo != 'I' or self.state != 'stamped':
+            raise ValidationError(_('Solo puedes crear un Pago desde un Ingreso timbrado.'))
+        if max(self.saldo or 0.0, 0.0) <= 0.0:
+            raise ValidationError(_('La factura ya no tiene saldo por pagar.'))
+
+        p_vals = {
+            'empresa_id': self.empresa_id.id,
+            'sucursal_id': self.sucursal_id.id,
+            'cliente_id': self.cliente_id.id,
+            'tipo': 'P',
+            'moneda': self.moneda or 'MXN',
+            'origin_factura_id': self.id,
+            'pago_importe': max(self.saldo or 0.0, 0.0),
+            'forma': '03',
+        }
+        pago = self.create(p_vals)
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Complemento de Pago'),
+            'res_model': self._name,
+            'view_mode': 'form',
+            'res_id': pago.id,
+            'target': 'current',
+        }
+
 
     
     # ===== Botones para descargar/recuperar XML =====
@@ -774,6 +1349,54 @@ class FacturaUI(models.Model):
         ):
             self.origin_factura_id = False
 
+    def _is_service_line(self, line):
+        """Intenta detectar servicios para no tocar stock."""
+        # Si tu productos.producto expone bandera propia, úsala:
+        if getattr(line.producto_id, 'is_service', False):
+            return True
+        # O resuelve product.product para revisar detailed_type
+        pp = False
+        ensure = getattr(line.producto_id, 'ensure_product_product', None)
+        if callable(ensure):
+            try:
+                pp = ensure()
+            except Exception:
+                pass
+        return getattr(pp, 'detailed_type', '') == 'service'
+
+    def _apply_stock_on_ingreso(self):
+        """Descuenta stock por línea (solo productos, no servicios)."""
+        self.ensure_one()
+        Stock = self.env['stock.sucursal.producto'].sudo()
+        for l in self.line_ids:
+            if not l.producto_id or self._is_service_line(l):
+                continue
+            qty = l.cantidad or 0.0
+            if qty > 0:
+                Stock.remove_stock(self.sucursal_id, l.producto_id, qty)
+    
+    def action_cancel(self):
+        self.ensure_one()
+        # Reversión de stock simple
+        Stock = self.env['stock.sucursal.producto'].sudo()
+        if self.state == 'stamped':
+            if self.tipo == 'I':
+                # Regresa lo que descontaste
+                for l in self.line_ids:
+                    if not l.producto_id or self._is_service_line(l):
+                        continue
+                    if (l.cantidad or 0.0) > 0:
+                        Stock.add_stock(self.sucursal_id, l.producto_id, l.cantidad)
+            elif self.tipo == 'E' and (self.egreso_tipo or '') == 'dev':
+                # Quita lo que habías regresado
+                for l in self.line_ids:
+                    if not l.producto_id or self._is_service_line(l):
+                        continue
+                    if (l.cantidad or 0.0) > 0:
+                        Stock.remove_stock(self.sucursal_id, l.producto_id, l.cantidad)
+        self.write({'state': 'canceled'})
+        return self.action_close_form()
+
     
     # ============================== Fin utils ==============================
 
@@ -799,8 +1422,9 @@ class FacturaUI(models.Model):
         'facturas.factura',
         string='Factura origen',
         domain="[('tipo','=','I'), ('state','=','stamped'), \
-                 ('empresa_id','!=', False), ('empresa_id','=', empresa_id), \
-                 ('cliente_id','!=', False), ('cliente_id','=', cliente_id)]",
+                ('empresa_id','=', empresa_id), \
+                ('sucursal_id','=', sucursal_id), \
+                ('cliente_id','=', cliente_id)]",
         copy=False,
         index=True,
     )
@@ -811,18 +1435,17 @@ class FacturaUI(models.Model):
     )
 
     # Calcula importes por encabezado (suma de líneas) y, para I/E con PPD, el saldo = importe total.
-    @api.depends('line_ids.total', 'metodo', 'tipo', 'state')
+    @api.depends('line_ids.total', 'metodo', 'tipo', 'state', 'pago_importe')
     def _compute_totales(self):
         for r in self:
-            r.importe_total = sum((l.total or 0.0) for l in r.line_ids)
-    
-            # Por defecto, saldo = 0 salvo I/E PPD
+            total_lineas = sum((l.total or 0.0) for l in r.line_ids)
+            r.importe_total = (r.pago_importe or 0.0) if r.tipo == 'P' else total_lineas
+
             base = 0.0
-            if r.tipo in ('I', 'E') and (r.metodo or '').upper() == 'PPD':
-                base = r.importe_total
-    
-            # Si soy una FACTURA de Ingreso en PPD, resta Egresos (NC/devoluciones) ya timbrados que me aplican
-            if r.tipo == 'I' and (r.metodo or '').upper() == 'PPD':
+            if r.tipo == 'I':
+                # En PPD el saldo parte del total; en PUE parte de 0
+                base = r.importe_total if (r.metodo or '').upper() == 'PPD' else 0.0
+                # Restar créditos aplicados (E y P) SIEMPRE, también en PUE (puede quedar negativo)
                 try:
                     base -= (r._applied_credits_total() or 0.0)
                 except Exception:
@@ -837,15 +1460,22 @@ class FacturaUI(models.Model):
 
 
     def _applied_credits_total(self):
-        """Total de Egresos timbrados que aplican a esta factura (por origin_factura_id)."""
+        """Total de Egresos (NC/DEV) y Pagos timbrados/aplicados que impactan a esta factura."""
         self.ensure_one()
         E = self.env['facturas.factura']
-        egresos = E.search([
-            ('tipo', '=', 'E'),
+        aplicados = E.search([
+            ('tipo', 'in', ['E', 'P']),
             ('state', '=', 'stamped'),
             ('origin_factura_id', '=', self.id),
         ])
-        return sum(e.importe_total or 0.0 for e in egresos)
+        total = 0.0
+        for e in aplicados:
+            if e.tipo == 'P':
+                total += (e.pago_importe or 0.0)
+            else:
+                total += (e.importe_total or 0.0)
+        return total
+
 
 
     # Calcula cuántos adjuntos (ir.attachment) tiene el registro para mostrar un contador.
@@ -865,7 +1495,7 @@ class FacturaUI(models.Model):
         super(FacturaUI, self)._check_consistency() if hasattr(super(), '_check_consistency') else None
         self.ensure_one()
 
-        if not self.line_ids:
+        if self.tipo in ('I', 'E') and not self.line_ids:
             raise ValidationError(_('Agrega al menos un concepto a la factura.'))
         if bad:
             raise ValidationError(_('Todas las transacciones deben pertenecer a la sucursal seleccionada.'))
@@ -887,6 +1517,54 @@ class FacturaUI(models.Model):
             if (self.origin_factura_id.cliente_id and self.cliente_id 
                 and self.origin_factura_id.cliente_id.id != self.cliente_id.id):
                 raise ValidationError(_('El cliente del Egreso debe coincidir con el de la factura origen.'))
+
+        # ===== Validaciones extra para E y P =====
+        if self.tipo == 'E':
+            # 1) Debe tener factura origen (ya lo tienes arriba)
+            # 2) Validar por tipo de egreso
+            if self.egreso_tipo == 'dev':
+                # No exceder cantidades disponibles por producto en la factura origen
+                # Suma solicitada por producto en este egreso
+                req_by_prod = {}
+                for l in self.line_ids:
+                    if l.producto_id:
+                        req_by_prod[l.producto_id.id] = req_by_prod.get(l.producto_id.id, 0.0) + (l.cantidad or 0.0)
+
+                # Suma disponible por producto (en líneas del origen)
+                avail_by_prod = {}
+                for ol in self.origin_factura_id.line_ids:
+                    if ol.producto_id:
+                        avail_by_prod[ol.producto_id.id] = avail_by_prod.get(ol.producto_id.id, 0.0) + (ol.qty_dev_available or 0.0)
+
+                for pid, qty_req in req_by_prod.items():
+                    qty_av = avail_by_prod.get(pid, 0.0)
+                    if qty_req > qty_av + 1e-6:
+                        raise ValidationError(_("Devolución excede cantidad disponible para el producto ID %s: solicitada=%.2f, disponible=%.2f") % (pid, qty_req, qty_av))
+
+            elif self.egreso_tipo == 'nc':
+                # No exceder total disponible de crédito (suma de total_dev_available en el origen)
+                req_total = sum((l.total or 0.0) for l in self.line_ids)
+                avail_total = sum((ol.total_dev_available or 0.0) for ol in self.origin_factura_id.line_ids)
+                if req_total > avail_total + 1e-6:
+                    raise ValidationError(_("Nota de crédito excede el monto acreditable: solicitado=%.2f, disponible=%.2f") % (req_total, avail_total))
+
+        elif self.tipo == 'P':
+            if not self.origin_factura_id:
+                raise ValidationError(_('En un Pago debes seleccionar la "Factura origen".'))
+            if (self.pago_importe or 0.0) <= 0.0:
+                raise ValidationError(_('Captura un importe de pago mayor que 0.'))
+            # No pagar arriba del saldo
+            saldo_disp = max(self.origin_factura_id.saldo or 0.0, 0.0)
+            if (self.pago_importe or 0.0) - 1e-6 > saldo_disp:
+                raise ValidationError(_("El pago (%.2f) excede el saldo disponible (%.2f) de la factura origen.") % (self.pago_importe, saldo_disp))
+            # La forma de pago del nodo Pago es obligatoria
+            if not (self.forma or '').strip():
+                raise ValidationError(_('Selecciona la Forma de pago del complemento (ej. 03 Transferencia).'))
+            # En pago no debe haber conceptos
+            if self.line_ids:
+                raise ValidationError(_('En un Pago no debes capturar conceptos; solo importe y factura origen.'))
+
+
 
         # << aquí el cambio >>
         clientes = {l.cliente_id.id for l in self.line_ids if l.cliente_id}
@@ -933,6 +1611,12 @@ class FacturaUILine(models.Model):
     iva_amount  = fields.Float(compute='_calc_totals', store=True)
     ieps_amount = fields.Float(compute='_calc_totals', store=True)
     total       = fields.Float(compute='_calc_totals', store=True)
+
+    # === Contadores de disponibilidad para DEV/NC (se inicializan al timbrar el Ingreso)
+    qty_dev_available   = fields.Float(string='Disp. devolución (cant)', default=0.0)
+    total_dev_available = fields.Float(string='Disp. crédito ($)', default=0.0)
+
+
 
     # Seguimiento de facturación por transacción
     transaccion_id = fields.Many2one('transacciones.transaccion', string='Transacción (si aplica)')

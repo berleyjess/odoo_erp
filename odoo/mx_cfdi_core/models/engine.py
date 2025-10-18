@@ -9,6 +9,7 @@ _logger = logging.getLogger(__name__)
 from xml.etree.ElementTree import Element, SubElement, tostring, register_namespace
 register_namespace('cfdi', 'http://www.sat.gob.mx/cfd/4')
 register_namespace('xsi',  'http://www.w3.org/2001/XMLSchema-instance')
+register_namespace('pago20', 'http://www.sat.gob.mx/Pagos20')
 import hashlib
 import re, unicodedata
 
@@ -257,7 +258,13 @@ class CfdiEngine(models.AbstractModel):
             raise UserError(_("Configura el nombre/razón social del emisor."))
         emisor_nombre = ' '.join(emisor_nombre.split()).upper()
 
+        # Si es pago y no vino uso_cfdi, usar CP01 automáticamente
+        if tipo == 'P' and not uso_default:
+            uso_default = 'CP01'
 
+        # Solo exigir UsoCFDI para I/E
+        if tipo in ('I', 'E') and not uso_default:
+            raise UserError(_("Debes indicar el UsoCFDI del receptor."))
 
 
 
@@ -404,6 +411,13 @@ class CfdiEngine(models.AbstractModel):
             'xmlns:xsi':  'http://www.w3.org/2001/XMLSchema-instance',
             'xsi:schemaLocation': 'http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd',
         })
+        # Si es CFDI de Pago, agrega el schemaLocation del complemento Pagos 2.0
+        if tipo == 'P':
+            sl = comprobante.get('xsi:schemaLocation', '').strip()
+            pagos_pair = 'http://www.sat.gob.mx/Pagos20 http://www.sat.gob.mx/sitio_internet/cfd/Pagos/Pagos20.xsd'
+            if pagos_pair not in sl:
+                comprobante.set('xsi:schemaLocation', (sl + ' ' + pagos_pair).strip())
+
         ig = extras.get('informacion_global') if isinstance(extras, dict) else None
         if ig:
             SubElement(comprobante, 'cfdi:InformacionGlobal', {
@@ -565,6 +579,58 @@ class CfdiEngine(models.AbstractModel):
                         SubElement(tras, 'cfdi:Traslado', {
                             'Impuesto': imp, 'TipoFactor': 'Exento', 'Base': fmt2(base_sum),
                         })
+        # === Estructura para CFDI de Pago (tipo 'P') ===
+        if tipo == 'P':
+            # Concepto obligatorio (84111506)
+            cs = SubElement(comprobante, 'cfdi:Conceptos')
+            SubElement(cs, 'cfdi:Concepto', {
+                'ClaveProdServ': '84111506',
+                'Cantidad': fmt6(1),
+                'ClaveUnidad': 'ACT',
+                'Descripcion': 'Pago',
+                'ValorUnitario': fmt6(0),
+                'Importe': fmt2(0),
+                'ObjetoImp': '01',  # sin desglose de impuestos
+            })
+        
+            # Complemento Pagos 2.0
+            comp = SubElement(comprobante, 'cfdi:Complemento')
+            pagos = SubElement(comp, '{http://www.sat.gob.mx/Pagos20}Pagos', {'Version': '2.0'})
+        
+            total_montos = 0.0
+            for p in (extras.get('pagos') or []):
+                monto = float(p.get('monto', 0.0))
+                total_montos += monto
+        
+                pago = SubElement(pagos, '{http://www.sat.gob.mx/Pagos20}Pago', {
+                    'FechaPago': p['fecha'],
+                    'FormaDePagoP': p.get('forma', '03'),
+                    'MonedaP': p.get('moneda', 'MXN'),
+                    'Monto': fmt2(monto),
+                })
+        
+                for d in (p.get('docs') or []):
+                    attrs = {
+                        'IdDocumento': d['uuid'],
+                        'MonedaDR': p.get('moneda', 'MXN'),
+                        'EquivalenciaDR': fmt6(1),
+                        'NumParcialidad': str(d.get('num_parcialidad', 1)),
+                        'ImpSaldoAnt': fmt2(d.get('saldo_anterior', 0)),
+                        'ImpPagado': fmt2(d.get('importe_pagado', 0)),
+                        'ImpSaldoInsoluto': fmt2(d.get('saldo_insoluto', 0)),
+                        'ObjetoImpDR': '01',  # sin desglose a nivel DR
+                    }
+                    if d.get('serie'):
+                        attrs['Serie'] = d['serie']
+                    if d.get('folio'):
+                        attrs['Folio'] = d['folio']
+                    SubElement(pago, '{http://www.sat.gob.mx/Pagos20}DoctoRelacionado', attrs)
+        
+            # Totales del complemento (obligatorio MontoTotalPagos)
+            SubElement(pagos, '{http://www.sat.gob.mx/Pagos20}Totales', {
+                'MontoTotalPagos': fmt2(total_montos),
+            })
+
 
         _logger.info("CFDI RECEPTOR | RFC=%s | NombreXML='%s' | Regimen=%s | CP=%s | UsoCFDI=%s",
              rec_rfc, rec_nombre, rec_regimen, rec_cp, uso_cfdi_ok)

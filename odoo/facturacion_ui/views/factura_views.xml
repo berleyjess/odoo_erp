@@ -13,7 +13,7 @@
         <field name="forma"/>
         <field name="importe_total"/>
         <field name="saldo"/>
-        <field name="origin_factura_id" invisible="tipo != 'E'"/>
+        <field name="origin_factura_id" invisible="not (tipo == 'E' or tipo == 'P')"/>
         <field name="state" widget="badge" decoration-success="state == 'stamped'" decoration-warning="state == 'ready'" decoration-info="state == 'draft'"/>
         <field name="uuid"/>
         <button name="action_fetch_xml_from_sw" type="object" icon="fa-download" string="Descargar XML" invisible="not uuid"/>
@@ -39,11 +39,15 @@
           <button name="action_fetch_xml_from_sw" type="object" string="Recuperar XML de SW" 
                   class="btn-warning"
                   invisible="not uuid"/>
-          <button name="action_build_payment_cfdi" type="object" string="Complemento de pago" 
-                  invisible="tipo != 'P'"/>
           <button name="action_prepare_credit_note" type="object" string="Nota de Crédito"
                   class="btn-secondary"
                   invisible="not (tipo == 'I' and state == 'stamped')"/>
+          <button name="action_prepare_payment"
+                  type="object"
+                  string="Registrar Pago (Complemento)"
+                  class="oe_highlight"
+                  invisible="not (tipo == 'I' and state == 'stamped' and saldo &gt; 0.0)"/>
+
           <button name="action_close_form" type="object" string="Cerrar" class="btn-secondary"/>
           <field name="state" widget="statusbar" statusbar_visible="draft,ready,stamped,canceled"/>
         </header>
@@ -66,7 +70,7 @@
           </h1>
           
                 <button name="%(action_wiz_add_sales)d" type="action" string="Agregar Ventas completas"
-                        invisible="state != 'draft' or tipo == 'E'"
+                        invisible="state != 'draft' or tipo == 'E' or tipo == 'P'"
                         context="{
                           'default_factura_id': id,
                           'empresa_id':  empresa_id,
@@ -76,7 +80,7 @@
                         class="btn-secondary"/>
 
                 <button name="%(action_wiz_add_lines)d" type="action" string="Agregar Transacciones"
-                        invisible="state != 'draft' or tipo == 'E'"
+                        invisible="state != 'draft' or tipo == 'E' or tipo == 'P'"
                         context="{
                           'default_factura_id': id,
                           'empresa_id':  empresa_id,
@@ -86,7 +90,7 @@
                         class="btn-secondary"/>
 
                 <button name="%(action_wiz_add_charges)d" type="action" string="Agregar Cargos"
-                        invisible="state != 'draft' or tipo == 'E'"
+                        invisible="state != 'draft' or tipo == 'E' or tipo == 'P'"
                         context="{
                           'default_factura_id': id,
                           'empresa_id':  empresa_id,
@@ -97,7 +101,7 @@
                 
                 <button name="action_placeholder_interest" type="object" string="Agregar Intereses" 
                         class="btn-secondary"
-                        invisible="state != 'draft' or tipo == 'E'"/>
+                        invisible="state != 'draft' or tipo == 'E' or tipo == 'P'"/>
           
           <group>
             <group>
@@ -107,7 +111,7 @@
               <field name="cliente_id" readonly="state != 'draft'" options="{'no_open': True}"/>
               <field name="tipo" readonly="state != 'draft'"/>
               <field name="egreso_tipo" invisible="tipo != 'E'"/>
-              <field name="origin_factura_id" invisible="tipo != 'E'"/>
+              <field name="origin_factura_id" invisible="not (tipo == 'E' or tipo == 'P')"/>
               <field name="origin_move_id" invisible="tipo != 'E'" readonly="1"/>
             </group>
             <group>
@@ -129,11 +133,29 @@
               <field name="move_id" readonly="1"/>
               <field name="importe_total" readonly="1"/>
               <field name="saldo" readonly="1"/>
+              <field name="pago_importe" invisible="tipo != 'P'"/>
             </group>
           </group>
 
+          <!-- ===== GRUPO SOLO PARA COMPLEMENTO DE PAGO (tipo P) ===== -->
+          <group string="Pago" invisible="tipo != 'P'">
+            <group>
+              <!-- Factura a la que se aplica el pago -->
+              <field name="origin_factura_id" options="{'no_open': True}"/>
+              <!-- Importe del pago -->
+              <field name="pago_importe" required="1"/>
+            </group>
+            <group>
+              <!-- Forma del nodo Pago (obligatoria) -->
+              <field name="forma" required="1" readonly="state != 'draft'"/>
+              <!-- Fecha del pago -->
+              <field name="fecha" readonly="state != 'draft'"/>
+            </group>
+          </group>
+
+
           <notebook>
-            <page string="Productos/Servicios">
+            <page string="Productos/Servicios" invisible="tipo == 'P'">
               <!-- ===== Ingresos (tipo I): tu comportamiento actual ===== -->
               <field name="line_ids" readonly="state != 'draft'" invisible="tipo != 'I'">
                 <list editable="bottom" create="state == 'draft'" delete="state == 'draft'">
@@ -209,7 +231,7 @@
             </page>
 
             
-            <page string="Ventas seleccionadas" invisible="tipo == 'E'">
+            <page string="Ventas seleccionadas" invisible="tipo != 'I'">
               <field name="venta_ids" widget="many2many_tags" readonly="state != 'draft'"/>
             </page>
 

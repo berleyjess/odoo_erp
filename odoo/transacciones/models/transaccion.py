@@ -44,6 +44,7 @@ class Transaccion(models.Model):
         ('8', "Excedente"),      # Entrada
         ('9', "Pérdida"),        # Salida
         ('10', "Preventa"),      # Sin efecto
+        ('11', "Complemento de pago"),  # Sin efecto
     ], default='1', store=True)
 
     # Enlace con venta (One2many en ventas.venta -> venta_id aquí)
@@ -67,12 +68,13 @@ class Transaccion(models.Model):
     def _stock_tipo(self):
         ENTRADA = {'0', '2', '4', '6', '8'}
         for i in self:
-            if i.tipo == '10':
+            if i.tipo in {'10', '11'}:   # ⬅️ también sin efecto
                 i.stock = '0'
             elif i.tipo in ENTRADA:
                 i.stock = '1'
             else:
                 i.stock = '2'
+
 
     @api.constrains('venta_id', 'sucursal_id')
     def _constrain_sucursal_venta(self):

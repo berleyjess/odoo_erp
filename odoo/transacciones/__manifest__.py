@@ -4,8 +4,11 @@
     'author': 'Grupo Safinsa',
     'depends':['base', 'productos', 'sucursales'],
     'version': '1.0',
-    'data':[],
+    'data':[
+        'views/transaccion.xml',
+
+    ],
     'installable': True,
-    'application': False,
+    'application': True,
     'auto_install': True,
 }
