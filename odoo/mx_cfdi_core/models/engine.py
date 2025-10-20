@@ -273,6 +273,11 @@ class CfdiEngine(models.AbstractModel):
         traslados_total = 0.0
         retenciones_total = 0.0
 
+        is_pago = (tipo == 'P')
+        subtotal_attr = '0' if is_pago else fmt2(subtotal_sum)
+        total_attr = '0' if is_pago else fmt2(round(subtotal_sum + traslados_total - retenciones_total, 2))
+
+
         # Acumuladores para nivel Comprobante: (impuesto, tipo_factor, tasa_str) -> importe_total
         agg_tras = {}
         agg_base = {}
@@ -395,14 +400,17 @@ class CfdiEngine(models.AbstractModel):
 
         # --- Comprobante ---
         exportacion = extras.get('exportacion') or '01'  # 01 = No aplica
+        if tipo == 'P':
+            # En CFDI de Pago el comprobante SIEMPRE es Moneda="XXX"
+            moneda = 'XXX'
         comprobante = Element('cfdi:Comprobante', {
             'Version': '4.0',
             'Fecha': fecha,
-            'Moneda': moneda,
+            'Moneda': moneda,                     # ya forzas 'XXX' arriba si tipo == 'P'
             'TipoDeComprobante': {'I':'I','E':'E','P':'P'}.get(tipo, 'I'),
             'Exportacion': exportacion,
-            'SubTotal': fmt2(subtotal_sum),
-            'Total': fmt2(round(subtotal_sum + traslados_total - retenciones_total, 2)),
+            'SubTotal': subtotal_attr,            # ← “0” en Pago
+            'Total': total_attr,                  # ← “0” en Pago
             'LugarExpedicion': cpostal,
             'Sello': '',
             'Certificado': '',
@@ -411,6 +419,8 @@ class CfdiEngine(models.AbstractModel):
             'xmlns:xsi':  'http://www.w3.org/2001/XMLSchema-instance',
             'xsi:schemaLocation': 'http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd',
         })
+
+
         # Si es CFDI de Pago, agrega el schemaLocation del complemento Pagos 2.0
         if tipo == 'P':
             sl = comprobante.get('xsi:schemaLocation', '').strip()
@@ -431,11 +441,13 @@ class CfdiEngine(models.AbstractModel):
         if folio:
             comprobante.set('Folio', folio)
         # TipoCambio si aplica
-        if (moneda or 'MXN').upper() != 'MXN':
+        # TipoCambio: solo para Ingreso/Egreso con moneda distinta a MXN (nunca para Pago/XXX)
+        if tipo in ('I', 'E') and (moneda or 'MXN').upper() != 'MXN':
             tc = extras.get('tipo_cambio')
             if not tc:
                 raise UserError(_("Para moneda distinta a MXN debes informar TipoCambio en extras['tipo_cambio']."))
             comprobante.set('TipoCambio', fmt6(tc))
+
         
         # Emisor
         emisor_nombre_raw = (empresa.razonsocial or '')
@@ -580,56 +592,79 @@ class CfdiEngine(models.AbstractModel):
                             'Impuesto': imp, 'TipoFactor': 'Exento', 'Base': fmt2(base_sum),
                         })
         # === Estructura para CFDI de Pago (tipo 'P') ===
+        # === Estructura para CFDI de Pago (tipo 'P') ===
         if tipo == 'P':
-            # Concepto obligatorio (84111506)
+            # Concepto obligatorio 84111506
             cs = SubElement(comprobante, 'cfdi:Conceptos')
             SubElement(cs, 'cfdi:Concepto', {
                 'ClaveProdServ': '84111506',
-                'Cantidad': fmt6(1),
+                'Cantidad': '1',         # ← sin decimales
                 'ClaveUnidad': 'ACT',
                 'Descripcion': 'Pago',
-                'ValorUnitario': fmt6(0),
-                'Importe': fmt2(0),
-                'ObjetoImp': '01',  # sin desglose de impuestos
+                'ValorUnitario': '0',    # ← sin decimales (recomendado)
+                'Importe': '0',          # ← sin decimales (recomendado)
+                'ObjetoImp': '01',
             })
-        
+
+
             # Complemento Pagos 2.0
             comp = SubElement(comprobante, 'cfdi:Complemento')
             pagos = SubElement(comp, '{http://www.sat.gob.mx/Pagos20}Pagos', {'Version': '2.0'})
-        
-            total_montos = 0.0
-            for p in (extras.get('pagos') or []):
+
+            # --- PATCH (orden correcto): primero Totales, luego los Pagos ---
+            pagos_list = list((extras.get('pagos') or []))
+            total_montos = sum(float(p.get('monto', 0.0)) for p in pagos_list)
+
+            # 1) Totales ANTES que Pago
+            SubElement(pagos, '{http://www.sat.gob.mx/Pagos20}Totales', {
+                'MontoTotalPagos': fmt2(total_montos),
+                # Si algún día agregas traslados/retenciones en el pago, agrega aquí los atributos de totales:
+                # 'TotalTrasladosBaseIVA16': fmt2(...),
+                # 'TotalTrasladosImpuestoIVA16': fmt2(...),
+                # etc.
+            })
+
+            # 2) Luego cada Pago y sus Doctos
+            for p in pagos_list:
                 monto = float(p.get('monto', 0.0))
-                total_montos += monto
-        
-                pago = SubElement(pagos, '{http://www.sat.gob.mx/Pagos20}Pago', {
+                moneda_p = (p.get('moneda', 'MXN') or 'MXN').upper()
+
+                attrs_pago = {
                     'FechaPago': p['fecha'],
                     'FormaDePagoP': p.get('forma', '03'),
-                    'MonedaP': p.get('moneda', 'MXN'),
+                    'MonedaP': moneda_p,
                     'Monto': fmt2(monto),
-                })
-        
+                }
+
+                # Requerimiento SAT/PAC:
+                # - Si MonedaP = MXN => TipoCambioP = "1" (sin decimales)
+                # - Si MonedaP ≠ MXN => TipoCambioP obligatorio con el TC real (hasta 6 decimales)
+                if moneda_p == 'MXN':
+                    attrs_pago['TipoCambioP'] = '1'
+                else:
+                    tc_p = p.get('tipo_cambio_p') or p.get('tipo_cambio') or p.get('tc')
+                    if not tc_p:
+                        raise UserError(_("Para MonedaP distinta de MXN debes informar TipoCambioP en el pago."))
+                    attrs_pago['TipoCambioP'] = fmt6(tc_p)
+
+                pago = SubElement(pagos, '{http://www.sat.gob.mx/Pagos20}Pago', attrs_pago)
                 for d in (p.get('docs') or []):
                     attrs = {
                         'IdDocumento': d['uuid'],
                         'MonedaDR': p.get('moneda', 'MXN'),
-                        'EquivalenciaDR': fmt6(1),
+                        'EquivalenciaDR': '1',
                         'NumParcialidad': str(d.get('num_parcialidad', 1)),
                         'ImpSaldoAnt': fmt2(d.get('saldo_anterior', 0)),
                         'ImpPagado': fmt2(d.get('importe_pagado', 0)),
                         'ImpSaldoInsoluto': fmt2(d.get('saldo_insoluto', 0)),
-                        'ObjetoImpDR': '01',  # sin desglose a nivel DR
+                        'ObjetoImpDR': '01',
                     }
                     if d.get('serie'):
                         attrs['Serie'] = d['serie']
                     if d.get('folio'):
                         attrs['Folio'] = d['folio']
                     SubElement(pago, '{http://www.sat.gob.mx/Pagos20}DoctoRelacionado', attrs)
-        
-            # Totales del complemento (obligatorio MontoTotalPagos)
-            SubElement(pagos, '{http://www.sat.gob.mx/Pagos20}Totales', {
-                'MontoTotalPagos': fmt2(total_montos),
-            })
+            # --- /PATCH ---
 
 
         _logger.info("CFDI RECEPTOR | RFC=%s | NombreXML='%s' | Regimen=%s | CP=%s | UsoCFDI=%s",
@@ -689,10 +724,10 @@ class CfdiEngine(models.AbstractModel):
         empresa_id = self.env.context.get('empresa_id')
         if not empresa_id:
             raise UserError(_('Se requiere empresa_id en el contexto'))
-    
+
         empresa = self.env['empresas.empresa'].browse(empresa_id)
         ICP = self.env['ir.config_parameter'].sudo()
-    
+
         # 1) Valor elegido en Ajustes (res.config.settings) -> icp param
         provider_key = (ICP.get_param('mx_cfdi_engine.provider', '') or '').strip()
     

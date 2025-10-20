@@ -48,6 +48,8 @@
                   class="oe_highlight"
                   invisible="not (tipo == 'I' and state == 'stamped' and saldo &gt; 0.0)"/>
 
+
+
           <button name="action_close_form" type="object" string="Cerrar" class="btn-secondary"/>
           <field name="state" widget="statusbar" statusbar_visible="draft,ready,stamped,canceled"/>
         </header>

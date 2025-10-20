@@ -604,12 +604,12 @@ class venta(models.Model):
 
         return True
 
-    def action_open_factura_ui(self):
-        """Abre la Interfaz de Facturas prellenada con esta venta (sin timbrar)."""
+    """def action_open_factura_ui(self):
+        ""Abre la Interfaz de Facturas prellenada con esta venta (sin timbrar).""
         self.ensure_one()
         fac = self.env['facturas.factura'].create({
             'empresa_id': self.empresa_id.id,
-            'company_id': self.company_id.id,
+            #'company_id': self.company_id.id,
             'sucursal_id': self.sucursal_id.id,
             'cliente_id': self.cliente.id,   # tu modelo clientes.cliente
             'tipo': 'I',
@@ -625,6 +625,37 @@ class venta(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+        """
+    
+    def action_open_factura_ui(self):
+        """Abre la Interfaz de Facturas prellenada con esta venta (sin timbrar)."""
+        self.ensure_one()
+        Factura = self.env['facturas.factura']
+        vals = {
+            'empresa_id': self.empresa_id.id,
+            'sucursal_id': self.sucursal_id.id,
+            'cliente_id': self.cliente.id,
+            'tipo': 'I',
+            'metodo': self.metododepago or 'PPD',
+            'forma': (self.formadepago if (self.metododepago == 'PUE') else '99'),
+            'venta_ids': self.id,      # ← si tu modelo lo tiene, útil para trazar
+            #'origen_codigo': self.codigo,    # ← opcional; ayuda a ligar por invoice_origin
+        }
+        # Ligar la venta si el modelo lo soporta (usa tu M2M venta_ids)
+        if 'venta_ids' in Factura._fields:
+            vals['venta_ids'] = [(6, 0, [self.id])]
+        # Solo manda campos si existen en el modelo
+        if 'company_id' in Factura._fields:
+            vals['company_id'] = self.company_id.id
+        fac = Factura.create(vals)
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'facturas.factura',
+            'res_id': fac.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
 
     
     # ✅ No referenciamos campos “custom” del comodel en depends, para evitar el KeyError en el registro

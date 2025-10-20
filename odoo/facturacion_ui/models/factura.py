@@ -306,12 +306,13 @@ class FacturaUI(models.Model):
         )
     
     def _build_payment_extras(self):
-        """Arma el payload para el complemento de pagos 2.0 (monto, forma, saldos, parcialidad)."""
+        """Arma el payload para el complemento de pagos 2.0 (totales + pagos + doctos)."""
         self.ensure_one()
         origin = self.origin_factura_id
         saldo_ant = float(max(origin.saldo or 0.0, 0.0))
         monto     = float(self.pago_importe or 0.0)
         saldo_ins = max(saldo_ant - monto, 0.0)
+
         parc_prev = self.env['facturas.factura'].search_count([
             ('tipo', '=', 'P'),
             ('state', '=', 'stamped'),
@@ -319,26 +320,39 @@ class FacturaUI(models.Model):
         ])
         num_parc = int(parc_prev) + 1
 
-        # Nota: tu engine puede esperar 'pagos' o 'payment'; dejamos la clave 'pagos'
-        return {
-            'pagos': [{
-                'fecha': fields.Datetime.context_timestamp(
-                    self, self.fecha or fields.Datetime.now()
-                ).strftime('%Y-%m-%dT%H:%M:%S'),
-                'forma': self.forma or '03',        # SAT FormaDePago del nodo <pago>
-                'moneda': self.moneda or 'MXN',
-                'monto': monto,
-                'docs': [{
-                    'uuid': (origin.uuid or '').strip(),
-                    'serie': origin.serie or '',
-                    'folio': origin.folio or '',
-                    'num_parcialidad': num_parc,
-                    'saldo_anterior': saldo_ant,
-                    'importe_pagado': monto,
-                    'saldo_insoluto': saldo_ins,
-                }],
-            }]
+        # Totales del complemento (en tu flujo emites un pago por CFDI, así que es el mismo monto)
+        totales = {
+            'monto_total_pagos': monto,
+            # si algún día agregas impuestos en el pago, aquí podrías incluir:
+            # 'total_traslados_base_iva16': ...,
+            # 'total_traslados_impuesto_iva16': ...,
+            # etc.
         }
+
+        pago = {
+            'fecha': fields.Datetime.context_timestamp(
+                self, self.fecha or fields.Datetime.now()
+            ).strftime('%Y-%m-%dT%H:%M:%S'),
+            'forma': self.forma or '03',        # SAT FormaDePago del nodo <pago20:Pago>
+            'moneda': self.moneda or 'MXN',     # Moneda del pago (MonedaP) — el CFDI sigue siendo XXX
+            'monto': monto,
+            'docs': [{
+                'uuid': (origin.uuid or '').strip(),
+                'serie': origin.serie or '',
+                'folio': origin.folio or '',
+                'num_parcialidad': num_parc,
+                'saldo_anterior': saldo_ant,
+                'importe_pagado': monto,
+                'saldo_insoluto': saldo_ins,
+            }],
+        }
+
+        # Nota: el engine usará 'pagos_totales' y luego 'pagos' para construir el XML con el orden correcto.
+        return {
+            'pagos_totales': totales,
+            'pagos': [pago],
+        }
+
 
     def _stamp_payment_with_engine(self):
         """Timbrar complemento de pago SIN crear account.move; origen = esta FacturaUI."""
@@ -367,14 +381,15 @@ class FacturaUI(models.Model):
             empresa_id=self.empresa_id.id,
             tipo='P',
             receptor_id=rec.id,
-            uso_cfdi=None,
-            metodo='CP01',          # método para pagos
+            uso_cfdi='CP01',        # <-- EN P es obligatorio CP01 (Uso CFDI)
+            metodo=None,            # <-- En CFDI tipo P NO lleva MetodoPago/ FormaPago a nivel Comprobante
             forma=None,
-            conceptos=[],                 # en pago no hay conceptos
+            conceptos=[],
             serie=(self.serie or None),
             folio=(self.folio or None),
             extras=(extras or None),
         )
+
 
 
 
@@ -901,15 +916,18 @@ class FacturaUI(models.Model):
     def _get_payment_product(self):
         ICP = self.env['ir.config_parameter'].sudo()
         pid = int(ICP.get_param('facturacion_ui.payment_product_id', '0') or 0)
-        if pid:
-            p = self.env['productos.producto'].browse(pid)
-            if p and p.exists():
-                return p
-        # fallback por nombre
-        p = self.env['productos.producto'].search([('name', 'ilike', 'pago')], limit=1)
+        p = self.env['productos.producto'].browse(pid) if pid else False
+        if p and p.exists():
+            return p
+        # Fallback por nombre
+        p = self.env['productos.producto'].search([('name','ilike','pago')], limit=1)
         if not p:
-            raise ValidationError(_("Configura el parámetro 'facturacion_ui.payment_product_id' con un producto de PAGO/ABONO (sin impuestos)."))
+            # En lugar de romper el flujo, da una pista clara:
+            raise ValidationError(_("Configura el parámetro 'facturacion_ui.payment_product_id' o crea un producto llamado 'Pago' sin impuestos."))
+        # Actualiza el parámetro para la próxima vez
+        ICP.set_param('facturacion_ui.payment_product_id', str(p.id))
         return p
+
 
     def _apply_payment_effects(self):
         """Crea transacción (una) de pago sin producto de la factura original y descuenta crédito."""
