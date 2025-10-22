@@ -1,0 +1,26 @@
+<!-- faturacion_ui/views/transaccion_vista.xml -->
+<odoo>
+  <record id="transaccion_list" model="ir.ui.view">
+    <field name="name">transacciones.transaccion.vista</field>
+    <field name="model">transacciones.transaccion</field>
+    <field name="arch" type="xml">
+      <list string="Transacciones"
+            decoration-success="invoice_status == 'full'"
+            decoration-warning="invoice_status == 'partial'"
+            decoration-info="invoice_status == 'none'"
+            decoration-danger="invoice_status == 'canceled'">
+        <field name="fecha"/>
+        <field name="venta_id"/>
+        <!--field name="sucursal_id"/-->
+        <field name="producto_id"/>
+        <!--field name="cantidad"/-->
+        <field name="precio"/>
+        <field name="importe"/>
+        <field name="tipo"/>
+        <field name="qty_invoiced" optional="show"/>
+        <field name="qty_available" optional="show"/>
+        <field name="invoice_status" widget="badge" string="Facturación"/>
+      </list>
+    </field>
+  </record>
+</odoo>

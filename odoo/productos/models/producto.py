@@ -26,7 +26,7 @@ class producto(models.Model):
     iva = fields.Float(
         string="Iva %",
         required=True,
-        default='0.0'
+        default=0.0
     )
 
     # Tipo de Producto: Insumos, Ferretería, Granos
@@ -59,11 +59,11 @@ class producto(models.Model):
     servicio = fields.Boolean(string="Servicio", default=False, store = True)
 
     # Enlace con product.product estándar (para facturación/account.move)
-    product_id = fields.Many2one('product.product', string='Producto Odoo', copy=False)
+    product_id = fields.Many2one('product.product', string='Producto Odoo', copy=False, ondelete='set null')
 
     # Datos SAT opcionales (catálogos estándar si están instalados)
-    sat_unspsc_id = fields.Many2one('product.unspsc.category', string='Clave ProdServ (UNSPSC)', help='Usado por EDI MX si está disponible')
-    sat_uom_id = fields.Many2one('uom.uom', string='Unidad SAT (UoM)')
+    #sat_unspsc_id = fields.Many2one('product.unspsc.category', string='Clave ProdServ (UNSPSC)', help='Usado por EDI MX si está disponible', ondelete='set null')
+    #sat_uom_id = fields.Many2one('uom.uom', string='Unidad SAT (UoM)', ondelete='set null')
     
     #----
     codigo = fields.Char( #Código interno del producto
@@ -76,7 +76,7 @@ class producto(models.Model):
         #help="Código único autogenerado con formato COD-000001"
     )
 
-    codigosat = fields.Many2one('productos.codigoproductosat', string="Código SAT")
+    codigosat = fields.Many2one('productos.codigoproductosat', string="Código SAT", ondelete='set null')
 
     cuenta = fields.Char(string = "Cuenta contable")
 
@@ -139,13 +139,14 @@ class producto(models.Model):
     def ensure_product_product(self):
         """Crea o enlaza un product.product para este registro.
         - Busca por default_code == codigo, o por nombre.
-        - Si no existe, crea un product.template/product.product con
-          impuestos por IVA/IEPS, uom y UNSPSC si están disponibles.
+        - Si no existe, crea product.template/product.product con
+          impuestos por IVA/IEPS y UoM por defecto si existe.
         Devuelve product.product.
         """
         self.ensure_one()
         if self.product_id:
             return self.product_id
+
         Product = self.env['product.product']
         tmpl_model = self.env['product.template']
 
@@ -153,11 +154,10 @@ class producto(models.Model):
         if not p:
             p = Product.search([('name', '=', self.name)], limit=1)
         if not p:
-            # UoM defaults
+            # UoM por defecto (Unit(s)); si no existe, dejamos False
             uom_unit = self.env.ref('uom.product_uom_unit', raise_if_not_found=False)
-            uom_id = (self.sat_uom_id and self.sat_uom_id.id) or (uom_unit and uom_unit.id) or False
+            uom_id = (uom_unit and uom_unit.id) or False
 
-            # Taxes
             taxes = []
             if self.iva:
                 t = self._find_tax(round(self.iva * 100, 2))
@@ -178,15 +178,13 @@ class producto(models.Model):
                 'uom_po_id': uom_id,
                 'taxes_id': [(6, 0, taxes)] if taxes else False,
             }
-            # UNSPSC si existe el campo en template
-            if 'unspsc_code_id' in tmpl_model._fields and self.sat_unspsc_id:
-                t_vals['unspsc_code_id'] = self.sat_unspsc_id.id
 
             pt = tmpl_model.create(t_vals)
             p = pt.product_variant_id
 
         self.product_id = p.id
         return p
+
         
     @api.model
     def create(self, vals):

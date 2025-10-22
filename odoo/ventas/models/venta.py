@@ -1,16 +1,24 @@
 #ventas/models/venta
 from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 from datetime import date
 from odoo import SUPERUSER_ID
-from ..services.invoicing_bridge import create_invoice_from_sale
 import base64
 
 class venta(models.Model):
     _name = 'ventas.venta'
     _description = 'Venta de artículos'
-    _check_company_auto = True  # buenas prácticas multiempresa
-    
+    _check_company_auto = False  # buenas prácticas multiempresa
+    _inherit = ['mail.thread', 'mail.activity.mixin']
+
+    invoice_status2 = fields.Selection([
+        ('none', 'No facturada'),
+        ('partial', 'Semifacturada'),
+        ('full', 'Facturada'),
+        ('canceled', 'Cancelada'),
+        ('semi_canceled', 'Semi cancelada'),
+    ], compute='_compute_agg_status', store=True, default='none', string="Estado de facturación")
+
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
     contrato = fields.Many2one('creditos.credito', string="Contrato",
                                domain=lambda self: self._domain_contrato())
@@ -58,7 +66,7 @@ class venta(models.Model):
     empresa_id = fields.Many2one(
         'empresas.empresa', string='Empresa', required=True,
         default=lambda self: self.env.user.empresa_actual_id.id,
-        check_company=True, # ⬅️ Entra aquí y valida contra empresas.empresa.company_id
+        #check_company=True, # ⬅️ Entra aquí y valida contra empresas.empresa.company_id
     )
 
     # Sucursal con default por ID
@@ -70,11 +78,12 @@ class venta(models.Model):
     @api.onchange('empresa_id')
     def _onchange_empresa_id(self):
         if self.empresa_id:
-            # si quieres que la venta “pertenezca” a la misma compañía operativa que la empresa
-            self.company_id = self.empresa_id.company_id
-        # coherencia sucursal-empresa
+            comp = getattr(self.empresa_id, 'company_id', False) or getattr(self.empresa_id, 'res_company_id', False)
+            if comp:
+                self.company_id = comp
         if self.sucursal_id and self.sucursal_id.empresa != self.empresa_id:
             self.sucursal_id = False
+
 
 
     @api.onchange('sucursal_id')
@@ -120,6 +129,14 @@ class venta(models.Model):
         string="Método de Pago", required=True, default="PPD", store=True
     )
 
+    res_company_cfdi_id = fields.Many2one(
+        'res.company',
+        string='Compañía fiscal',
+        compute='_compute_res_company_cfdi',
+        store=False,
+        readonly=True,
+    )
+
     # Forma de pago SAT
     formadepago = fields.Selection(
         selection=[
@@ -129,18 +146,49 @@ class venta(models.Model):
         ],
         string="Forma de Pago", default="01"
     )
-
-    def write(self, vals):
-        res = super().write(vals)
-        if self.contrato:
-            self.contrato._calc_saldoporventas()
-        return res
+    @api.depends('empresa_id')
+    def _compute_res_company_cfdi(self):
+        for r in self:
+            comp = False
+            emp = r.empresa_id
+            if emp:
+                # intenta ambos nombres de campo en empresas.empresa
+                comp = getattr(emp, 'company_id', False) or getattr(emp, 'res_company_id', False)
+            r.res_company_cfdi_id = comp or False
     
-    @api.depends('state')
+    @api.depends('state', 'importe', 'move_id.amount_residual', 'move_id.state', 'move_id.move_type')
     def _compute_saldo(self):
-        for record in self:
-            if record.state == 'confirmed':
-                record.saldo = record.importe
+        Move = self.env['account.move']
+        for r in self:
+            if r.state == 'cancelled':
+                r.saldo = 0.0
+                continue
+
+            residual = 0.0
+            # 1) Si hay move_id y está posteada, úsalo
+            if r.move_id and r.move_id.state == 'posted':
+                if r.move_id.move_type in ('out_invoice', 'out_refund'):
+                    sign = 1.0 if r.move_id.move_type == 'out_invoice' else -1.0
+                    residual += sign * (r.move_id.amount_residual or 0.0)
+
+            # 2) Fallback: otras facturas ligadas por origen (parciales), si existen
+            if r.codigo:
+                others = Move.search([
+                    ('state', '=', 'posted'),
+                    ('move_type', 'in', ('out_invoice', 'out_refund')),
+                    ('invoice_origin', '=', r.codigo),
+                    ('company_id', '=', r.company_id.id),
+                ])
+                for m in others.filtered(lambda m: m.id != (r.move_id.id if r.move_id else 0)):
+                    sign = 1.0 if m.move_type == 'out_invoice' else -1.0
+                    residual += sign * (m.amount_residual or 0.0)
+
+            # 3) Sin factura: saldo = importe si la venta está confirmada; si no, 0
+            if not residual and r.state == 'confirmed':
+                r.saldo = r.importe or 0.0
+            else:
+                r.saldo = max(residual, 0.0)
+
 
     @api.onchange('metododepago')
     def _chgmpago(self):
@@ -326,30 +374,22 @@ class venta(models.Model):
         for rec in self:
             if rec.state == 'cancelled':
                 raise ValidationError(_("Venta cancelada: no se permite editar."))
-
-            # ✅ Solo valida permisos si se intenta cambiar empresa/sucursal
             if 'empresa_id' in vals or 'sucursal_id' in vals:
                 rec._check_user_company_branch(vals=vals)
 
-        return super().write(vals)
+            # Si se enlaza una factura posteada, marcar la venta como 'invoiced'
+            if vals.get('move_id'):
+                mv = self.env['account.move'].browse(vals['move_id'])
+                if mv and mv.state == 'posted':
+                    vals.setdefault('state', 'invoiced')
 
-    
-    def _check_user_company_branch(self, vals=None):
-        user = self.env.user
-        for rec in (self if self else self.browse()):
-            empresa_id = (vals or {}).get('empresa_id', rec.empresa_id.id)
-            sucursal_id = (vals or {}).get('sucursal_id', rec.sucursal_id.id)
+        res = super().write(vals)
 
-            if empresa_id and empresa_id not in user.empresas_ids.ids:
-                raise ValidationError(_("No tienes permiso para usar la empresa seleccionada."))
-
-            if sucursal_id and sucursal_id not in user.sucursales_ids.ids:
-                raise ValidationError(_("No tienes permiso para usar la sucursal seleccionada."))
-
-            if empresa_id and sucursal_id:
-                suc = self.env['sucursales.sucursal'].browse(sucursal_id)
-                if suc.empresa.id != empresa_id:
-                    raise ValidationError(_("La sucursal '%s' no pertenece a la empresa seleccionada.") % (suc.display_name,))
+        # Recalcular saldo de contrato si aplica
+        for rec in self:
+            if rec.contrato:
+                rec.contrato._calc_saldoporventas()
+        return res
 
     @api.model
     def create(self, vals):
@@ -358,8 +398,11 @@ class venta(models.Model):
 
         if vals.get('empresa_id'):
             emp = self.env['empresas.empresa'].browse(vals['empresa_id'])
-            if emp and emp.company_id:
-                vals['company_id'] = emp.company_id.id  # venta y empresa operativa alineadas
+            if emp:
+                comp = getattr(emp, 'company_id', False) or getattr(emp, 'res_company_id', False)
+                if comp:
+                    vals['company_id'] = comp.id
+
 
         self._check_user_company_branch(vals=vals)
         return super().create(vals)
@@ -426,76 +469,6 @@ class venta(models.Model):
     ], string="Tipo de relación", copy=False)
     cfdi_relacion_ventas_ids = fields.Many2many('ventas.venta', 'venta_cfdi_rel_m2m', 'venta_id', 'rel_id',
                                                 string="CFDIs relacionados", copy=False)
-
-    def action_open_cfdi_wizard(self):
-        """Abre el wizard para capturar Uso CFDI / Método / Relación, etc."""
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Generar CFDI'),
-            'res_model': 'ventas.cfdi.wizard',
-            'view_mode': 'form',
-            'target': 'new',
-            'context': {
-                'default_sale_id': self.id,
-                'default_metodo_pago': self.metododepago or 'PPD',
-                'default_forma_pago': self.formadepago or False,
-            },
-        }
-    
-    def _to_cfdi_conceptos(self):
-     """Convierte líneas de venta a conceptos CFDI (placeholder simple)."""
-     conceptos = []
-     for l in self.detalle:
-        if not l.producto_id:
-            continue
-        clave_prod_serv = getattr(l.producto_id, 'sat_clave_prod_serv', None) or '01010101'
-        clave_unidad = getattr(l.producto_id, 'sat_clave_unidad', None) or 'H87'
-        no_ident = getattr(l.producto_id, 'default_code', None) or str(l.producto_id.id)
-        descripcion = getattr(l.producto_id, 'name', 'Producto')
-        cantidad = l.cantidad or 1.0
-        precio = l.precio or 0.0
-        subtotal = getattr(l, 'subtotal', cantidad * precio)
-        iva_amt = getattr(l, 'iva_amount', 0.0)
-        ieps_amt = getattr(l, 'ieps_amount', 0.0)
-        impuestos = {'traslados': []}
-        if iva_amt:
-            impuestos['traslados'].append({
-                'impuesto': '002',      # IVA
-                'tipo_factor': 'Tasa',
-                'tasa_cuota': 0.16,     # ajusta según tu línea
-                'base': subtotal,
-                'importe': iva_amt,
-            })
-        if ieps_amt:
-            impuestos['traslados'].append({
-                'impuesto': '003',      # IEPS
-                'tipo_factor': 'Tasa',
-                'tasa_cuota': 0.08,     # ejemplo
-                'base': subtotal,
-                'importe': ieps_amt,
-            })
-
-        conceptos.append({
-            'clave_sat': clave_prod_serv,
-            'clave_unidad': clave_unidad,
-            'no_identificacion': no_ident,
-            'descripcion': descripcion,
-            'cantidad': cantidad,
-            'valor_unitario': precio,
-            'importe': subtotal + iva_amt + ieps_amt,
-            'objeto_imp': '02',  # gravado
-            'impuestos': impuestos,
-        })
-     return conceptos
-
-     # Contador de adjuntos (smart button)
-    attachment_count = fields.Integer(compute='_compute_attachment_count')
-
-    def _compute_attachment_count(self):
-        Att = self.env['ir.attachment']
-        for r in self:
-            r.attachment_count = Att.search_count([('res_model', '=', r._name), ('res_id', '=', r.id)])
 
     def action_open_attachments(self):
         self.ensure_one()
@@ -564,100 +537,27 @@ class venta(models.Model):
         self.ensure_one()
         if not self.cfdi_uuid:
             raise ValidationError(_('No hay UUID a cancelar.'))
-        # Tomar motivo/folio de context o usar '02' (errores sin sustitución)
+
         motivo = (self.env.context.get('cancel_reason') or '02').strip()
         folio_sub = (self.env.context.get('replace_uuid') or False) or None
-        self.env['mx.cfdi.engine'].cancel_cfdi(
-            origin_model=self._name, origin_id=self.id, uuid=self.cfdi_uuid,
-            motivo=motivo, folio_sustitucion=folio_sub
-        )
+
+        provider = self.env['mx.cfdi.engine']._get_provider().with_context(empresa_id=self.empresa_id.id)
+        resp = provider._cancel(self.cfdi_uuid, motivo=motivo, folio_sustitucion=folio_sub)
+
+        # (Opcional) guardar acuse si viene
+        if resp and resp.get('acuse'):
+            self.env['ir.attachment'].sudo().create({
+                'name': f"acuse-cancel-{self.cfdi_uuid}.xml",
+                'res_model': self._name,
+                'res_id': self.id,
+                'type': 'binary',
+                'datas': base64.b64encode(resp['acuse']).decode('ascii'),
+                'mimetype': 'application/xml',
+                'description': _('Acuse de cancelación %s') % self.cfdi_uuid,
+            })
+
         self.write({'cfdi_state': 'canceled'})
         return True
-
-    def action_create_invoice_and_stamp(self):
-        for sale in self:
-            if sale.state not in ('confirmed', 'invoiced'):
-                raise ValidationError(_('La venta debe estar Confirmada para facturar.'))
-    
-            # A) Compañías:
-            company_invoice = sale.company_id                               # MISMA de la VENTA
-            company_fiscal  = sale.empresa_id.res_company_id or company_invoice  # credenciales PAC
-    
-            tipo   = 'I'  # o el que venga de tu wizard
-            uso    = 'G03'
-            metodo = sale.metododepago or 'PPD'
-            forma  = (sale.formadepago if metodo == 'PUE' else '99') if tipo in ('I', 'E') else None
-    
-            sale_ctx = sale.with_company(company_invoice).with_context(
-                allowed_company_ids=[company_invoice.id, company_fiscal.id]
-            )
-            move = create_invoice_from_sale(sale_ctx, tipo=tipo, uso_cfdi=uso, metodo=metodo, forma=forma)
-            move = move.with_company(company_invoice)
-            if move.company_id.id != company_invoice.id:
-                move.write({'company_id': company_invoice.id})
-            move.action_post()
-    
-            # C) Conceptos desde la factura (sin impuestos en Importe)
-            conceptos = []
-            for l in move.invoice_line_ids:
-                price = l.price_unit
-                qty = l.quantity
-                importe = round(price * qty, 2)
-    
-                iva_ratio = 0.0
-                ieps_ratio = 0.0
-                for t in l.tax_ids.filtered(lambda t: t.amount_type == 'percent' and t.type_tax_use == 'sale'):
-                    try:
-                        amt = int(t.amount)
-                        if amt == 16:
-                            iva_ratio = float(t.amount) / 100.0
-                        if amt in (8, 26, 30, 45, 53):
-                            ieps_ratio = float(t.amount) / 100.0
-                    except Exception:
-                        pass
-                    
-                conceptos.append({
-                    'clave_sat': '01010101',
-                    'no_identificacion': l.product_id.default_code or str(l.id),
-                    'cantidad': qty,
-                    'clave_unidad': 'H87',
-                    'descripcion': l.name or (l.product_id.display_name or 'Producto'),
-                    'valor_unitario': price,
-                    'importe': importe,                # SIN impuestos
-                    'objeto_imp': '02' if (iva_ratio or ieps_ratio) else '01',
-                    'iva': iva_ratio,
-                    'ieps': ieps_ratio,
-                })
-    
-            # D) Timbrar usando la compañía FISCAL (solo credenciales), sin cambiar la factura
-            engine = self.env['mx.cfdi.engine']\
-                        .with_context(allowed_company_ids=[company_invoice.id, company_fiscal.id])\
-                        .with_company(company_fiscal)
-    
-            stamped = engine.generate_and_stamp(
-                origin_model='account.move',
-                origin_id=move.id,
-                tipo=tipo,
-                receptor_id=move.partner_id.id,
-                uso_cfdi=uso,
-                metodo=(metodo if tipo in ('I', 'E') else None),
-                forma=(forma if tipo in ('I', 'E') else None),
-                conceptos=conceptos,
-            )
-    
-            # E) Enlazar resultado (ya compatibles porque move.company_id == sale.company_id)
-            vals = {
-                'state': 'invoiced',
-                'move_id': move.id,
-                'cfdi_state': 'stamped',
-                'cfdi_uuid': stamped.get('uuid'),
-            }
-            if hasattr(move, 'l10n_mx_edi_cfdi_uuid') and stamped.get('uuid'):
-                move.l10n_mx_edi_cfdi_uuid = stamped['uuid']
-            sale.write(vals)
-        return True
-
-
 
 
     def action_open_invoice(self):
@@ -673,30 +573,15 @@ class venta(models.Model):
             'target': 'current',
         }
 
-    res_company_cfdi_id = fields.Many2one(
-        'res.company', related='empresa_id.res_company_id', string='Compañía fiscal',
-        readonly=True
-    )
 
-    def action_open_cfdi_company(self):
-        self.ensure_one()
-        if not self.res_company_cfdi_id:
-            return False
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'Compañía (fiscal)',
-            'res_model': 'res.company',
-            'view_mode': 'form',
-            'res_id': self.res_company_cfdi_id.id,
-            'target': 'current',
-        }
+
 
     def action_fetch_cfdi_from_sw(self):
         """Si ya tengo UUID, bajo el XML desde SW y lo adjunto (venta y factura)."""
         self.ensure_one()
         if not self.cfdi_uuid:
             raise ValidationError(_('No hay UUID en la venta.'))
-        provider = self.env['mx.cfdi.engine']._get_provider()
+        provider = self.env['mx.cfdi.engine']._get_provider().with_context(empresa_id=self.empresa_id.id)
         data = provider.download_xml_by_uuid(self.cfdi_uuid, tries=10, delay=1.0)
         if not data or not data.get('xml'):
             raise UserError(_('SW no devolvió XML para el UUID %s.') % self.cfdi_uuid)
@@ -736,3 +621,109 @@ class venta(models.Model):
             })
 
         return True
+
+    """def action_open_factura_ui(self):
+        ""Abre la Interfaz de Facturas prellenada con esta venta (sin timbrar).""
+        self.ensure_one()
+        fac = self.env['facturas.factura'].create({
+            'empresa_id': self.empresa_id.id,
+            #'company_id': self.company_id.id,
+            'sucursal_id': self.sucursal_id.id,
+            'cliente_id': self.cliente.id,   # tu modelo clientes.cliente
+            'tipo': 'I',
+            'metodo': self.metododepago or 'PPD',
+            'forma': (self.formadepago if (self.metododepago == 'PUE') else '99'),
+            'origen_venta_id': self.id,      # ← si tu modelo lo tiene, útil para trazar
+            'origen_codigo': self.codigo,    # ← opcional; ayuda a ligar por invoice_origin
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'facturas.factura',
+            'res_id': fac.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+        """
+    
+    def action_open_factura_ui(self):
+        """Abre la Interfaz de Facturas prellenada con esta venta (sin timbrar)."""
+        self.ensure_one()
+        Factura = self.env['facturas.factura']
+        vals = {
+            'empresa_id': self.empresa_id.id,
+            'sucursal_id': self.sucursal_id.id,
+            'cliente_id': self.cliente.id,
+            'tipo': 'I',
+            'metodo': self.metododepago or 'PPD',
+            'forma': (self.formadepago if (self.metododepago == 'PUE') else '99'),
+            'venta_ids': self.id,      # ← si tu modelo lo tiene, útil para trazar
+            #'origen_codigo': self.codigo,    # ← opcional; ayuda a ligar por invoice_origin
+        }
+        # Ligar la venta si el modelo lo soporta (usa tu M2M venta_ids)
+        if 'venta_ids' in Factura._fields:
+            vals['venta_ids'] = [(6, 0, [self.id])]
+        # Solo manda campos si existen en el modelo
+        if 'company_id' in Factura._fields:
+            vals['company_id'] = self.company_id.id
+        fac = Factura.create(vals)
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'facturas.factura',
+            'res_id': fac.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+
+    
+    # ✅ No referenciamos campos “custom” del comodel en depends, para evitar el KeyError en el registro
+    @api.depends('detalle', 'detalle.write_date')
+    def _compute_agg_status(self):
+        EPS = 1e-6
+        for v in self:
+            if not v.detalle:
+                v.invoice_status2 = 'none'
+                continue
+
+            line_states = set()
+            for tx in v.detalle:
+                st = getattr(tx, 'invoice_status', False)
+                if not st:
+                    # Fallback por cantidades si el campo aún no está disponible en registro
+                    total = float(getattr(tx, 'cantidad', 0.0) or 0.0)
+                    inv = float(getattr(tx, 'qty_invoiced', 0.0) or 0.0)
+                    if inv <= EPS:
+                        st = 'none'
+                    elif total > 0.0 and inv + EPS >= total:
+                        st = 'full'
+                    else:
+                        st = 'partial'
+                line_states.add(st)
+
+            if line_states == {'canceled'}:
+                v.invoice_status2 = 'canceled'
+            elif 'canceled' in line_states and (line_states - {'canceled'}):
+                v.invoice_status2 = 'semi_canceled'
+            elif line_states == {'full'}:
+                v.invoice_status2 = 'full'
+            elif ('partial' in line_states) or ('full' in line_states and 'none' in line_states):
+                v.invoice_status2 = 'partial'
+            elif line_states == {'none'}:
+                v.invoice_status2 = 'none'
+            else:
+                v.invoice_status2 = 'partial'
+
+    def action_open_attachments(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Adjuntos',
+            'res_model': 'ir.attachment',
+            'view_mode': 'kanban,tree,form',
+            'domain': [('res_model', '=', self._name), ('res_id', '=', self.id)],
+            'context': {
+                'default_res_model': self._name,
+                'default_res_id': self.id,
+            },
+            'target': 'current',
+        }

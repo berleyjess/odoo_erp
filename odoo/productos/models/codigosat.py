@@ -7,8 +7,8 @@ class codigoproductosat(models.Model):
     _rec_name = 'display_name'
     _rec_names_search = ['code', 'descripcion']
     
-    code = fields.Char(string = "Código", required = True, indexed = True)
-    descripcion = fields.Char(string = "Descripción", required = True, inexed = True)
+    code = fields.Char(string = "Código", required = True, index = True)
+    descripcion = fields.Char(string = "Descripción", required = True, index = True)
     similar = fields.Char(string = "Conicidencias")
 
     display_name = fields.Char(compute='_compute_display_name', store=True)

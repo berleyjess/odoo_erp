@@ -10,6 +10,7 @@
         #'creditos',
         'transacciones',
         'usuarios',
+        'mail',
         # Contabilidad + base EDI (Community)
         'account',
         'account_edi',

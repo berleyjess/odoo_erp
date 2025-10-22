@@ -1,5 +1,6 @@
 <odoo>
-    <data>
+<!-- creditos/reports/solcredito_report.xml -->
+  <data>
 
         <!-- Acción de reporte PDF -->
         <record id="action_report_credito" model="ir.actions.report">

@@ -1,0 +1,92 @@
+<!-- views/wizards_views.xml -->
+<odoo>
+  <record id="view_wiz_add_sales" model="ir.ui.view">
+    <field name="name">facturas.wiz.add.sales.form</field>
+    <field name="model">facturas.wiz.add.sales</field>
+    <field name="arch" type="xml">
+      <form string="Agregar ventas completas">
+        <group>
+          <field name="venta_ids" options="{'no_create': True}"
+                  domain="[
+                    ('state','in',('confirmed','invoiced')),
+                    ('empresa_id','=', context.get('empresa_id')),
+                    ('sucursal_id','=', context.get('sucursal_id')),
+                    ('cliente','=',     context.get('cliente_id'))
+                  ]"/>
+        </group>
+        <footer>
+          <button string="Agregar"  type="object" name="action_add" class="btn-primary"/>
+          <button string="Cancelar" class="btn-secondary" special="cancel"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+  <record id="action_wiz_add_sales" model="ir.actions.act_window">
+    <field name="name">Agregar ventas completas</field>
+    <field name="res_model">facturas.wiz.add.sales</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+    <field name="context">{}</field>
+  </record>
+
+  <record id="view_wiz_add_lines" model="ir.ui.view">
+    <field name="name">facturas.wiz.add.lines.form</field>
+    <field name="model">facturas.wiz.add.lines</field>
+    <field name="arch" type="xml">
+      <form string="Agregar transacciones">
+        <group>
+          <field name="line_ids" options="{'no_create': True}"
+                  domain="[
+                    ('venta_id.state','in',('confirmed','invoiced')),
+                    ('venta_id.empresa_id','=', context.get('empresa_id')),
+                    ('venta_id.sucursal_id','=', context.get('sucursal_id')),
+                    ('venta_id.cliente','=',     context.get('cliente_id'))
+                  ]"/>
+
+
+        </group>
+        <footer>
+          <button string="Agregar"  type="object" name="action_add" class="btn-primary"/>
+          <button string="Cancelar" class="btn-secondary" special="cancel"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+  <record id="action_wiz_add_lines" model="ir.actions.act_window">
+    <field name="name">Agregar transacciones</field>
+    <field name="res_model">facturas.wiz.add.lines</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+    <field name="context">{}</field>
+  </record>
+
+  <record id="view_wiz_add_charges" model="ir.ui.view">
+    <field name="name">facturas.wiz.add.charges.form</field>
+    <field name="model">facturas.wiz.add.charges</field>
+    <field name="arch" type="xml">
+      <form string="Agregar cargos">
+        <group>
+          <!-- Wizard de Cargos: usa TUS helpers actuales -->
+          <field name="charge_ids" options="{'no_create': True}"
+                 domain="[
+                    ('cargo','!=',False),
+                    ('cargo.facturable','=',True),
+                    ('empresa_id_helper','=', context.get('empresa_id')),
+                    ('cliente_rfc_helper','=', context.get('cliente_rfc'))
+                  ]"/>
+        </group>
+        <footer>
+          <button string="Agregar"  type="object" name="action_add" class="btn-primary"/>
+          <button string="Cancelar" class="btn-secondary" special="cancel"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+  <record id="action_wiz_add_charges" model="ir.actions.act_window">
+    <field name="name">Agregar cargos</field>
+    <field name="res_model">facturas.wiz.add.charges</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+    <field name="context">{}</field>
+  </record>
+</odoo>

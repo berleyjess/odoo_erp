@@ -29,19 +29,22 @@
                         <field name="nombre"/>
                         <field name="telefono"/>
                         <field name="razonsocial"/>
+                        <field name="regimen_fiscal"/>
                         <field name="rfc"/>
                         <field name="cp"/>
                         <field name="calle"/>
                         <field name="numero"/>
                     </group>
-                    <group string="Fiscal (Odoo)">
-                      <field name="res_company_id" options="{'no_create_edit': True}"/>
-                      <field name="cfdi_provider_rel" readonly="1"/>
-                      <field name="cfdi_sw_rfc_rel" readonly="1"/>
-                    </group>
-                    <button name="action_open_res_company" type="object"
-                            string="Abrir Compañía Fiscal" class="oe_stat_button" icon="fa-building"/>
                 </sheet>
+                <notebook>
+                    <page string="CFDI (SW)" groups="base.group_system">
+                        <group>
+                            <field name="cfdi_sw_cer_file"/>
+                            <field name="cfdi_sw_key_file"/>
+                            <field name="cfdi_sw_key_password" password="True"/>
+                        </group>
+                    </page>
+                </notebook>
             </form>
         </field>
     </record>

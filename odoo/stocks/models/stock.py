@@ -39,33 +39,52 @@ class StockSucursalProducto(models.Model):
 
     @api.model
     def add_stock(self, sucursal, producto, qty):
-        """Incrementa stock (crea línea si no existe)."""
+        """Incrementa stock con UPSERT atómico."""
         if not qty:
             return
-        line = self._get_or_create(sucursal, producto)
-        line.cantidad = (line.cantidad or 0.0) + float(qty)
-        return line
+        self.env.cr.execute("""
+            INSERT INTO stock_sucursal_producto (sucursal_id, producto_id, cantidad)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (sucursal_id, producto_id)
+            DO UPDATE SET cantidad = stock_sucursal_producto.cantidad + EXCLUDED.cantidad
+            RETURNING id
+        """, (sucursal.id, producto.id, float(qty)))
+        rid = self.env.cr.fetchone()[0]
+        return self.browse(rid)
 
     @api.model
     def remove_stock(self, sucursal, producto, qty):
-        """Decrementa stock (valida no-negativos)."""
+        """Decrementa stock de forma atómica; valida no-negativos."""
         if not qty:
             return
-        line = self._get_or_create(sucursal, producto)
-        nueva = (line.cantidad or 0.0) - float(qty)
-        if nueva < 0:
+        self.env.cr.execute("""
+            UPDATE stock_sucursal_producto
+               SET cantidad = cantidad - %s
+             WHERE sucursal_id = %s
+               AND producto_id = %s
+               AND cantidad >= %s
+         RETURNING id, cantidad
+        """, (float(qty), sucursal.id, producto.id, float(qty)))
+        row = self.env.cr.fetchone()
+        if not row:
+            # Asegura existencia para el mensaje y muestra disponible real
+            rec = self.search([("sucursal_id","=",sucursal.id),("producto_id","=",producto.id)], limit=1)
+            disp = rec.cantidad if rec else 0.0
             raise ValidationError(_(
                 "Stock insuficiente de %(prod)s en %(suc)s. Disponible: %(disp).4f, requerido: %(req).4f",
             ) % {
                 "prod": producto.display_name,
                 "suc": sucursal.display_name,
-                "disp": line.cantidad or 0.0,
+                "disp": disp,
                 "req": qty,
             })
-        line.cantidad = nueva
-        return line
+        return self.browse(row[0])
 
     @api.model
     def get_available(self, sucursal, producto):
-        """Devuelve cantidad disponible en sucursal+producto (crea con 0 si no existe)."""
-        return self._get_or_create(sucursal, producto).cantidad or 0.0
+        self.env.cr.execute("""
+            SELECT cantidad FROM stock_sucursal_producto
+             WHERE sucursal_id=%s AND producto_id=%s
+        """, (sucursal.id, producto.id))
+        row = self.env.cr.fetchone()
+        return float(row[0]) if row else 0.0

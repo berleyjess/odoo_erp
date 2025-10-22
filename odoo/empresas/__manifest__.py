@@ -6,7 +6,6 @@
     'version': '1.0',
     'depends': ['base', 'mx_cfdi_core'],
     'data': [
-        #'security/ir.model.access.csv',
         'data/seq_code.xml',
         'views/empresa.xml',
     ],
