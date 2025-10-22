@@ -1,6 +1,8 @@
 <!-- views/menu.xml -->
 <odoo>
-  <menuitem id="menu_facturacion_root" name="Facturación"/>
+  <menuitem id="menu_facturacion_root" name="Facturación" sequence="40"/>
   <menuitem id="menu_facturacion_ui" name="Interfaz de Facturas"
-            parent="menu_facturacion_root" action="facturacion_ui.action_facturas_ui"/>
+            parent="menu_facturacion_root"
+            action="action_facturas_ui18"/>
+
 </odoo>

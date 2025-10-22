@@ -1,0 +1,7 @@
+<odoo>
+  <template id="assets_backend_facturas" name="Facturas UI Assets" inherit_id="web.assets_backend">
+    <xpath expr="." position="inside">
+      <link rel="stylesheet" type="text/scss" href="/facturacion_ui/static/facturas.scss"/>
+    </xpath>
+  </template>
+</odoo>

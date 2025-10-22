@@ -1,0 +1,28 @@
+/* Tarjetas Kanban */
+.factura-card {
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06);
+  background: #fff;
+}
+.factura-card .kb-top { display:flex; gap:6px; align-items:center; justify-content:space-between; }
+.factura-card .kb-body { display:flex; justify-content:space-between; gap:10px; margin-top:6px; }
+.factura-card .kb-right .amount { font-weight:600; line-height:1.2; }
+.factura-card .kb-right .amount span { font-weight:500; opacity:.7; margin-right:6px; }
+.factura-card .kb-bottom { display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
+
+/* Badges un poco más redondas */
+.o_badge { border-radius: 999px; padding: 2px 8px; font-weight:600; }
+
+/* Estados más marcados */
+.o_badge_success { background-color:#e8f7ef; color:#0f7a3a; }
+.o_badge_warning { background:#fff6e5; color:#9a6100; }
+.o_badge_danger  { background:#ffe9e9; color:#a10000; }
+.o_badge_info    { background:#e8f2ff; color:#0b60b6; }
+.o_badge_secondary { background:#f1f1f4; color:#5b5b66; }
+
+/* Ribbons (timbrado/cancelado) un poquito más grandes */
+.o_web_client .o_form_view .o_ribbon { font-size: 13px; letter-spacing:.3px; }
+
+/* Filas de lista: un poquito más de altura para respirar */
+.o_list_view .o_data_row { height: 36px; }
