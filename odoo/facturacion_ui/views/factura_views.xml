@@ -91,15 +91,13 @@
                         }"
                         class="btn-secondary"/>
 
-                <button name="%(action_wiz_add_charges)d" type="action" string="Agregar Cargos"
-                        invisible="state != 'draft' or tipo == 'E' or tipo == 'P'"
-                        context="{
-                          'default_factura_id': id,
-                          'empresa_id':  empresa_id,
-                          'sucursal_id': sucursal_id,
-                          'cliente_id':  cliente_id
-                        }"
-                        class="btn-secondary"/>
+                <button name="action_cancel"
+                  type="object"
+                  string="Cancelar"
+                  class="btn-danger"
+                  context="{'cfdi_cancel_reason': '02'}"
+                  invisible="not (state == 'ready' or state == 'stamped')"/>
+
                 
                 <button name="action_placeholder_interest" type="object" string="Agregar Intereses" 
                         class="btn-secondary"
@@ -135,15 +133,12 @@
               <field name="move_id" readonly="1"/>
               <field name="importe_total" readonly="1"/>
               <field name="saldo" readonly="1"/>
-              <field name="pago_importe" invisible="tipo != 'P'"/>
             </group>
           </group>
 
           <!-- ===== GRUPO SOLO PARA COMPLEMENTO DE PAGO (tipo P) ===== -->
           <group string="Pago" invisible="tipo != 'P'">
             <group>
-              <!-- Factura a la que se aplica el pago -->
-              <field name="origin_factura_id" options="{'no_open': True}"/>
               <!-- Importe del pago -->
               <field name="pago_importe" required="1"/>
             </group>
@@ -266,6 +261,45 @@
       </form>
     </field>
   </record>
+
+  <record id="view_factura_search" model="ir.ui.view">
+    <field name="name">facturas.factura.search</field>
+    <field name="model">facturas.factura</field>
+    <field name="arch" type="xml">
+      <search string="Buscar facturas">
+        <field name="cliente_id"/>
+        <field name="uuid"/>
+  
+        <!-- Tipo -->
+        <filter name="tipo_I" string="Ingresos" domain="[('tipo','=','I')]"/>
+        <filter name="tipo_E" string="Egresos"  domain="[('tipo','=','E')]"/>
+        <filter name="tipo_P" string="Pagos"    domain="[('tipo','=','P')]"/>
+  
+        <!-- Estado -->
+        <filter name="st_draft"   string="Borrador"  domain="[('state','=','draft')]"/>
+        <filter name="st_ready"   string="Listo"     domain="[('state','=','ready')]"/>
+        <filter name="st_stamped" string="Timbrado"  domain="[('state','=','stamped')]"/>
+        <filter name="st_cancel"  string="Cancelado" domain="[('state','=','canceled')]"/>
+  
+        <!-- Fechas -->
+        <group expand="0" string="Fecha">
+          <filter name="today"   string="Hoy" domain="[('fecha','>=', context_today())]"/>
+          <filter name="last30"  string="Últimos 30 días"
+                  domain="[('fecha','>=', (context_today() - relativedelta(days=30)))]"/>
+        </group>
+  
+        <!-- Agrupar por (opcional, útil en la UI) -->
+        <group expand="0" string="Agrupar por">
+          <filter name="gb_cliente" string="Cliente" context="{'group_by':'cliente_id'}"/>
+          <filter name="gb_estado"  string="Estado"  context="{'group_by':'state'}"/>
+          <filter name="gb_tipo"    string="Tipo"    context="{'group_by':'tipo'}"/>
+          <filter name="gb_mes"     string="Mes"     context="{'group_by':'fecha:month'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+
 
   <record id="action_facturas_ui" model="ir.actions.act_window">
     <field name="name">Interfaz de Facturas</field>

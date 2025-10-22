@@ -30,17 +30,17 @@
           <field name="tipo"/>
           <field name="stock" string="E/S"/>
           <field name="sucursal_id" string="Origen"/>
-          <field name="sucursal_d_id" string="Destino" invisible="[('tipo','not in',['2','3'])]"/>
+          <!--field name="sucursal_d_id" string="Destino" invisible="[('tipo','not in',['2','3'])]"/-->
           <field name="venta_id"/>
           <field name="producto_id"/>
           <field name="referencia"/>
           <field name="cantidad" sum="Cantidad total"/>
           <field name="precio"/>
-          <field name="iva"  widget="percentage" string="IVA %"  invisible="[('iva','=',0)]"/>
-          <field name="ieps" widget="percentage" string="IEPS %" invisible="[('ieps','=',0)]"/>
+          <!--field name="iva"  widget="percentage" string="IVA %"  invisible="[('iva','=',0)]"/>
+          <field name="ieps" widget="percentage" string="IEPS %" invisible="[('ieps','=',0)]"/-->
           <field name="subtotal" sum="Subtotal"/>
-          <field name="iva_amount"  string="IVA"  invisible="[('iva','=',0)]"  sum="IVA total"/>
-          <field name="ieps_amount" string="IEPS" invisible="[('ieps','=',0)]" sum="IEPS total"/>
+          <!--field name="iva_amount"  string="IVA"  invisible="[('iva','=',0)]"  sum="IVA total"/>
+          <field name="ieps_amount" string="IEPS" invisible="[('ieps','=',0)]" sum="IEPS total"/-->
           <field name="importe" sum="Importe total"/>
         </list>
       </field>

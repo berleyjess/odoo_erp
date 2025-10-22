@@ -273,9 +273,9 @@ class CfdiEngine(models.AbstractModel):
         traslados_total = 0.0
         retenciones_total = 0.0
 
-        is_pago = (tipo == 'P')
-        subtotal_attr = '0' if is_pago else fmt2(subtotal_sum)
-        total_attr = '0' if is_pago else fmt2(round(subtotal_sum + traslados_total - retenciones_total, 2))
+        #is_pago = (tipo == 'P')
+        #subtotal_attr = '0' if is_pago else fmt2(subtotal_sum)
+        #total_attr = '0' if is_pago else fmt2(round(subtotal_sum + traslados_total - retenciones_total, 2))
 
 
         # Acumuladores para nivel Comprobante: (impuesto, tipo_factor, tasa_str) -> importe_total
@@ -409,8 +409,9 @@ class CfdiEngine(models.AbstractModel):
             'Moneda': moneda,                     # ya forzas 'XXX' arriba si tipo == 'P'
             'TipoDeComprobante': {'I':'I','E':'E','P':'P'}.get(tipo, 'I'),
             'Exportacion': exportacion,
-            'SubTotal': subtotal_attr,            # ← “0” en Pago
-            'Total': total_attr,                  # ← “0” en Pago
+            'SubTotal': '0' if tipo == 'P' else fmt2(subtotal_sum),
+            'Total':    '0' if tipo == 'P' else fmt2(total_sum),
+
             'LugarExpedicion': cpostal,
             'Sello': '',
             'Certificado': '',

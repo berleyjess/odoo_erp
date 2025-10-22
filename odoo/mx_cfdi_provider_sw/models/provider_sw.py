@@ -184,15 +184,26 @@ class CfdiProviderSW(models.AbstractModel):
                     last_err = f"{url} -> {e}"
                     continue
 
-                # Éxito → extrae uuid + xml timbrado
+                # Éxito → extrae uuid + XML timbrado (puede venir en texto o en Base64)
                 if resp.status_code < 400:
-                    data = resp.json() if 'json' in ct or 'application/json' in ct else {}
-                    uuid = (data.get('data') or {}).get('uuid') or data.get('uuid') or ''
-                    b64  = (data.get('data') or {}).get('cfdi') or data.get('cfdi') or data.get('Cfdi')
-                    if uuid and b64:
-                        return {'uuid': uuid, 'xml_timbrado': base64.b64decode(b64)}
+                    data = resp.json() if ('json' in ct) else {}
+                    d = (data.get('data') or data) if isinstance(data, dict) else {}
+                    uuid = d.get('uuid') or d.get('UUID') or ''
+                    cfdi_val = (d.get('cfdi') or d.get('Cfdi') or d.get('xml') or
+                                d.get('XML') or d.get('cfdiXml') or d.get('cfdiXML'))
+                    if uuid and cfdi_val:
+                        if isinstance(cfdi_val, (bytes, bytearray)):
+                            xml_bytes_out = bytes(cfdi_val)
+                        elif isinstance(cfdi_val, str) and cfdi_val.lstrip().startswith('<'):
+                            # XML en texto plano
+                            xml_bytes_out = cfdi_val.encode('utf-8')
+                        else:
+                            # XML en Base64
+                            xml_bytes_out = base64.b64decode(cfdi_val)
+                        return {'uuid': uuid, 'xml_timbrado': xml_bytes_out}
                     last_err = f"{url} -> respuesta sin uuid/cfdi"
                     continue
+
 
                 # Normaliza errores de SW (para decidir retry vs fail)
                 detail = body

@@ -5,6 +5,7 @@ from odoo.exceptions import ValidationError, UserError
 import logging
 _logger = logging.getLogger(__name__)
 import base64
+from odoo.osv.expression import OR
 
 class FacturaUI(models.Model):
     _name = 'facturas.factura'
@@ -136,6 +137,12 @@ class FacturaUI(models.Model):
             'invoice_line_ids': lines_cmd,
         })
         move.action_post()
+        self._logger.info(
+            "CFDI FLOW | MOVE CREATED | fact_id=%s move_id=%s name=%s company=%s lines=%s origin=%s",
+            self.id, move.id, getattr(move, 'name', None), move.company_id.id,
+            len(move.invoice_line_ids), getattr(move, 'invoice_origin', None)
+        )
+
 
         # Enlazar NC con factura origen + relación SAT 01 (nota de crédito)
         if self.tipo == 'E' and self.origin_factura_id and self.origin_factura_id.move_id:
@@ -289,10 +296,25 @@ class FacturaUI(models.Model):
                 ctx['cfdi_provider'] = _prov  # nombre completo del modelo, si lo pasas así
     
         engine = self.env['mx.cfdi.engine'].with_context(**ctx)
-    
+
+        # Para Egresos: que el engine tome totales desde 'conceptos' (no desde el move negativo)
+        origin_model = 'account.move'
+        origin_id = move.id
+        if self.tipo == 'E':
+            origin_model = self._name
+            origin_id = self.id
+
+        # (opcional) log de verificación
+        try:
+            sub = round(sum(c.get('importe', 0.0) for c in conceptos), 2)
+            self._logger.info("CFDI FLOW | CHECK | tipo=%s subtotal_conceptos=%.2f move_amount_untaxed=%.2f",
+                              self.tipo, sub, getattr(move, 'amount_untaxed', 0.0))
+        except Exception:
+            pass
+        
         return engine.generate_and_stamp(
-            origin_model='account.move',
-            origin_id=move.id,
+            origin_model=origin_model,
+            origin_id=origin_id,
             empresa_id=self.empresa_id.id,
             tipo=self.tipo,
             receptor_id=rec.id,
@@ -304,6 +326,7 @@ class FacturaUI(models.Model):
             folio=(self.folio or None),
             extras=(extras or None),
         )
+
     
     def _build_payment_extras(self):
         """Arma el payload para el complemento de pagos 2.0 (totales + pagos + doctos)."""
@@ -518,6 +541,16 @@ class FacturaUI(models.Model):
             try:
                 # Validaciones de negocio
                 r._check_consistency()
+                self._logger.info(
+                    "CFDI FLOW | START | id=%s tipo=%s egreso_tipo=%s empresa=%s sucursal=%s cliente=%s lines=%s total=%.2f saldo=%.2f",
+                    r.id, r.tipo, (r.egreso_tipo or ''), (r.empresa_id.id if r.empresa_id else None),
+                    (r.sucursal_id.id if r.sucursal_id else None), (r.cliente_id.id if r.cliente_id else None),
+                    len(r.line_ids), (r.importe_total or 0.0), (r.saldo or 0.0)
+                )
+
+                # Si es Ingreso, valida stock antes de crear el move
+                if r.tipo == 'I':
+                    r._precheck_stock()
 
                 # ====== TIPO P (Complemento de pago) ======
                 if r.tipo == 'P':
@@ -625,6 +658,10 @@ class FacturaUI(models.Model):
                             ventas_orig.write({'state': ventas_orig[0].state})
                         except Exception:
                             pass
+                self._logger.info(
+                    "CFDI FLOW | DONE | id=%s tipo=%s state=%s uuid=%s move_id=%s",
+                    r.id, r.tipo, r.state, (r.uuid or ''), (r.move_id.id if r.move_id else None)
+                )
 
             except Exception as e:
                 self._logger.exception("CFDI FLOW | ERROR | fact_id=%s", r.id)
@@ -633,6 +670,11 @@ class FacturaUI(models.Model):
                 except Exception:
                     pass
                 raise
+        try:
+            r.message_post(body=_("Timbrado OK. UUID: %s") % (r.uuid or ''), subtype_xmlid="mail.mt_note")
+        except Exception:
+            pass
+
 
 
     # === Helpers post-operación ===
@@ -643,12 +685,20 @@ class FacturaUI(models.Model):
         if (self.egreso_tipo or '') != 'dev':
             return
         Stock = self.env['stock.sucursal.producto'].sudo()
+        tot = 0.0
         for l in self.line_ids:
             if not l.producto_id or self._is_service_line(l):
                 continue
             qty = l.cantidad or 0.0
             if qty > 0:
                 Stock.add_stock(self.sucursal_id, l.producto_id, qty)
+                tot += qty
+        self._logger.info(
+            "STOCK | IN (DEV) | fact_id=%s sucursal=%s total_qty=%.4f",
+            self.id, (self.sucursal_id.id if self.sucursal_id else None), tot
+        )
+
+                
 
 
     def _apply_credit_counters_on_origin(self):
@@ -692,6 +742,7 @@ class FacturaUI(models.Model):
                     new_total_av = max((ol.total_dev_available or 0.0) - take, 0.0)
                     ol.write({'total_dev_available': new_total_av})
                     pend -= take
+    
 
     def _create_transactions_for_egreso(self, move):
         """Crea transacciones por cada línea del EGRESO.
@@ -702,13 +753,28 @@ class FacturaUI(models.Model):
         self.ensure_one()
         if not self.origin_factura_id:
             return
+        
+        token = self._own_ref_token()
+        created = 0
+        used_fallback = False
+        dev_count = 0
+        nc_count  = 0
 
-        Tx = self.env['transacciones.transaccion'].sudo() if self.env.registry.get('transacciones.transaccion') else False
-        if not Tx:
+        try:
+            Tx = self.env['transacciones.transaccion'].sudo()
+        except KeyError:
             self._logger.warning("EGRESO TX | modelo 'transacciones.transaccion' no disponible; omitiendo creación.")
             return
 
+
+
         ref = (getattr(move, 'name', False) or (self.uuid or 'EGRESO')).strip()
+
+        token = self._own_ref_token()
+        created = 0
+        dev_count = 0
+        nc_count  = 0
+        used_fallback = False
 
         # RFC helper (si lo tienes en clientes.cliente)
         def _cli_rfc():
@@ -742,7 +808,8 @@ class FacturaUI(models.Model):
             return False
 
         rfc = _cli_rfc()
-
+        ref_base = (getattr(move, 'name', False) or (self.uuid or 'EGRESO')).strip()
+        ref = f"{self._own_ref_token()} {ref_base}"   # <— token al inicio
         if (self.egreso_tipo or '') == 'dev':
             # Repartir por CANTIDAD (mismo producto)
             for l in self.line_ids:
@@ -761,7 +828,7 @@ class FacturaUI(models.Model):
                     take = min(need_qty, b['qty_av'])
                     if take <= 1e-9:
                         continue
-
+                    
                     vals = {
                         'fecha': fields.Date.context_today(self),
                         'venta_id': b['sale'].id if b['sale'] else False,
@@ -778,6 +845,7 @@ class FacturaUI(models.Model):
                     try:
                         Tx.create(vals)
                         created += 1
+                        dev_count += 1
                     except Exception as e:
                         self._logger.warning("EGRESO TX | create(dev/1) falló: %s", e)
 
@@ -787,6 +855,8 @@ class FacturaUI(models.Model):
                 # 2) Si falta, crea 1 transacción ligada a alguna venta del origen
                 if need_qty > 1e-9:
                     sale = _fallback_sale()
+                    if sale:
+                        used_fallback = True
                     vals = {
                         'fecha': fields.Date.context_today(self),
                         'venta_id': sale.id if sale else False,
@@ -802,6 +872,7 @@ class FacturaUI(models.Model):
                     try:
                         Tx.create(vals)
                         created += 1
+                        dev_count += 1
                     except Exception as e:
                         self._logger.warning("EGRESO TX | create(dev/2) falló: %s", e)
 
@@ -842,6 +913,8 @@ class FacturaUI(models.Model):
                     try:
                         Tx.create(vals)
                         created += 1
+                        nc_count += 1
+                        
                     except Exception as e:
                         self._logger.warning("EGRESO TX | create(nc/1) falló: %s", e)
 
@@ -875,6 +948,7 @@ class FacturaUI(models.Model):
                         try:
                             Tx.create(vals)
                             created += 1
+                            nc_count += 1
                         except Exception as e:
                             self._logger.warning("EGRESO TX | create(nc/2) falló: %s", e)
 
@@ -884,6 +958,8 @@ class FacturaUI(models.Model):
                     # 3) Último recurso: una sola ligada a alguna venta
                     if need_amt > 1e-9:
                         sale = _fallback_sale()
+                        if sale:
+                            used_fallback = True
                         ratio = (need_amt / (l.total or 1.0))
                         qty_part = (l.cantidad or 0.0) * ratio
                         vals = {
@@ -901,15 +977,21 @@ class FacturaUI(models.Model):
                         try:
                             Tx.create(vals)
                             created += 1
+                            nc_count += 1
                         except Exception as e:
                             self._logger.warning("EGRESO TX | create(nc/3) falló: %s", e)
 
         # Asegura escritura en DB antes de continuar
         try:
-            self.env['transacciones.transaccion'].flush()
+            Tx.flush()
         except Exception:
             pass
-        self._logger.info("EGRESO TX | creadas %s transacciones ref=%s (egreso_tipo=%s)", created, ref, (self.egreso_tipo or 'nc'))
+
+        self._logger.info(
+            "EGRESO TX | creadas=%s dev=%s nc=%s fallback=%s ref=%s egreso_tipo=%s",
+            created, dev_count, nc_count, used_fallback, ref, (self.egreso_tipo or 'nc')
+        )
+
 
 
 
@@ -935,6 +1017,8 @@ class FacturaUI(models.Model):
         origin = self.origin_factura_id
         if not origin:
             return
+        ref_base = (getattr(self.origin_factura_id.move_id, 'name', self.origin_factura_id.display_name or '') or '')
+        referencia = f"{self._own_ref_token()} Pago a factura {ref_base}"
 
         # 👇 Forma robusta: intenta obtener el modelo y captura KeyError si no existe
         try:
@@ -953,14 +1037,13 @@ class FacturaUI(models.Model):
                     if ol.sale_id:
                         venta = ol.sale_id
                         break
-                    
             vals = {
                 'fecha': fields.Date.context_today(self),
                 'venta_id': venta.id if venta else False,
                 'producto_id': pago_prod.id,
                 'cantidad': 1.0,
                 'precio': -(self.pago_importe or 0.0),
-                'referencia': "Pago a factura %s" % (getattr(origin.move_id, 'name', origin.display_name or '') or ''),
+                'referencia': referencia,
                 'sucursal_id': (venta.sucursal_id.id if venta else origin.sucursal_id.id),
                 'tipo': '11',  # sin efecto de stock
                 'empresa_id_helper': self.empresa_id.id,
@@ -991,6 +1074,12 @@ class FacturaUI(models.Model):
             if take > 1e-9:
                 ol.write({'total_dev_available': max((ol.total_dev_available or 0.0) - take, 0.0)})
                 pend -= take
+
+        self._logger.info(
+            "PAGO | counters | fact_origen=%s importe=%.2f counters_restados_ok",
+            (origin.id if origin else None), (self.pago_importe or 0.0)
+        )
+
 
 
 
@@ -1228,7 +1317,7 @@ class FacturaUI(models.Model):
             att = Att.search([
                 ('res_model', '=', 'account.move'),
                 ('res_id', '=', self.move_id.id),
-                ('mimetype', '=', 'application/xml'),
+                ('mimetype', 'in', ['application/xml', 'text/xml']),
             ], limit=1, order='id desc')
             if att:
                 return att
@@ -1242,7 +1331,7 @@ class FacturaUI(models.Model):
                 att = Att.search([
                     ('res_model', '=', 'account.move'),
                     ('res_id', 'in', payments.mapped('move_id').ids),
-                    ('mimetype', '=', 'application/xml'),
+                    ('mimetype', 'in', ['application/xml', 'text/xml']),
                 ], limit=1, order='id desc')
                 if att:
                     return att
@@ -1251,7 +1340,7 @@ class FacturaUI(models.Model):
         att = Att.search([
             ('res_model', '=', self._name),
             ('res_id', '=', self.id),
-            ('mimetype', '=', 'application/xml'),
+            ('mimetype', 'in', ['application/xml', 'text/xml']),
         ], limit=1, order='id desc')
         if att:
             return att
@@ -1268,7 +1357,7 @@ class FacturaUI(models.Model):
                 att = Att.search([
                     ('res_model', '=', 'mx.cfdi.document'),
                     ('res_id', 'in', doc_ids),
-                    ('mimetype', '=', 'application/xml'),
+                    ('mimetype', 'in', ['application/xml', 'text/xml']),
                 ], limit=1, order='id desc')
                 if att:
                     return att
@@ -1357,15 +1446,249 @@ class FacturaUI(models.Model):
     
     # ==== fin botones XML ====
 
+        # ======================== Cancel Helpers ========================
+    def _ensure_cancel_window_30d(self):
+        self.ensure_one()
+        dt = self.fecha or fields.Datetime.now()
+        delta = fields.Datetime.now() - dt
+        if delta.days > 30:
+            raise ValidationError(_('No puedes cancelar: la fecha de emisión excede 30 días (emitida el %s).') % (fields.Datetime.to_string(dt),))
+
+    def _check_no_children_before_cancel(self):
+        """Para Ingresos: asegurar que NO hay E/P vigentes (no-cancelados) ligados."""
+        self.ensure_one()
+        if self.tipo != 'I':
+            return
+        hijos = self.env['facturas.factura'].search([
+            ('origin_factura_id', '=', self.id),
+            ('tipo', 'in', ['E', 'P']),
+            ('state', '!=', 'canceled'),
+        ], limit=1)
+        if hijos:
+            raise ValidationError(_('Cancela primero los Egresos/Pagos relacionados antes de cancelar la factura principal.'))
+
+    def _pac_cancel(self, motivo='02', folio_sustitucion=None):
+        self.ensure_one()
+        if self.state != 'stamped' or not (self.uuid or '').strip():
+            return
+        engine = self.env['mx.cfdi.engine'].with_context(empresa_id=self.empresa_id.id)
+        res = engine.cancel_cfdi(
+            origin_model='account.move' if self.move_id else self._name,
+            origin_id=self.move_id.id if self.move_id else self.id,
+            uuid=self.uuid,
+            motivo=motivo or '02',
+            folio_sustitucion=folio_sustitucion
+        )
+        status = (res.get('status') if isinstance(res, dict) else res)
+        self.message_post(body=_('CFDI cancelado en PAC. Respuesta: %s') % status)
+
+        # 👇 ADJUNTAR ACUSE
+        try:
+            acuse = isinstance(res, dict) and res.get('acuse')
+            if acuse:
+                self.env['ir.attachment'].sudo().create({
+                    'name': f"acuse-cancel-{self.uuid}.xml",
+                    'res_model': self._name,
+                    'res_id': self.id,
+                    'type': 'binary',
+                    'datas': base64.b64encode(acuse).decode('ascii'),
+                    'mimetype': 'application/xml',
+                    'description': _('Acuse de cancelación CFDI %s') % self.uuid,
+                })
+        except Exception:
+            pass
+
+
+    def _cancel_account_move(self):
+        """Intenta cancelar el account.move contable si existe."""
+        self.ensure_one()
+        mv = self.move_id
+        if not mv:
+            return
+        try:
+            if mv.state == 'posted':
+                # Odoo 18: cancelar asiento (si diario permite cancelación)
+                mv.button_cancel()
+            elif mv.state not in ('cancel',):
+                mv.button_cancel()
+        except Exception:
+            # Fallback: draft -> cancel
+            try:
+                mv.button_draft()
+                mv.button_cancel()
+            except Exception as e:
+                self._logger.warning("No se pudo cancelar el move %s: %s", mv.id, e)
+
+
+    def _disable_own_transactions(self):
+        """Deshabilita y neutraliza (sin borrar) las transacciones creadas por ESTA factura,
+           quitando su efecto en estado de cuenta y rompiendo el vínculo con el cliente/venta.
+        """
+        used_legacy = False
+        count_token = 0
+        count_legacy = 0
+    
+        self.ensure_one()
+        try:
+            Tx = self.env['transacciones.transaccion'].sudo()
+        except KeyError:
+            return
+    
+        # 1) Búsqueda precisa por token
+        token = self._own_ref_token()
+        dom = [('referencia', 'ilike', token)]
+        if 'sucursal_id' in Tx._fields and self.sucursal_id:
+            dom.append(('sucursal_id', '=', self.sucursal_id.id))
+        if 'empresa_id_helper' in Tx._fields:
+            dom.append(('empresa_id_helper', '=', self.empresa_id.id))
+        if 'tipo' in Tx._fields:
+            if self.tipo == 'P':
+                dom.append(('tipo', '=', '11'))
+            elif self.tipo == 'E':
+                dom.append(('tipo', '=', '6' if (self.egreso_tipo or '') == 'dev' else '10'))
+    
+        txs = Tx.search(dom, limit=200)
+        count_token = len(txs)
+    
+        if not txs:
+            txs = Tx.search([('referencia', 'ilike', token)], limit=200)
+            count_token = len(txs)
+    
+        # 2) Fallback LEGACY (si no traían token)
+        if not txs:
+            refs = []
+            if self.move_id and getattr(self.move_id, 'name', False):
+                refs.append(self.move_id.name)
+                refs.append('Pago a factura %s' % self.move_id.name)
+            if (self.uuid or '').strip():
+                refs.append(self.uuid)
+    
+            legacy_dom = [('id', '=', 0)]
+            for r in refs:
+                legacy_dom = OR([legacy_dom, [('referencia', 'ilike', r)]])
+            tight = []
+            if 'sucursal_id' in Tx._fields and self.sucursal_id:
+                tight.append(('sucursal_id', '=', self.sucursal_id.id))
+            if 'empresa_id_helper' in Tx._fields:
+                tight.append(('empresa_id_helper', '=', self.empresa_id.id))
+            if 'tipo' in Tx._fields:
+                if self.tipo == 'P':
+                    tight.append(('tipo', '=', '11'))
+                elif self.tipo == 'E':
+                    tight.append(('tipo', '=', '6' if (self.egreso_tipo or '') == 'dev' else '10'))
+    
+            legacy_dom = tight + legacy_dom
+            txs = Tx.search(legacy_dom, limit=200)
+            count_legacy = len(txs)
+            used_legacy = True
+    
+        if not txs:
+            self._logger.info(
+                "CANCEL TX | fact_id=%s token=%s matched_by_token=%s matched_by_legacy=%s",
+                self.id, token, count_token, count_legacy
+            )
+            return
+    
+        self._logger.info(
+            "CANCEL TX | fact_id=%s token=%s matched_by_token=%s matched_by_legacy=%s",
+            self.id, token, count_token, count_legacy
+        )
+    
+        # 3) Neutralizar impacto en estado de cuenta (sin borrar)
+        neutral_vals = {}
+        # a) Desactivar o marcar como canceladas
+        if 'active' in Tx._fields:
+            neutral_vals['active'] = False
+        if 'state' in Tx._fields and any(a == 'cancelled' for a, _ in (Tx._fields['state'].selection(Tx.env) or [])):
+            neutral_vals['state'] = 'cancelled'
+    
+        # b) Romper relación con el cliente (directa o indirecta)
+        if 'venta_id' in Tx._fields:
+            neutral_vals['venta_id'] = False       # evita relación via venta → cliente
+        if 'cliente_id' in Tx._fields:
+            neutral_vals['cliente_id'] = False     # por si tu modelo sí lo tiene
+        if 'cliente_rfc_helper' in Tx._fields:
+            neutral_vals['cliente_rfc_helper'] = False  # por si tu estado usa este helper
+    
+        # c) Si tu modelo tiene un flag para reportes, márcalo
+        if 'ignorar_estado_cuenta' in Tx._fields:
+            neutral_vals['ignorar_estado_cuenta'] = True
+    
+        if neutral_vals:
+            try:
+                txs.write(neutral_vals)
+            except Exception as e:
+                self._logger.warning("CANCEL TX | no se pudieron neutralizar campos: %s", e)
+                # fallback ultra-conservador: deja al menos una marca visible
+                for t in txs:
+                    try:
+                        t.write({'referencia': (t.referencia or '') + ' [CANCELADA/NEUTRALIZADA]'})
+                    except Exception:
+                        pass
+                    
+        # 4) Cambio “no destructivo” por si no hay active/state: marca en referencia
+        if 'active' not in Tx._fields and 'state' not in Tx._fields:
+            for t in txs:
+                try:
+                    t.write({'referencia': (t.referencia or '') + ' [CANCELADA]'})
+                except Exception:
+                    pass
+                
+        # 5) Flush para asegurar persistencia antes de seguir
+        try:
+            Tx.flush()
+        except Exception:
+            pass
+        
+        self._logger.info("CANCEL TX | disabled/neutralized=%s", len(txs))
+
+
+
+
+    def _release_sales_after_cancel(self):
+        """Pone ventas ligadas en estado facturable y limpia vínculos mínimos."""
+        ventas_from_lines = self.env['ventas.venta'].browse(
+            list({l.sale_id.id for l in self.line_ids if l.sale_id})
+        )
+        ventas = (self.venta_ids | ventas_from_lines).sudo()
+        if not ventas:
+            return
+        # Elegir el mejor estado "facturable"
+        tgt = 'confirmed'
+        if 'state' in ventas._fields:
+            sel = [a for a, _ in (ventas._fields['state'].selection(ventas.env) or [])]
+            if 'to_invoice' in sel:
+                tgt = 'to_invoice'
+            elif 'confirmed' in sel:
+                tgt = 'confirmed'
+            elif 'draft' in sel:
+                tgt = 'draft'
+        vals = {'state': tgt}
+        if 'move_id' in ventas._fields:
+            vals['move_id'] = False
+        try:
+            ventas.write(vals)
+        except Exception as e:
+            self._logger.warning("No se pudo actualizar ventas tras cancelación: %s", e)
+    # ======================== /Cancel Helpers ========================
+
+
     
     # Onchange: si la factura origen no coincide en empresa/cliente con el encabezado, la limpia.
     @api.onchange('cliente_id', 'empresa_id', 'origin_factura_id')
     def _onchange_origin_guard(self):
-        if self.origin_factura_id and (
-            (self.empresa_id and self.origin_factura_id.empresa_id != self.empresa_id) or
-            (self.cliente_id and self.origin_factura_id.cliente_id != self.cliente_id)
-        ):
-            self.origin_factura_id = False
+        for r in self:
+            if not r.origin_factura_id:
+                continue
+            # 1) Si por alguna razón la origen no está timbrada, límpiala
+            if r.origin_factura_id.state != 'stamped':
+                r.origin_factura_id = False
+                continue
+            # 2) Empresa/cliente deben coincidir
+            if (r.empresa_id and r.origin_factura_id.empresa_id != r.empresa_id) or \
+               (r.cliente_id and r.origin_factura_id.cliente_id != r.cliente_id):
+                r.origin_factura_id = False
+
 
     def _is_service_line(self, line):
         """Intenta detectar servicios para no tocar stock."""
@@ -1386,34 +1709,116 @@ class FacturaUI(models.Model):
         """Descuenta stock por línea (solo productos, no servicios)."""
         self.ensure_one()
         Stock = self.env['stock.sucursal.producto'].sudo()
+        tot = 0.0
+
         for l in self.line_ids:
             if not l.producto_id or self._is_service_line(l):
                 continue
             qty = l.cantidad or 0.0
             if qty > 0:
                 Stock.remove_stock(self.sucursal_id, l.producto_id, qty)
+                tot += qty
+        self._logger.info(
+            "STOCK | OUT | fact_id=%s sucursal=%s total_qty=%.4f",
+            self.id, (self.sucursal_id.id if self.sucursal_id else None), tot
+        )
     
     def action_cancel(self):
         self.ensure_one()
-        # Reversión de stock simple
+        # 1) Ventana de 30 días
+        self._ensure_cancel_window_30d()
+        # 2) Si es Ingreso: no permitir si tiene E/P vigentes
+        self._check_no_children_before_cancel()
+        # 3) Cancelación en PAC (si aplica)
+        try:
+            self._pac_cancel(motivo=self.env.context.get('cfdi_cancel_reason', '02'))
+        except Exception as e:
+            # si quieres abortar cuando PAC falle, descomenta la siguiente línea
+            # raise
+            self._logger.warning("PAC cancel falló (se continuará con cancelación interna): %s", e)
+        # 4) Revertir stock según tipo
         Stock = self.env['stock.sucursal.producto'].sudo()
         if self.state == 'stamped':
             if self.tipo == 'I':
-                # Regresa lo que descontaste
+                # Regresar lo que se descontó al timbrar
                 for l in self.line_ids:
                     if not l.producto_id or self._is_service_line(l):
                         continue
-                    if (l.cantidad or 0.0) > 0:
-                        Stock.add_stock(self.sucursal_id, l.producto_id, l.cantidad)
-            elif self.tipo == 'E' and (self.egreso_tipo or '') == 'dev':
-                # Quita lo que habías regresado
-                for l in self.line_ids:
-                    if not l.producto_id or self._is_service_line(l):
-                        continue
-                    if (l.cantidad or 0.0) > 0:
-                        Stock.remove_stock(self.sucursal_id, l.producto_id, l.cantidad)
+                    qty = l.cantidad or 0.0
+                    if qty > 0:
+                        Stock.add_stock(self.sucursal_id, l.producto_id, qty)
+            elif self.tipo == 'E':
+                # Si fue devolución, retirar lo que se había regresado
+                if (self.egreso_tipo or '') == 'dev':
+                    for l in self.line_ids:
+                        if not l.producto_id or self._is_service_line(l):
+                            continue
+                        qty = l.cantidad or 0.0
+                        if qty > 0:
+                            Stock.remove_stock(self.sucursal_id, l.producto_id, qty)
+                # Además: deshabilitar transacciones creadas por este egreso
+                try:
+                    self._disable_own_transactions()
+                except Exception as e:
+                    self._logger.warning("No se pudieron deshabilitar transacciones del egreso: %s", e)
+            elif self.tipo == 'P':
+                # Pago: deshabilitar transacción de pago (tipo 11) creada por este registro
+                try:
+                    self._disable_own_transactions()
+                except Exception as e:
+                    self._logger.warning("No se pudieron deshabilitar transacciones del pago: %s", e)
+
+        # --- NUEVO: reponer contadores en la factura origen ---
+        origin = self.origin_factura_id
+        if origin:
+            try:
+                if self.tipo == 'P':
+                    self._restore_amount_counters_on_origin(self.pago_importe)
+                elif self.tipo == 'E':
+                    if (self.egreso_tipo or '') == 'dev':
+                        self._restore_dev_counters_on_origin()
+                    else:  # 'nc'
+                        self._restore_amount_counters_on_origin(self.importe_total)
+            except Exception as e:
+                self._logger.warning("No se pudieron restaurar contadores en origen: %s", e)
+    
+            # Forzar recompute de saldo en la origen (como haces al timbrar)
+            try:
+                origin.write({'state': origin.state})
+            except Exception:
+                pass
+            # (opcional) refresca ventas ligadas
+            ventas_orig = origin.venta_ids | self.env['ventas.venta'].browse(
+                list({l.sale_id.id for l in origin.line_ids if l.sale_id})
+            )
+            if ventas_orig:
+                try:
+                    ventas_orig.write({'state': ventas_orig[0].state})
+                except Exception:
+                    pass
+
+        # 5) Cancelar el asiento contable si existe (I/E)
+        try:
+            self._cancel_account_move()
+        except Exception as e:
+            self._logger.warning("Falló cancelación del move: %s", e)
+        # 6) Marcar estado cancelado en UI
         self.write({'state': 'canceled'})
+        self._logger.info(
+            "CFDI FLOW | CANCELED | id=%s tipo=%s uuid=%s move_id=%s",
+            self.id, self.tipo, (self.uuid or ''), (self.move_id.id if self.move_id else None)
+        )
+
+        # 7) Si es Ingreso: liberar ventas para re-facturar
+        if self.tipo == 'I':
+            try:
+                self._release_sales_after_cancel()
+            except Exception as e:
+                self._logger.warning("No se pudieron liberar ventas: %s", e)
+        # 8) Evitar posteriores E/P sobre esta factura (ya lo cubre el domain/state, esto es solo seguridad)
+        # (nada adicional requerido aquí)
         return self.action_close_form()
+
 
     
     # ============================== Fin utils ==============================
@@ -1510,8 +1915,22 @@ class FacturaUI(models.Model):
     def _check_consistency(self):
         self.ensure_one()
         bad = self.line_ids.filtered(lambda l: l.sale_id and l.sale_id.sucursal_id != self.sucursal_id)
-        super(FacturaUI, self)._check_consistency() if hasattr(super(), '_check_consistency') else None
+        try:
+            super()._check_consistency()
+        except AttributeError:
+            pass
+
         self.ensure_one()
+
+        if self.tipo in ('I', 'E') and not (self.uso_cfdi or '').strip():
+            raise ValidationError(_('Selecciona el "Uso CFDI" para facturas de Ingreso/Egreso.'))
+        
+        if self.tipo in ('I', 'E'):
+            if not (self.metodo or '').strip():
+                raise ValidationError(_('Selecciona el "Método de pago" (PUE/PPD).'))
+            if (self.metodo or '').upper() == 'PPD' and (self.forma or '').strip() != '99':
+                raise ValidationError(_('Con PPD la Forma debe ser "99 - Por definir".'))
+
 
         if self.tipo in ('I', 'E') and not self.line_ids:
             raise ValidationError(_('Agrega al menos un concepto a la factura.'))
@@ -1530,11 +1949,16 @@ class FacturaUI(models.Model):
 
         # Egresos: validar cliente y factura origen
         if self.tipo == 'E':
+            if self.origin_factura_id and self.origin_factura_id.state != 'stamped':
+                raise ValidationError(_('La factura origen debe estar TIMBRADA para poder hacer un Egreso.'))
+
             if not self.origin_factura_id:
                 raise ValidationError(_('En un Egreso debes seleccionar la "Factura origen".'))
             if (self.origin_factura_id.cliente_id and self.cliente_id 
                 and self.origin_factura_id.cliente_id.id != self.cliente_id.id):
                 raise ValidationError(_('El cliente del Egreso debe coincidir con el de la factura origen.'))
+            
+
 
         # ===== Validaciones extra para E y P =====
         if self.tipo == 'E':
@@ -1567,6 +1991,9 @@ class FacturaUI(models.Model):
                     raise ValidationError(_("Nota de crédito excede el monto acreditable: solicitado=%.2f, disponible=%.2f") % (req_total, avail_total))
 
         elif self.tipo == 'P':
+            if self.origin_factura_id and self.origin_factura_id.state != 'stamped':
+                raise ValidationError(_('La factura origen debe estar TIMBRADA para poder hacer un Pago.'))
+
             if not self.origin_factura_id:
                 raise ValidationError(_('En un Pago debes seleccionar la "Factura origen".'))
             if (self.pago_importe or 0.0) <= 0.0:
@@ -1584,13 +2011,81 @@ class FacturaUI(models.Model):
 
 
 
-        # << aquí el cambio >>
         clientes = {l.cliente_id.id for l in self.line_ids if l.cliente_id}
         if len(clientes) > 1:
             raise ValidationError(_('Todas las líneas deben ser del mismo cliente.'))
 
         if any(l.source_model == 'transacciones.transaccion' and l.sale_state == 'cancelled' for l in self.line_ids):
             raise ValidationError(_('Hay transacciones de ventas canceladas.'))
+
+    def unlink(self):
+        for r in self:
+            if r.state not in ('draft', 'canceled'):
+                raise ValidationError(_('No puedes eliminar una factura que no esté en Borrador o Cancelada.'))
+        return super().unlink()
+    
+    @api.model
+    def default_get(self, fields_list):
+        vals = super().default_get(fields_list)
+        cid = (self.env.context.get('cliente_id') 
+               or self.env.context.get('default_cliente_id'))
+        if cid:
+            cli = self.env['clientes.cliente'].browse(cid)
+            rfc = (getattr(cli, 'rfc', False) or getattr(cli, 'vat', False) 
+                   or (getattr(getattr(cli, 'persona_id', False), 'rfc', False) or False))
+            vals['cliente_rfc'] = rfc or False
+        return vals
+    
+    def _restore_dev_counters_on_origin(self):
+        origin = self.origin_factura_id
+        if not origin:
+            return
+        # DEV: regresamos cantidades hasta el tope de 'cantidad'
+        pend_by_prod = {}
+        for l in self.line_ids:
+            if l.producto_id:
+                pend_by_prod[l.producto_id.id] = pend_by_prod.get(l.producto_id.id, 0.0) + (l.cantidad or 0.0)
+
+        for ol in origin.line_ids.sorted('id'):
+            pid = ol.producto_id.id if ol.producto_id else False
+            if not pid:
+                continue
+            pend = pend_by_prod.get(pid, 0.0)
+            if pend <= 0:
+                continue
+            cap = max((ol.cantidad or 0.0) - (ol.qty_dev_available or 0.0), 0.0)
+            add = min(cap, pend)
+            if add > 0:
+                new_qty = (ol.qty_dev_available or 0.0) + add
+                # devuelve proporcionalmente el importe acreditable
+                ratio = add / (ol.cantidad or 1.0)
+                new_total_av = min((ol.total_dev_available or 0.0) + (ol.total or 0.0) * ratio, (ol.total or 0.0))
+                ol.write({'qty_dev_available': new_qty, 'total_dev_available': new_total_av})
+                pend_by_prod[pid] = pend - add
+
+    def _restore_amount_counters_on_origin(self, amount):
+        """Para NC y Pago: reponer 'total_dev_available' en el origen hasta su tope (total)."""
+        origin = self.origin_factura_id
+        if not origin:
+            return
+        pend = float(amount or 0.0)
+        for ol in origin.line_ids.sorted('id'):
+            if pend <= 1e-9:
+                break
+            cap = max((ol.total or 0.0) - (ol.total_dev_available or 0.0), 0.0)
+            add = min(cap, pend)
+            if add > 1e-9:
+                ol.write({'total_dev_available': (ol.total_dev_available or 0.0) + add})
+                pend -= add
+
+    def _own_ref_token(self):
+        """Token único para rastrear transacciones creadas por ESTA FacturaUI y evitar falsos positivos."""
+        self.ensure_one()
+        return f"[FUI#{self.id}]"
+
+
+
+
     # =========================== Fin Helpers ===========================
 
 
@@ -1616,7 +2111,7 @@ class FacturaUILine(models.Model):
     source_model= fields.Char()   # 'transacciones.transaccion' | 'cargosdetail.cargodetail' | ...
     source_id   = fields.Integer()
     sale_id     = fields.Many2one('ventas.venta', string='Venta')
-    sale_state  = fields.Selection(related='sale_id.state')
+    sale_state  = fields.Selection(related='sale_id.state', store = True)
 
     # Producto/valores
     producto_id = fields.Many2one('productos.producto', string='Producto/Servicio', required=True, index=True)
@@ -1825,6 +2320,7 @@ class FacturaUILine(models.Model):
         """Después de timbrar, registra enlace y vuelve a validar disponible (doble guarda)."""
         EPS = 1e-6
         Link = self.env['ventas.transaccion.invoice.link']
+        created_links = 0
         
         for l in self.filtered(lambda x: x.transaccion_id):
             # En Odoo 18, usa SQL directo para el bloqueo si es necesario
@@ -1843,14 +2339,17 @@ class FacturaUILine(models.Model):
                     "Concurrencia: la transacción %s quedó sin disponible al timbrar. "
                     "Disponible: %.4f, intentando facturar: %.4f"
                 ) % (tx.display_name, max(total - already, 0.0), qty))
-            
+            created_links += 1
             Link.create({
                 'transaccion_id': tx.id,
                 'move_id': move.id,
                 'qty': qty,
                 'state': 'open',
             })
-            
+            self._logger.info(
+                "CFDI FLOW | LINKS | move_id=%s created=%s (solo líneas con transaccion_id)",
+                move.id, created_links
+            )
             # Verifica si el modelo tiene este método
             if hasattr(tx, '_recompute_invoice_status'):
                 tx._recompute_invoice_status()
@@ -1882,6 +2381,14 @@ class FacturaUILine(models.Model):
             l.iva_amount = round(base * (l.iva_ratio or 0.0), 2)
             l.ieps_amount = round(base * (l.ieps_ratio or 0.0), 2)
             l.total = round(base + l.iva_amount + l.ieps_amount, 2)
+
+    @api.constrains('iva_ratio', 'ieps_ratio')
+    def _check_tax_ratios(self):
+        for l in self:
+            for fld, val in (('IVA', l.iva_ratio), ('IEPS', l.ieps_ratio)):
+                if val is not None and (val < 0 or val > 1):
+                    raise ValidationError(_('El %s debe estar entre 0.0 y 1.0 (p.ej. 0.16).') % fld)
+
 
 
     # ============================== Fin utils ==============================
