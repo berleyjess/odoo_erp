@@ -10,7 +10,8 @@ class cargodetail_ext(models.Model):
 
     fecha = fields.Date(string = "Fecha", default = date.today(), store = True)
     importe = fields.Float(string = "Importe", readonly = True, compute = '_compute_importe', store = True)
-    Saldo = fields.Float(string = "Saldo", readonly = True, compute = '_compute_importe', store = True)
+    saldo = fields.Float(string = "Saldo", readonly = True, compute = '_compute_saldo', store = True, default = 0.0)
+    pagos = fields.Float(string = "Pagos", readonly = True, compute = '_compute_importe', store = True, default = 0.0)
     credito_id = fields.Many2one('creditos.credito', string = "Crédito", store = True)
     total = fields.Float(string = "Total", readonly = True, compute = '_compute_total', store = True)
     
@@ -26,10 +27,25 @@ class cargodetail_ext(models.Model):
 
             # elif record.cargo.tipo == '3':  # Porcentaje x Saldo Ejercido
             #     record.importe = record.porcentaje * record.saldoejercido
-        record.credito_id.recalc_cargos()
 
     @api.depends('total', 'iva', 'ieps')
     def _compute_importe(self):
         for record in self:
             record.importe = record.total + (record.total * record.iva) + (record.total * record.ieps)
-            record.saldo = record.importe
+            record.credito_id.recalc_cargos()
+
+    @api.depends('importe', 'pagos')
+    def _compute_saldo(self):
+        for record in self:
+            record.saldo = record.importe - record.pagos
+
+    @api.model
+    def create(self, vals):
+        if 'folio' not in vals or vals['folio'] == 'Nuevo':
+            count = self.env['cargosdetail.cargodetail'].search_count([
+                ('credito_id', '=', vals.get('credito_id')),
+                ('cargocontrato', '=', False)
+            ])
+
+            vals['folio'] = 'CA#' + str(10000 + count + 1)[-4:]
+        return super(cargodetail_ext, self).create(vals)

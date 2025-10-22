@@ -11,7 +11,7 @@
                   string="Generar solicitud"
                   type="action"
                   class="oe_highlight"
-                  invisible="not id or is_editing"/>
+                  />
         </xpath>
       </field>
     </record>

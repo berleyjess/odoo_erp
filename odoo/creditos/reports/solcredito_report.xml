@@ -1,341 +1,270 @@
 <odoo>
-  <data>
+    <data>
 
-    <!-- Acción de reporte PDF -->
-    <record id="action_report_credito" model="ir.actions.report">
-      <field name="name">Solicitud de Crédito</field>
-      <field name="type">ir.actions.report</field>
-      <field name="report_type">qweb-pdf</field>
-      <!-- report_name = <módulo>.<id_del_template> -->
-      <field name="report_name">creditos.report_credito_document</field>
-      <field name="report_file">creditos.report_credito_document</field>
-      <field name="model">creditos.credito</field>
-      <field name="print_report_name">'SOLICITUD_%s' % (object.folio or object.display_name)</field>
-      <field name="attachment_use">False</field>
-      <field name="attachment">'solicitud_%s.pdf' % (object.folio or object.id)</field>
-    </record>
+        <!-- Acción de reporte PDF -->
+        <record id="action_report_credito" model="ir.actions.report">
+            <field name="name">Solicitud de Crédito</field>
+            <field name="type">ir.actions.report</field>
+            <field name="report_type">qweb-pdf</field>
+            <!-- report_name = <módulo>.<id_del_template> -->
+            <field name="report_name">creditos.report_credito_document</field>
+            <field name="report_file">creditos.report_credito_document</field>
+            <field name="model">creditos.credito</field>
+            <field name="print_report_name">'SOLICITUD_%s' % (object.folio or object.display_name)</field>
+            <field name="attachment_use">False</field>
+            <field name="attachment">'solicitud_%s.pdf' % (object.folio or object.id)</field>
+        </record>
 
-    <!-- Template QWeb base (solo cabecera y caja de foto, listo para ampliar) -->
-    <template id="report_credito_document">
-      <t t-call="web.basic_layout">
-        <t t-foreach="docs" t-as="o">
+        <!-- Template QWeb base (solo cabecera y caja de foto, listo para ampliar) -->
+        <template id="report_credito_document">
+            <html>
+            <t t-call="web.minimal_layout">
+                <t t-foreach="docs" t-as="o">
+                    <head>
+                        <style type="text/css">
+                            @page {
+                                size: letter;
+                                margin: 2cm 1cm 1cm 1cm;
+                            }
 
-
-    <title>Solicitud de Crédito de Maíz</title>
-    <style>
-        /* Reset y configuración base */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: "DejaVu Sans", Arial, sans-serif;
-            font-size: 12px;
-            line-height: 1.12;
-            color: #000;
-            background: #fff;
-        }
-
-        /* Contenedor principal */
-        .sol-top {
-            font-family: "DejaVu Sans", Arial, sans-serif;
-            font-size: 12px;
-            line-height: 1.12;
-            max-height: 420px;
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        /* Marca / dirección */
-        .brand .name {
-            font-size: 30px;
-            font-weight: 900;
-            letter-spacing: 0.2px;
-            text-align: center;
-            margin-bottom: 8px;
-        }
-
-        .brand .addr {
-            font-size: 12px;
-            
-            margin-top: 6px;
-        }
-
-        /* Reglas divisorias */
-        .rule-strong {
-            border-top: 2px solid #000;
-            margin: 12px 0 14px 0;
-        }
-
-        .rule-thin {
-            border-top: 1px solid #000;
-            margin: 8px 0 10px 0;
-        }
-
-        /* Tablas sin bordes */
-        table.sol-nb {
-            border: 0 !important;
-            border-collapse: separate;
-            border-spacing: 0;
-            width: 100%;
-        }
-
-        table.sol-nb td,
-        table.sol-nb th {
-            border: 0 !important;
-            padding: 0;
-        }
-
-        /* Foto */
-        .photo {
-            width: 230px;
-            height: 230px;
-            border: 1px solid #000;
-            background: #f9f9f9;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #ccc;
-            font-size: 14px;
-        }
-
-        /* Campos con valor y etiqueta */
-        .value {
-            display: block;
-            padding-bottom: 3px;
-            border-bottom: 1px solid #000;
-            font-weight: 700;
-            min-height: 18px;
-        }
-
-        .label {
-            display: block;
-            font-size: 9px;
-            color: #555;
-            text-transform: uppercase;
-            margin-top: 2px;
-            
-        }
-
-        /* Anchos específicos para replicar las reglas */
-        .w-860 { width: 860px; max-width: 100%; }
-        .w-360 { width: 360px; max-width: 100%; }
-        .w-340 { width: 340px; max-width: 100%; }
-        .w-300 { width: 300px; max-width: 100%; }
-        .w-260 { width: 260px; max-width: 100%; }
-        .w-240 { width: 240px; max-width: 100%; }
-        .w-220 { width: 220px; max-width: 100%; }
-        .w-200 { width: 200px; max-width: 100%; }
-        .w-180 { width: 180px; max-width: 100%; }
-        .w-160 { width: 160px; max-width: 100%; }
-
-        .pad-y {
-            padding-top: 8px;
-        }
-
-        /* Títulos principales */
-        .tt-left {
-            font-size: 26px;
-            font-weight: 900;
-        }
-
-        .tt-right {
-            font-size: 26px;
-            font-weight: 900;
-            text-align: right;
-        }
-
-        /* Espaciado específico para secciones */
-        .section-spacing {
-            margin-top: 10px;
-        }
-
-        .section-spacing-wide {
-            margin-top: 14px;
-        }
-
-        .section-spacing-extra {
-            margin-top: 16px;
-        }
-
-        /* Ajustes responsivos para PDF */
-        @media print {
-            body {
-                margin: 0;
-                padding: 0;
-            }
-            
-            .sol-top {
-                max-height: none;
-                padding: 10px;
-            }
-        }
-    </style>
-<body>
-    <div class="sol-top">
-        <!-- Marca / dirección -->
-        <div class="brand">
-            <div class="name">SERVICIOS AGROFINANCIEROS DEL NORTE</div>
-            <div class="addr">CARRETERA LOS MOCHIS-NAVOHOA KM-54 S/N GUSTAVO DIAZ ORDAZ</div>
-            <div class="addr">GUSTAVO DIAZ ORDAZ 6688650973 SAN121128TZ8</div>
-        </div>
-
-        <div class="rule-strong"></div>
-
-        <!-- Títulos en dos columnas -->
-        <table class="sol-nb">
-            <tr>
-                <td class="tt-left">SOLICITUD DE CREDITO DE MAIZ</td>
-                <td class="tt-right">CICLO OI 2024-2025</td>
-            </tr>
-        </table>
-        <div class="rule-thin"></div>
-
-        <!-- 3 columnas: Foto | Cuerpo | Fecha -->
-        <table class="sol-nb">
-            <tr valign="top">
-                <!-- Foto -->
-                <td width="250">
-                    <div class="photo">FOTO</div>
-                </td>
-
-                <!-- Cuerpo (campos del formulario) -->
-                <td style="padding: 0 22px;">
-
-                    <!-- Nombre (regla larga) -->
-                    <div class="pad-y">
-                        <span class="value w-860">MANUEL GUILLERMO IBARRA GAXIOLA</span>
-                        <span class="label">Nombre Del Productor</span>
-                    </div>
-
-                    <!-- Domicilio (regla larga) -->
-                    <div class="pad-y">
-                        <span class="value w-860">C ING. VALDEZ ROMERO S/N EL GUAYABO</span>
-                        <span class="label">Domicilio</span>
-                    </div>
-
-                    <!-- Municipio (izq) / Población (der) -->
-                    <table class="sol-nb section-spacing">
-                        <tr valign="top">
-                            <td width="50%">
-                                <span class="value w-360">AHOME</span>
-                                <span class="label" >Municipio</span>
-                            </td>
-                            <td width="50%">
-                                <span class="value w-360">HERIBERTO VALDEZ ROMERO</span>
-                                <span class="label">Poblacion</span>
-                            </td>
-                        </tr>
-                    </table>
-
-                    <!-- Fecha Nac / Teléfono / RFC / CURP (4 columnas) -->
-                    <table class="sol-nb section-spacing-wide">
-                        <tr valign="top">
-                            <td width="25%">
-                                <span class="value w-200">27/Sep/1983</span>
-                                <span class="label">Fecha Nacimiento</span>
-                            </td>
-                            <td width="25%">
-                                <span class="value w-200">6681148454</span>
-                                <span class="label">Telefono</span>
-                            </td>
-                            <td width="20%">
-                                <span class="value w-200">IAGM830927DA4</span>
-                                <span class="label">Rfc</span>
-                            </td>
-                            <td width="20%">
-                                <span class="value w-200">IAGM830927HSLBXN02</span>
-                                <span class="label">Curp</span>
-                            </td>
-                        </tr>
-                    </table>
-
-                    <!-- Estado civil / Régimen / Cónyuge / Superficie -->
-                    <table class="sol-nb section-spacing-extra">
-                        <tr valign="top">
-                            <td width="25%">
-                                <span class="value w-200">CASADO</span>
-                                <span class="label">Estado Civil</span>
-                            </td>
-                            <td width="25%">
-                                <span class="value w-200">SOCIEDAD CONYUGAL</span>
-                                <span class="label">Regimen Conyugal</span>
-                            </td>
-                            <td width="20%">
-                                <span class="value w-200">MARIA ESTHELA DIAZ LOPEZ</span>
-                                <span class="label">Nombre Del Conyuge</span>
-                            </td>
-                            <td width="20%">
-                                <span class="value w-200">32.16</span>
-                                <span class="label">Superficie (Has.)</span>
-                            </td>
-                        </tr>
-                    </table>
-
-                    <!-- Tipo vivienda / Dependientes / Importe / Ingreso -->
-                    <table class="sol-nb section-spacing-extra">
-                        <tr valign="top">
-                            <td width="25%">
-                                <span class="value w-200">Propia</span>
-                                <span class="label">Tipo Vivienda</span>
-                            </td>
-                            <td width="25%">
-                                <span class="value w-200">0</span>
-                                <span class="label">Dependientes Economicos</span>
-                            </td>
-                            <td width="20%">
-                                <span class="value w-200">1,219,800.00</span>
-                                <span class="label">Importe Solicitado</span>
-                            </td>
-                            <td width="20%">
-                                <span class="value w-200">0.00</span>
-                                <span class="label">Ingreso Mensual</span>
-                            </td>
-                        </tr>
-                    </table>
-
-                    <!-- Empresa / Puesto -->
-                    <table class="sol-nb section-spacing-wide">
-                        <tr valign="top">
-                            <td width="40%">
-                                <span class="value w-360"></span>
-                                <span class="label">Empresa Donde Labora</span>
-                            </td>
-                            <td width="40%">
-                                <span class="value w-360"></span>
-                                <span class="label">Puesto Que Desempeña</span>
-                            </td>
-                        </tr>
-                    </table>
-
-                </td>
-
-                <!-- Fecha (columna derecha) >
-                <td width="210" align="right" style="vertical-align: top;">
-                    <div style="margin-top: 36px;">
-                        <span class="value" style="width: 160px; display: inline-block;">06/Ago/2024</span>
-                        <span class="label">Fecha</span>
-                    </div>
-                </td-->
-            </tr>
-        </table>
-    </div>
-</body>
+                    
+                            ol{margin:0;padding:0}table td,table
+                            th{padding:0}.c10{border-right-style:solid;padding:5pt 5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;background-color:#f4cccc;border-left-style:solid;border-bottom-width:0pt;width:91.5pt;border-top-color:#000000;border-bottom-style:solid}.c11{border-right-style:solid;padding:5pt
+                            5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;border-left-style:solid;border-bottom-width:0pt;width:180pt;border-top-color:#000000;border-bottom-style:solid}.c22{border-right-style:solid;padding:5pt
+                            5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;border-left-style:solid;border-bottom-width:0pt;width:177pt;border-top-color:#000000;border-bottom-style:solid}.c8{border-right-style:solid;padding:5pt
+                            5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;border-left-style:solid;border-bottom-width:0pt;width:78.8pt;border-top-color:#000000;border-bottom-style:solid}.c3{border-right-style:solid;padding:5pt
+                            5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;border-left-style:solid;border-bottom-width:0pt;width:99.8pt;border-top-color:#000000;border-bottom-style:solid}.c4{border-right-style:solid;padding:5pt
+                            5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;border-left-style:solid;border-bottom-width:0pt;width:101.2pt;border-top-color:#000000;border-bottom-style:solid}.c5{border-right-style:solid;padding:5pt
+                            5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;border-left-style:solid;border-bottom-width:0pt;width:77.2pt;border-top-color:#000000;border-bottom-style:solid}.c14{border-right-style:solid;padding:5pt
+                            5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;border-left-style:solid;border-bottom-width:0pt;width:91.5pt;border-top-color:#000000;border-bottom-style:solid}.c15{border-right-style:solid;padding:5pt
+                            5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;border-left-style:solid;border-bottom-width:0pt;width:100.5pt;border-top-color:#000000;border-bottom-style:solid}.c26{border-right-style:solid;padding:5pt
+                            5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;border-left-style:solid;border-bottom-width:0pt;width:409.5pt;border-top-color:#000000;border-bottom-style:solid}.c2{border-right-style:solid;padding:5pt
+                            5pt 5pt
+                            5pt;border-bottom-color:#000000;border-top-width:0pt;border-right-width:0pt;border-left-color:#000000;vertical-align:top;border-right-color:#000000;border-left-width:0pt;border-top-style:solid;border-left-style:solid;border-bottom-width:0pt;width:61.5pt;border-top-color:#000000;border-bottom-style:solid}.c31{color:#704455;font-weight:700;text-decoration:none;vertical-align:baseline;font-size:9pt;font-family:"Arial";font-style:normal}.c28{color:#000000;font-weight:400;text-decoration:none;vertical-align:baseline;font-size:13pt;font-family:"Roboto";font-style:italic}.c7{color:#704455;font-weight:700;text-decoration:none;vertical-align:baseline;font-size:8pt;font-family:"Roboto";font-style:normal}.c32{color:#704455;font-weight:700;text-decoration:none;vertical-align:baseline;font-size:3pt;font-family:"Roboto";font-style:normal}.c6{color:#000000;font-weight:700;text-decoration:none;vertical-align:baseline;font-size:18pt;font-family:"Roboto";font-style:normal}.c25{color:#000000;font-weight:400;text-decoration:none;vertical-align:baseline;font-size:8pt;font-family:"Roboto";font-style:normal}.c13{padding-top:0pt;padding-bottom:0pt;line-height:1.15;orphans:2;widows:2;text-align:right;height:11pt}.c19{padding-top:0pt;padding-bottom:0pt;line-height:1.15;orphans:2;widows:2;text-align:left}.c30{padding-top:0pt;padding-bottom:0pt;line-height:1.15;orphans:2;widows:2;text-align:right}.c24{padding-top:0pt;padding-bottom:0pt;line-height:1.0;text-align:left;height:11pt}.c1{padding-top:0pt;padding-bottom:0pt;line-height:1.0;text-align:right;height:11pt}.c34{color:#000000;text-decoration:none;vertical-align:baseline;font-style:normal}.c12{font-size:28pt;font-family:"Roboto";color:#704455;font-weight:700}.c16{padding-top:0pt;padding-bottom:0pt;line-height:1.0;text-align:right}.c18{border-spacing:0;border-collapse:collapse;margin-right:auto}.c23{font-size:10pt;font-weight:700;font-family:"Roboto"}.c0{font-size:15pt;font-weight:700;font-family:"Roboto"}
+                            .c9{background-color:#ffffff;max-width:510.4pt;padding:2pt
+                            42.5pt 56.7pt
+                            42.5pt}.c35{height:23pt}.c29{height:11pt}.c17{height:0pt}.c20{height:13.2pt}.c21{height:18pt}.c33{height:19pt}.c27{height:42.4pt}.title{padding-top:0pt;color:#000000;font-size:26pt;padding-bottom:3pt;font-family:"Arial";line-height:1.15;page-break-after:avoid;orphans:2;widows:2;text-align:left}.subtitle{padding-top:0pt;color:#666666;font-size:15pt;padding-bottom:16pt;font-family:"Arial";line-height:1.15;page-break-after:avoid;orphans:2;widows:2;text-align:left}li{color:#000000;font-size:11pt;font-family:"Arial"}p{margin:0;color:#000000;font-size:11pt;font-family:"Arial"}h1{padding-top:20pt;color:#000000;font-size:20pt;padding-bottom:6pt;font-family:"Arial";line-height:1.15;page-break-after:avoid;orphans:2;widows:2;text-align:left}h2{padding-top:18pt;color:#000000;font-size:16pt;padding-bottom:6pt;font-family:"Arial";line-height:1.15;page-break-after:avoid;orphans:2;widows:2;text-align:left}h3{padding-top:16pt;color:#434343;font-size:14pt;padding-bottom:4pt;font-family:"Arial";line-height:1.15;page-break-after:avoid;orphans:2;widows:2;text-align:left}h4{padding-top:14pt;color:#666666;font-size:12pt;padding-bottom:4pt;font-family:"Arial";line-height:1.15;page-break-after:avoid;orphans:2;widows:2;text-align:left}h5{padding-top:12pt;color:#666666;font-size:11pt;padding-bottom:4pt;font-family:"Arial";line-height:1.15;page-break-after:avoid;orphans:2;widows:2;text-align:left}h6{padding-top:12pt;color:#666666;font-size:11pt;padding-bottom:4pt;font-family:"Arial";line-height:1.15;page-break-after:avoid;font-style:italic;orphans:2;widows:2;text-align:left}
+                        </style>
+                    </head>
+                    <body class="c9 doc-content">
+                        <p class="c19 c29">
+                            <span class="c25"></span>
+                        </p>
+                        <p class="c19 c29">
+                            <span class="c25"></span>
+                        </p>
+                        <table class="c18">
+                            <tr class="c27">
+                                <td class="c15" colspan="1" rowspan="3">
+                                    <p class="c24">
+                                        <span class="c25"></span>
+                                    </p>
+                                </td>
+                                <td class="c26" colspan="1" rowspan="1">
+                                    <p class="c30">
+                                        <span class="c12">SOLICITUD DE CRÉDITO</span>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr class="c20">
+                                <td class="c26" colspan="1" rowspan="1">
+                                    <p class="c30">
+                                        <span class="c0">#<span
+                                            t-field="o.folio"/></span>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr class="c35">
+                                <td class="c26" colspan="1" rowspan="1">
+                                    <p class="c30">
+                                        <span class="c28">12/12/2024</span>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        <p class="c19 c29">
+                            <span class="c25"></span>
+                        </p>
+                        <table class="c18">
+                            <tr class="c21">
+                                <td class="c10" colspan="1" rowspan="4">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                                <td class="c2" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">Nombre</span>
+                                    </p>
+                                </td>
+                                <td class="c11" colspan="2" rowspan="1">
+                                    <p class="c19">
+                                        <span class="c23"><span
+                                            t-field="o.cliente.nombre"/></span>
+                                    </p>
+                                </td>
+                                <td class="c5" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">Ciclo</span>
+                                    </p>
+                                </td>
+                                <td class="c3" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr class="c21">
+                                <td class="c2" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">Domicilio</span>
+                                    </p>
+                                </td>
+                                <td class="c11" colspan="2" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                                <td class="c5" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">Cultivo</span>
+                                    </p>
+                                </td>
+                                <td class="c3" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr class="c21">
+                                <td class="c2" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">Población</span>
+                                    </p>
+                                </td>
+                                <td class="c11" colspan="2" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                                <td class="c5" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">Municipio</span>
+                                    </p>
+                                </td>
+                                <td class="c3" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr class="c33">
+                                <td class="c2" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">Estado Civil</span>
+                                    </p>
+                                </td>
+                                <td class="c4" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                                <td class="c8" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">Có;nyuge</span>
+                                    </p>
+                                </td>
+                                <td class="c22" colspan="2" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr class="c17">
+                                <td class="c14" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">Fecha de Nacimiento</span>
+                                    </p>
+                                </td>
+                                <td class="c2" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                                <td class="c4" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">RFC</span>
+                                    </p>
+                                </td>
+                                <td class="c8" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                                <td class="c5" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">CURP</span>
+                                    </p>
+                                </td>
+                                <td class="c3" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr class="c17">
+                                <td class="c14" colspan="1" rowspan="1">
+                                    <p class="c16">
+                                        <span class="c7">Tipo de Vivienda</span>
+                                    </p>
+                                </td>
+                                <td class="c2" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                                <td class="c4" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                                <td class="c8" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                                <td class="c5" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                                <td class="c3" colspan="1" rowspan="1">
+                                    <p class="c1">
+                                        <span class="c7"></span>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        <p class="c13">
+                            <span class="c25"></span>
+                        </p>
+                    </body>
 
 
+                </t>
+            </t>
+        </html>
+        </template>
 
-
-
-
-
-
-        </t>
-      </t>
-    </template>
-
-  </data>
+    </data>
 </odoo>

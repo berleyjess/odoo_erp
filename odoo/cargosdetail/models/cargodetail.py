@@ -2,6 +2,7 @@ from odoo import models, fields, api
 
 class cargodetail(models.Model):
     _name = 'cargosdetail.cargodetail'
+    _rec_name = 'folio'
 
     fecha = fields.Date(string = "Fecha", default=fields.Date.context_today, readonly = True)
     cargo = fields.Many2one('cargos.cargo', string = "Concepto", required = True, ondelete='cascade')
@@ -9,6 +10,7 @@ class cargodetail(models.Model):
     costo = fields.Float(string = "Costo", default = 0.0)
     porcentaje = fields.Float(string ="Porcentaje", default = 0.0)
     cargocontrato = fields.Boolean(string = "Cargo de contrato", default = False, readonly = True)
+    folio = fields.Char(string = "Folio", readonly = True, store = True)
     tipocargo = fields.Selection(
         selection = [
             ('0', "Costo x superficie"),
@@ -32,7 +34,7 @@ class cargodetail(models.Model):
             cargos_a_eliminar = rec.filtered(lambda c: not c.cargocontrato)
             if cargos_a_eliminar:
                 cargos_a_eliminar.unlink()
-        return {'type': 'ir.actions.client', 'tag': 'reload'}
+        #return {'type': 'ir.actions.client', 'tag': 'reload'}
     
     
 

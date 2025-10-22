@@ -1,0 +1,15 @@
+.o_selection_badge[value='"posted"'] {
+  background-color: #28a745;
+  color: #fff !important;
+  border-radius: .4rem;
+  padding: .15rem .5rem;
+  display: inline-block;
+}
+.o_selection_badge[value='"draft"'] {
+  background-color: #6c757d;
+  color: #fff !important;
+}
+.o_selection_badge[value='"cancelled"'] {
+  background-color: #dc3545;
+  color: #fff !important;
+}

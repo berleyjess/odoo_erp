@@ -1,0 +1,341 @@
+<odoo>
+  <data>
+
+    <!-- Acción de reporte PDF -->
+    <record id="action_report_credito" model="ir.actions.report">
+      <field name="name">Solicitud de Crédito</field>
+      <field name="type">ir.actions.report</field>
+      <field name="report_type">qweb-pdf</field>
+      <!-- report_name = <módulo>.<id_del_template> -->
+      <field name="report_name">creditos.report_credito_document</field>
+      <field name="report_file">creditos.report_credito_document</field>
+      <field name="model">creditos.credito</field>
+      <field name="print_report_name">'SOLICITUD_%s' % (object.folio or object.display_name)</field>
+      <field name="attachment_use">False</field>
+      <field name="attachment">'solicitud_%s.pdf' % (object.folio or object.id)</field>
+    </record>
+
+    <!-- Template QWeb base (solo cabecera y caja de foto, listo para ampliar) -->
+    <template id="report_credito_document">
+      <t t-call="web.basic_layout">
+        <t t-foreach="docs" t-as="o">
+
+
+    <title>Solicitud de Crédito de Maíz</title>
+    <style>
+        /* Reset y configuración base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.12;
+            color: #000;
+            background: #fff;
+        }
+
+        /* Contenedor principal */
+        .sol-top {
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.12;
+            max-height: 420px;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Marca / dirección */
+        .brand .name {
+            font-size: 30px;
+            font-weight: 900;
+            letter-spacing: 0.2px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .brand .addr {
+            font-size: 12px;
+            
+            margin-top: 6px;
+        }
+
+        /* Reglas divisorias */
+        .rule-strong {
+            border-top: 2px solid #000;
+            margin: 12px 0 14px 0;
+        }
+
+        .rule-thin {
+            border-top: 1px solid #000;
+            margin: 8px 0 10px 0;
+        }
+
+        /* Tablas sin bordes */
+        table.sol-nb {
+            border: 0 !important;
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+        }
+
+        table.sol-nb td,
+        table.sol-nb th {
+            border: 0 !important;
+            padding: 0;
+        }
+
+        /* Foto */
+        .photo {
+            width: 230px;
+            height: 230px;
+            border: 1px solid #000;
+            background: #f9f9f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        /* Campos con valor y etiqueta */
+        .value {
+            display: block;
+            padding-bottom: 3px;
+            border-bottom: 1px solid #000;
+            font-weight: 700;
+            min-height: 18px;
+        }
+
+        .label {
+            display: block;
+            font-size: 9px;
+            color: #555;
+            text-transform: uppercase;
+            margin-top: 2px;
+            
+        }
+
+        /* Anchos específicos para replicar las reglas */
+        .w-860 { width: 860px; max-width: 100%; }
+        .w-360 { width: 360px; max-width: 100%; }
+        .w-340 { width: 340px; max-width: 100%; }
+        .w-300 { width: 300px; max-width: 100%; }
+        .w-260 { width: 260px; max-width: 100%; }
+        .w-240 { width: 240px; max-width: 100%; }
+        .w-220 { width: 220px; max-width: 100%; }
+        .w-200 { width: 200px; max-width: 100%; }
+        .w-180 { width: 180px; max-width: 100%; }
+        .w-160 { width: 160px; max-width: 100%; }
+
+        .pad-y {
+            padding-top: 8px;
+        }
+
+        /* Títulos principales */
+        .tt-left {
+            font-size: 26px;
+            font-weight: 900;
+        }
+
+        .tt-right {
+            font-size: 26px;
+            font-weight: 900;
+            text-align: right;
+        }
+
+        /* Espaciado específico para secciones */
+        .section-spacing {
+            margin-top: 10px;
+        }
+
+        .section-spacing-wide {
+            margin-top: 14px;
+        }
+
+        .section-spacing-extra {
+            margin-top: 16px;
+        }
+
+        /* Ajustes responsivos para PDF */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            
+            .sol-top {
+                max-height: none;
+                padding: 10px;
+            }
+        }
+    </style>
+<body>
+    <div class="sol-top">
+        <!-- Marca / dirección -->
+        <div class="brand">
+            <div class="name">SERVICIOS AGROFINANCIEROS DEL NORTE</div>
+            <div class="addr">CARRETERA LOS MOCHIS-NAVOHOA KM-54 S/N GUSTAVO DIAZ ORDAZ</div>
+            <div class="addr">GUSTAVO DIAZ ORDAZ 6688650973 SAN121128TZ8</div>
+        </div>
+
+        <div class="rule-strong"></div>
+
+        <!-- Títulos en dos columnas -->
+        <table class="sol-nb">
+            <tr>
+                <td class="tt-left">SOLICITUD DE CREDITO DE MAIZ</td>
+                <td class="tt-right">CICLO OI 2024-2025</td>
+            </tr>
+        </table>
+        <div class="rule-thin"></div>
+
+        <!-- 3 columnas: Foto | Cuerpo | Fecha -->
+        <table class="sol-nb">
+            <tr valign="top">
+                <!-- Foto -->
+                <td width="250">
+                    <div class="photo">FOTO</div>
+                </td>
+
+                <!-- Cuerpo (campos del formulario) -->
+                <td style="padding: 0 22px;">
+
+                    <!-- Nombre (regla larga) -->
+                    <div class="pad-y">
+                        <span class="value w-860">MANUEL GUILLERMO IBARRA GAXIOLA</span>
+                        <span class="label">Nombre Del Productor</span>
+                    </div>
+
+                    <!-- Domicilio (regla larga) -->
+                    <div class="pad-y">
+                        <span class="value w-860">C ING. VALDEZ ROMERO S/N EL GUAYABO</span>
+                        <span class="label">Domicilio</span>
+                    </div>
+
+                    <!-- Municipio (izq) / Población (der) -->
+                    <table class="sol-nb section-spacing">
+                        <tr valign="top">
+                            <td width="50%">
+                                <span class="value w-360">AHOME</span>
+                                <span class="label" >Municipio</span>
+                            </td>
+                            <td width="50%">
+                                <span class="value w-360">HERIBERTO VALDEZ ROMERO</span>
+                                <span class="label">Poblacion</span>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Fecha Nac / Teléfono / RFC / CURP (4 columnas) -->
+                    <table class="sol-nb section-spacing-wide">
+                        <tr valign="top">
+                            <td width="25%">
+                                <span class="value w-200">27/Sep/1983</span>
+                                <span class="label">Fecha Nacimiento</span>
+                            </td>
+                            <td width="25%">
+                                <span class="value w-200">6681148454</span>
+                                <span class="label">Telefono</span>
+                            </td>
+                            <td width="20%">
+                                <span class="value w-200">IAGM830927DA4</span>
+                                <span class="label">Rfc</span>
+                            </td>
+                            <td width="20%">
+                                <span class="value w-200">IAGM830927HSLBXN02</span>
+                                <span class="label">Curp</span>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Estado civil / Régimen / Cónyuge / Superficie -->
+                    <table class="sol-nb section-spacing-extra">
+                        <tr valign="top">
+                            <td width="25%">
+                                <span class="value w-200">CASADO</span>
+                                <span class="label">Estado Civil</span>
+                            </td>
+                            <td width="25%">
+                                <span class="value w-200">SOCIEDAD CONYUGAL</span>
+                                <span class="label">Regimen Conyugal</span>
+                            </td>
+                            <td width="20%">
+                                <span class="value w-200">MARIA ESTHELA DIAZ LOPEZ</span>
+                                <span class="label">Nombre Del Conyuge</span>
+                            </td>
+                            <td width="20%">
+                                <span class="value w-200">32.16</span>
+                                <span class="label">Superficie (Has.)</span>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Tipo vivienda / Dependientes / Importe / Ingreso -->
+                    <table class="sol-nb section-spacing-extra">
+                        <tr valign="top">
+                            <td width="25%">
+                                <span class="value w-200">Propia</span>
+                                <span class="label">Tipo Vivienda</span>
+                            </td>
+                            <td width="25%">
+                                <span class="value w-200">0</span>
+                                <span class="label">Dependientes Economicos</span>
+                            </td>
+                            <td width="20%">
+                                <span class="value w-200">1,219,800.00</span>
+                                <span class="label">Importe Solicitado</span>
+                            </td>
+                            <td width="20%">
+                                <span class="value w-200">0.00</span>
+                                <span class="label">Ingreso Mensual</span>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Empresa / Puesto -->
+                    <table class="sol-nb section-spacing-wide">
+                        <tr valign="top">
+                            <td width="40%">
+                                <span class="value w-360"></span>
+                                <span class="label">Empresa Donde Labora</span>
+                            </td>
+                            <td width="40%">
+                                <span class="value w-360"></span>
+                                <span class="label">Puesto Que Desempeña</span>
+                            </td>
+                        </tr>
+                    </table>
+
+                </td>
+
+                <!-- Fecha (columna derecha) >
+                <td width="210" align="right" style="vertical-align: top;">
+                    <div style="margin-top: 36px;">
+                        <span class="value" style="width: 160px; display: inline-block;">06/Ago/2024</span>
+                        <span class="label">Fecha</span>
+                    </div>
+                </td-->
+            </tr>
+        </table>
+    </div>
+</body>
+
+
+
+
+
+
+
+
+        </t>
+      </t>
+    </template>
+
+  </data>
+</odoo>

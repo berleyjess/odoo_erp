@@ -1,0 +1,41 @@
+<odoo>
+    <record id="view_cargar_ventas_wizard_form" model="ir.ui.view">
+        <field name="name">pagos.cargarventas.wizard.form</field>
+        <field name="model">pagos.cargarventas</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <group>
+                        <field name="venta_id" required="1"/>
+                    </group>
+
+                    <group>
+                        <field name="monto" required="1"/>
+                    </group>
+
+                    <group>
+                        <field name="descripcion"/>
+                    </group>
+
+                    <group>
+                    </group>
+                    <group>
+                        <field name="pagos"/>
+                    </group>
+                    <group>
+                        <field name="saldo"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_seleccionar_venta" 
+                            string="Seleccionar" 
+                            type="object" 
+                            class="btn-primary"/>
+                    <button string="Cancelar" 
+                            class="btn-secondary" 
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

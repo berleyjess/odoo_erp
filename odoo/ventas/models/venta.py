@@ -13,10 +13,23 @@ class venta(models.Model):
     
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
     contrato = fields.Many2one('creditos.credito', string="Contrato",
-                               domain="[('cliente', '=', cliente), ('status','=','active'), ('vencimiento', '>', context_today())]" if cliente else "[('id', '=', 0)]")
+                               domain=lambda self: self._domain_contrato())
+                               #domain="[('cliente', '=', cliente), ('status','=','active'), ('vencimiento', '>', context_today())]" if cliente else "[('id', '=', 0)]")
 
     # Calcula siempre la fecha actual sin depender de otros campos
     hoy = fields.Date(compute='_compute_hoy')
+
+
+    @api.depends('cliente')
+    def _domain_contrato(self):
+        if self.cliente:
+            return [
+                ('cliente', '=', self.cliente.id),
+                ('status', '=', 'active'),
+                ('vencimiento', '>', fields.Date.context_today(self)),
+            ]
+        return [('id', '=', 0)]
+
     @api.depends()
     def _compute_hoy(self):
         for record in self:
@@ -38,7 +51,8 @@ class venta(models.Model):
 
     company_id = fields.Many2one('res.company', string='Compañía', required=True,
                                  default=lambda self: self.env.company, index=True)
-    saldo = fields.Float(string="Saldo", readonly=True, store=True)
+    saldo = fields.Float(string="Saldo", readonly=True, store=True, compute="_compute_saldo")
+    pagos = fields.Float(string="Pagos", readonly=True, store=True, compute='_add_detalles')
 
     # Empresa con default por ID
     empresa_id = fields.Many2one(
@@ -150,6 +164,11 @@ class venta(models.Model):
             rec.iva     = sum(l.iva_amount for l in rec.detalle)
             rec.ieps    = sum(l.ieps_amount for l in rec.detalle)
             rec.total   = sum(l.importe for l in rec.detalle)
+    
+    @api.depends('importe', 'pagos')
+    def _compute_saldo(self):
+        for record in self:
+            record.saldo = record.importe - record.pagos
 
     @api.constrains('detalle')
     def _check_detalle_venta(self):

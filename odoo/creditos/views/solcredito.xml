@@ -22,6 +22,7 @@
                 <field name="monto"/>
                 <field name="vencimiento"/>
                 <field name="superficie"/>
+                <field name="saldo"/>
             </list>
         </field>
     </record>
@@ -69,38 +70,64 @@
                     <!--button name="action_editar" string="Editar" type="object" class="oe_highlight" invisible="not id"/-->
 
                     <!--button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save" invisible="id"/-->
-                    <button 
-                        name="action_abrir_edocta" 
-                        string="Ver Estado de Cuenta" 
-                        type="object" 
-                        class="btn-primary" invisible="not id or not dictamen == 'confirmed'"
-                        icon = "fa-list"/>
-                    <button name="action_borrador" string="Sugerir correciones" type="object" class="btn btn-primary" icon="fa-edit" invisible="dictamen != 'check'"/>
-                    <button name="action_autorizar" string="Autorizar contrato" type="object" class="btn btn-success" icon="fa-thumbs-up" invisible="dictamen != 'check'"/>
-                    <button name="action_rechazar" string="Rechazar contrato" type="object" class="btn btn-danger" icon="fa-thumbs-down" invisible="dictamen != 'check'"/>
-                    <button name ="action_enviaracomite" string="Enviar a Comité" type="object" class="btn-primary" invisible="dictamen != 'draft' or not id"  confirm="¿Desea enviar la solicitud a comité?"/>
-                    <button name="action_desbloquear" string="Habilitar contrato" type="object" class="btn btn-primary" icon="fa-unlock" invisible="dictamen != 'confirmed' or status != 'paused'"/>
-                    <button name="action_bloquear" string="Bloquear contrato" type="object"  class="btn btn-danger" icon="fa-lock" invisible="dictamen != 'confirmed' or status != 'active'"/>
-
+                        <button 
+                            name="action_abrir_edocta" 
+                            string="Ver Estado de Cuenta" 
+                            type="object" 
+                            class="btn-primary" invisible="not id or not dictamen == 'confirmed'"
+                            icon = "fa-list"/>
+                        <button name="action_borrador" string="Sugerir correciones" type="object" class="btn btn-primary" icon="fa-edit" invisible="dictamen != 'check'"/>
+                        <button name="action_autorizar" string="Autorizar contrato" type="object" class="btn btn-success" icon="fa-thumbs-up" invisible="dictamen != 'check'"/>
+                        <button name="action_rechazar" string="Rechazar contrato" type="object" class="btn btn-danger" icon="fa-thumbs-down" invisible="dictamen != 'check'"/>
+                        <button name ="action_enviaracomite" string="Enviar a Comité" type="object" class="btn-primary" invisible="dictamen != 'draft' or not id"  confirm="¿Desea enviar la solicitud a comité?"/>
+                        <button name="action_desbloquear" string="Habilitar contrato" type="object" class="btn btn-primary" icon="fa-unlock" invisible="dictamen != 'confirmed' or status != 'paused'"/>
+                        <button name="action_bloquear" string="Bloquear contrato" type="object"  class="btn btn-danger" icon="fa-lock" invisible="dictamen != 'confirmed' or status != 'active'"/>
+                        <!--button name="%(creditos.action_report_credito)d"
+                                        string="Generar solicitud"
+                                        type="action"
+                                        class="oe_highlight"
+                                        invisible="not id or is_editing"/-->
                     <!--button name="action_edocuenta2" string="Estado de Cuenta" type="object" class="oe_highlight" invisible="not id or is_editing"/-->
                     <field name="dictamen" widget="statusbar" statusbar_visible="draft,check,confirmed,cancelled" invisible="dictamen == 'confirmed' or not id"/>
                     <field name="status" widget="statusbar" statusbar_visible="active,paused,expired,exceeded" invisible="dictamen != 'confirmed'"/>
                 </header>
+                <group>
+                <!-- contenedor que Odoo interpreta (group) -->
+                <div style="display:flex; gap:1rem; align-items:flex-start; width:100%;">
+                    <div style="flex:1; min-width:140px;">
+                        <label for="capital"/>
+                        <field name="capital" nolabel="1" style="font-weight: bold;"/>
+                    </div>
+                    <div style="flex:1; min-width:140px;">
+                        <label for="interes"/>
+                        <field name="interes" nolabel="1" style="font-weight: bold;"/>
+                    </div>
+                    <div style="flex:1; min-width:140px;">
+                        <label for="pagos"/>
+                        <field name="pagos" nolabel="1" style="font-weight: bold;"/>
+                    </div>
+                    <div style="flex:1; min-width:140px;">
+                        <label for="saldo"/>
+                        <field name="saldo" nolabel="1" style="font-weight: bold;"/>
+                    </div>
+                </div>
+                </group>
                 <sheet>
                     <group>
-                        <field name="saldoejercido"/>
-                        <field name="foliocredito" readonly="1" style="font-size: 20px; font-weight: bold" invisible="dictamen == 'draft'"/>
-                        <field name="folio" invisible = "dictamen != 'draft' and dictamen != 'check'"/>
-                        <field name="cliente"/>
-                        <field name="contrato"/>
-                        <field name="titularr" invisible="tipocredito == '2'"/>
-                        <field name="monto" widget = "monetary" invisible = "tipocredito == '2'"/>
-                        <field name="usermonto" invisible = "tipocredito != '2'" widget = "monetary"/>
-                        <field name="vencimiento" invisible = "tipocredito == '2'"/>
-                        
-                        <field name ="uservencimiento" invisible = "tipocredito != '2'"/>
-                        <field name="superficie" invisible="tipocredito != '0'" />
-                        <field name="usersuperficie" invisible="tipocredito != '1'" />
+                        <group>
+                            <field name="foliocredito" readonly="1" style="font-size: 16px; font-weight: bold" invisible="dictamen == 'draft'"/>
+                            <field name="folio" invisible = "dictamen != 'draft' and dictamen != 'check'"/>
+                            <field name="cliente"/>
+                            <field name="contrato"/>
+                            <field name="titularr" invisible="tipocredito == '2'"/>
+                            <field name="monto" widget = "monetary" invisible = "tipocredito == '2'"/>
+                            <field name="usermonto" invisible = "tipocredito != '2'" widget = "monetary"/>
+                            <field name="vencimiento" invisible = "tipocredito == '2'"/>
+                            
+                            <field name ="uservencimiento" invisible = "tipocredito != '2'"/>
+                            <field name="superficie" invisible="tipocredito != '0'" />
+                            <field name="usersuperficie" invisible="tipocredito != '1'" />
+                        </group>
                     </group>
                     <group name="datos_obligado" string="Obligado Solidario" invisible = "(titularr and cliente_estado_civil != 'casado') or tipocredito == '2'">
                         <div class="o_row" invisible="not cliente">
@@ -114,13 +141,15 @@
 
                     <!-- CORREGIDO: Agregar campo tipocredito_val oculto para que funcione la condición -->
                     <field name="tipocredito_val" invisible="1"/>
-
-                    <group name="cargos" string="Cargos" invisible = "dictamen != 'confirmed'">
+                    <notebook>
+                        <page string="Cargos" name="page_cargos" invisible = "dictamen != 'confirmed'">
                             <field name="cargos" string = " ">
                                 <list editable="bottom" delete="0">
                                     <!--field name="cargocontrato" widget="badge"
                                     options='{"text_true": "Con contrato", "text_false": "Sin contrato", "color_true": "success", "color_false": "danger"}'/-->
                                     <button name="action_eliminar_cargo" string="" type="object" class="btn-link" icon="fa-trash" invisible="cargocontrato" width="30px" confirmation="Desea eliminar este cargo?"/>
+                                    <field name="fecha"  readonly="cargocontrato"/>
+                                    <field name="folio" readonly="cargocontrato"/>
                                     <field name = "cargo" readonly="cargocontrato"/>
                                     <field name = "tipocargo" readonly="cargocontrato"/>
                                     <field name ="porcentaje" invisible = "not tipocargo in ['1', '3']"  readonly="cargocontrato"/>
@@ -128,10 +157,20 @@
                                     <field name="iva"/>
                                     <field name="ieps"/>
                                     <field name="importe"  readonly="cargocontrato"/>
-                                    <field name="fecha"  readonly="cargocontrato"/>
                                 </list>
                             </field>
-                    </group>
+                        </page>
+                        <page string="Ventas" name="page_ventas" invisible = "dictamen != 'confirmed'">
+                            <field name="ventas_ids" readonly="not cliente or not contrato">
+                                <list>
+                                    <field name="fecha"/>
+                                    <field name="codigo" readonly="1"/>
+                                    <field name="observaciones"/>
+                                    <field name="importe" widget="monetary" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                     <!-- CORREGIDO: Mostrar predios solo para tipo AVIO (tipocredito == '0') -->
                     <group name="predios" string="Predios" invisible="tipocredito_val != '0'">
                         <field name="predios" readonly="not cliente or not contrato">

@@ -1,0 +1,21 @@
+<odoo>
+    <data noupdate="1">
+
+        <record id="ir_cron_tarea_diaria_usuarios" model="ir.cron">
+            <field name="name">Actualizacion de saldos</field>
+            <field name="model_id" ref="model_creditos_credito"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_credito()</field>
+
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+
+            <field name="active">True</field>
+
+            <field name="user_id" ref="base.user_admin"/>
+
+            <field name="nextcall" eval="(DateTime.now().replace(hour=7, minute=0, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+        </record>
+
+    </data>
+</odoo>

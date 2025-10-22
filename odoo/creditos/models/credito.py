@@ -1,6 +1,7 @@
 # creditos/models/credito.py
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
+from datetime import timedelta, datetime
 import logging
 _logger = logging.getLogger(__name__)
 
@@ -27,7 +28,6 @@ class credito(models.Model):
     def _compute_ultima_autorizacion(self):
         for r in self:
             if r.autorizaciones:
-                _logger.info("*-*-*-*-*-* ULTIMA AUTORIZACION *-*-*-*-*-*")
                 r.ultimaautorizacion = fields.first(
                     r.autorizaciones.sorted('id', reverse=True)[0]
                 )
@@ -125,51 +125,11 @@ class credito(models.Model):
     cargos = fields.One2many('cargosdetail.cargodetail', 'credito_id',string = "Cargos al Crédito")
     cargoscontrato = fields.One2many('cargosdetail.cargodetail', 'contrato_id', related = 'contrato.cargos', string = "Cargos del Contrato")
 
-    #ventas_ids = fields.One2many('ventas.venta', 'contrato', string = "Ventas al crédito")
+    ventas_ids = fields.One2many('ventas.venta', 'contrato', string = "Ventas al crédito")
+    #pagos_ids = fields.One2many('pagos.pago', 'credito', string = "Pagos al crédito")
 
     bonintereses = fields.Float(string = "Bonificación de Intereses (0 - 1)", store = True, default = 0.0)
-    
-    @api.depends('bonintereses')
-    def _check_bonificacion(self):
-        for record in self:
-            if record.bonintereses < 0 or record.bonintereses > 1:
-                raise ValidationError("La bonificación de intereses debe estar entre 0 y 1.")
-    
-    @api.depends('contrato.cargos')
-    def _gen_cargosbycontrato(self):
-        self.env['cargosdetail.cargodetail'].search([
-            ('credito_id', '=', self.id),
-            ('cargocontrato', '=', True),
-            ]).unlink()
-        
-        for record in self:
-            if record.cargoscontrato:
-                for cargo in record.cargoscontrato:
-                    existing = self.env['cargosdetail.cargodetail'].search([
-                        ('credito_id', '=', record.id),
-                        ('cargo', '=', cargo.cargo.id),
-                        ('cargocontrato', '=', True),
-                    ])
-                    if not existing:
-                        self.env['cargosdetail.cargodetail'].create({
-                            'credito_id': record.id,
-                            'cargo': cargo.cargo.id,
-                            'costo': cargo.costo,
-                            'porcentaje': cargo.porcentaje,
-                            'fecha': self.ultimaautorizacion_fecha or fields.Date.today(),
-                            'cargocontrato': True,
-                        })
-                record.recalc_cargos()
-
-    def recalc_cargos(self):
-        for record in self:
-            total = sum(cargo.importe for cargo in record.cargos if cargo.credito_id.id==record.id and cargo.tipocargo in ('0','1','2'))
-            saldo = total + record.saldoporventas
-            for i in record.cargos:
-                if i.tipocargo == '3':
-                    i.total = (i.porcentaje * saldo)
-                    total = total + i.importe
-            record.saldoejercido = total + record.saldoporventas
+    primermovimiento = fields.Date(store = True, default = fields.Date.today)
 
     fechaacomite = fields.Date(string="Fecha a Comité", required = False)
 
@@ -185,36 +145,133 @@ class credito(models.Model):
         required = True, string="El cliente es responsable del crédito?", default=True, store = True
     )
 
-    saldoporventas = fields.Float(string = "", compute="_calc_saldoporventas", store=True)
-    saldoejercido  = fields.Float(string = "", compute="_saldoejercido", store=True)
+    saldoporventas = fields.Float(string = "", compute='_saldoporventas', store=True)
+    capital  = fields.Float(string = "", compute='_calc_interes', store=True)
+    saldo = fields.Float(string ="Saldo", compute='_compute_saldo', store = False)
+    interes = fields.Float(string = "Intereses", store = True, compute='_calc_interes', readonly = True)
+    pagos = fields.Float(string="Pagos", default=0.0, store=True, readonly = True)
 
-    @api.depends('ventas_ids', 'ventas_ids.state')
-    def _saldoporventas(self):
+    @api.depends('capital', 'interes')
+    def _compute_saldo(self):
         for record in self:
-            total = sum(venta.total for venta in record.ventas_ids if venta.state in ('confirmed', 'invoiced') and venta.contrato.id==record.id)
-            record.saldoporventas = total
-            record.recalc_cargos()
-    """
-    @api.depends('contrato.cargos', 'cargos', 'saldoporventas', 'saldoporventas')
-    def _saldoejercido(self):
+            record.saldo = record.capital + record.interes
+
+    @api.depends('bonintereses')
+    def _check_bonificacion(self):
+        for record in self:
+            if record.bonintereses < 0 or record.bonintereses > 1:
+                raise ValidationError("La bonificación de intereses debe estar entre 0 y 1.")
+    
+    @api.depends('contrato.cargos')
+    def _gen_cargosbycontrato(self):
+        self.env['cargosdetail.cargodetail'].search([
+            ('credito_id', '=', self.id),
+            ('cargocontrato', '=', True),
+            ]).unlink()
+        
+        for record in self:
+            if record.cargoscontrato:
+                index = 0
+                for cargo in record.cargoscontrato:
+                    index += 1
+                    existing = self.env['cargosdetail.cargodetail'].search([
+                        ('credito_id', '=', record.id),
+                        ('cargo', '=', cargo.cargo.id),
+                        ('cargocontrato', '=', True),
+                    ])
+                    if not existing:
+                        self.env['cargosdetail.cargodetail'].create({
+                            'credito_id': record.id,
+                            'cargo': cargo.cargo.id,
+                            'costo': cargo.costo,
+                            'porcentaje': cargo.porcentaje,
+                            'fecha': self.ultimaautorizacion_fecha or fields.Date.today(),
+                            'cargocontrato': True,
+                            'folio': 'CC#' + str(10000 + index)[-4:]
+                        })
+                record.recalc_cargos()
+
+    def recalc_cargos(self): #Recalcula los montos de los cargos
         for record in self:
             total = sum(cargo.importe for cargo in record.cargos if cargo.credito_id.id==record.id and cargo.tipocargo in ('0','1','2'))
             saldo = total + record.saldoporventas
             for i in record.cargos:
                 if i.tipocargo == '3':
-                    total = total + (i.porcentaje * saldo)
-            record.saldoejercido = total + record.saldoporventas
-    """
-    def _calc_saldoporventas(self):
-        for r in self:
-            if 'ventas.venta' in self.env:
-                ventas = self.env['ventas.venta'].search([('contrato', '=', r.id)])
-                r.saldoporventas = sum(venta.total for venta in ventas if venta.state in ('confirmed', 'invoiced'))
-            else:
-                r.saldoporventas = 0.0
+                    i.total = (i.porcentaje * saldo)
+                    total = total + i.importe
+            #record.capital = total + record.saldoporventas
+            record._calc_interes()
+
+    @api.depends('pagos_ids', 'pagos_ids.state')
+    def _calc_pagos(self):
+        for record in self:
+            record.pagos = sum(pago.importe for pago in record.pagos_ids if pago.credito.id==record.id and pago.state in ('posted'))
+            record._calc_interes()
+
+
+    @api.depends('ventas_ids', 'ventas_ids.state') #Agregar una venta para tomar la fecha del primer movimiento y la suma de ventas
+    def _saldoporventas(self):
+        for record in self:
+            ufecha = self.env['ventas.venta'].search([('contrato', '=', record.id)], order='fecha desc', limit=1)
+            if ufecha.fecha < record.primermovimiento:
+                record.primermovimiento = ufecha.fecha
+            total = sum(venta.total for venta in record.ventas_ids if venta.state in ('confirmed', 'invoiced') and venta.contrato.id==record.id)
+            record.saldoporventas = total
+            record.recalc_cargos()
+
+    @api.depends('cargos', 'cargoscontrato')#Agregar un cargo para tomar la fecha del primer movimiento
+    def _addCargos(self):
+        for record in self:
+            ufecha = self.env['cargosdetail.cargodetail'].search([('contrato', '=', record.id)], order='fecha desc', limit=1)
+            if ufecha.fecha < record.primermovimiento:
+                record.primermovimiento = ufecha.fecha
+    
+    def _calc_interes(self):
+        for record in self:
+            if record.tipocredito == '2':
+                record.interes = 0.0
+                continue
+            #record.recalc_cargos()
+            dia = record.primermovimiento
+            today = fields.Date.today()
+            record.interes = 0.0
+            record.capital = 0.0
+            record.pagos = 0.0
+            while dia <= today:
+                tasa = 0.18 - record.bonintereses # <--- LECTURA DE TASA DE INTERÉS MENSUAL CAPTURADA
+                capitaldia = sum(record.cargos.importe for cargo in record.cargos if cargo.credito_id.id==record.id and cargo.fecha == dia)
+                capitaldia += sum(record.cargoscontrato.importe for cargo in record.cargos if cargo.credito_id.id==record.id and cargo.fecha == dia and cargo.tipocargo in ('0','1','2'))
+                if dia == today:
+                    capitaldia += sum(record.cargoscontrato.importe for cargo in record.cargos if cargo.credito_id.id==record.id and cargo.fecha == dia and cargo.tipocargo == '3')
+                capitaldia += sum(record.ventas_ids.importe for venta in record.ventas_ids if venta.contrato.id==record.id and venta.fecha == dia and venta.state in ('confirmed', 'invoiced'))
+                #pagosdia = sum(record.pagos_ids.importe for pago in record.pagos_ids if pago.credito.id==record.id and pago.fecha == dia and pago.state in ('posted'))
+                try:
+                    pagosdia = sum(record.env['pagos.pago'].search([('credito', '=', record.id), ('fecha', '=', dia), ('status', '=', 'posted')]).mapped('monto'))
+                except Exception as a:
+                    pagosdia = 0.0
+                    _logger.info("Error al referencia Pagos.pago, madafaca!")
+                capitaldia -= pagosdia
+                interesdia = capitaldia * tasa * (1/360)
+                capitalizado = interesdia * tasa * (1/360)
+                record.interes += interesdia + capitalizado
+                record.capital = record.capital + capitaldia
+                record.pagos = record.pagos + pagosdia
+                dia = dia + timedelta(days=1)
+            if record.vencimiento > today:
+                record.status = 'expired'
+    
+    @api.model
+    def _cron_credito(self):
+        try:
+            for record in self:
+                record._calc_interes()
+            return True
+        except Exception as e:
+            _logger.error("Error en cron_credito: %s", e)
+            return False
 
     """
-    saldoejercido = fields.Float(string = "Saldo ejercito", store = False, compute = 'calc_saldosalidas')
+    capital = fields.Float(string = "Saldo ejercito", store = False, compute = 'calc_saldosalidas')
 
     @api.depends('venta_ids.total', 'venta_ids.state')
     def _compute_saldo_ejercido(self):
@@ -225,8 +282,6 @@ class credito(models.Model):
     """
     """edodecuenta = fields.One2many('cuentasxcobrar.cuentaxcobrar', 'contrato_id', string="Estado de cuenta")
     intereses = fields.Float(string = "Intereses", compute = '_calc_intereses', store = False)
-
-    descintereses = fields.Float(string = "Descuento de Intereses", store = True, default = 0.0, required = True)
 
     def _calc_intereses(self):
         interes = 0

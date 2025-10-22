@@ -7,7 +7,7 @@
     'depends': [
         'base',
         'clientes',
-        'creditos',
+        #'creditos',
         'transacciones',
         'usuarios',
         # Contabilidad + base EDI (Community)

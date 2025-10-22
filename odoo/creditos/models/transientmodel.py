@@ -5,8 +5,9 @@ class TransientEdocta(models.TransientModel):
     _name = 'transient.edocta'
     _description = 'Estado de Cuenta Transitorio'
 
-    lines = fields.One2many('tmpline', 'edocta_id', string="Líneas")
-    contrato_id = fields.Many2one('creditos.credito', string="Crédito")
+    lines = fields.One2many('tmpline', 'edocta_id', string="Líneas", readonlye = True)
+    contrato_id = fields.Many2one('creditos.credito', string="Crédito", readonly=True)
+    cliente_id = fields.Many2one('clientes.cliente', string="Cliente", related='contrato_id.cliente')
     desde = fields.Date(string='Desde', default=fields.Date.today)
     hasta = fields.Date(string='Hasta', default=fields.Date.today)
 
@@ -86,7 +87,7 @@ class TransientEdocta(models.TransientModel):
             lineas.append((0, 0, {
                 'edocta_id': self.id,
                 'fecha': linea.fecha,
-                'referencia': 'Cargo',
+                'referencia': linea.folio,
                 'concepto': linea.cargo.concepto if linea.cargo else '',
                 'cantidad': tmpcantidad,
                 'precio': tmpprecio,
@@ -98,8 +99,42 @@ class TransientEdocta(models.TransientModel):
                 'balance': balance,
             }))
 
+        pago = self.env['pagos.pago'].search([
+            ('credito', '=', self.contrato_id.id),
+            ('fecha', '>=', self.desde),
+            ('fecha', '<=', self.hasta),
+            ('status', '=', 'posted')
+        ], order='fecha asc')  # Ordenar por fecha
+
+        for linea in pago:
+            tmpcantidad =  1
+            tmpprecio = linea.monto
+
+            tmpiva = 0
+            tmpieps = 0
+
+            tmpimporte = tmpprecio
+
+            balance -= tmpimporte
+            lineas.append((0, 0, {
+                'edocta_id': self.id,
+                'fecha': linea.fecha,
+                'referencia': linea.folio,
+                'concepto': linea.observaciones,
+                'cantidad': tmpcantidad,
+                'precio': tmpprecio,
+                'iva': tmpiva,
+                'ieps': tmpieps,
+                'importe': tmpimporte,
+                'cargo': 0.0,
+                'abono': tmpimporte,
+                'balance': balance,
+            }))
+
+        #lineas_order = sorted(lineas, key=lambda l: l.fecha or fields.Date.today())
+        lineas_ordenadas = sorted(lineas, key=lambda l: l[2].get('fecha') or date.today())
         # Escribir las líneas
-        self.write({'lines': lineas})
+        self.write({'lines': lineas_ordenadas})
 
         if not self.justcalc:
             return self._show_results()
