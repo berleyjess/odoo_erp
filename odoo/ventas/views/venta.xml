@@ -1,5 +1,5 @@
 <odoo>
-
+<!-- ventas/views/venta.xml -->
     <!-- =============================
          ACCIÓN PRINCIPAL (Lista + Form Detalle)
          ============================= -->
@@ -119,7 +119,7 @@
 
                     <notebook>
                      <page string="Detalles de Venta">
-                        <field name="detalle" widget="one2many_list">
+                        <field name="detalle_venta" widget="one2many_list" context="{'default_tipo': '1'}">
                          <list editable="bottom" string="Detalles">
                             <field name="producto_id"/>
                             <field name="cantidad" sum="Cant."/>
@@ -224,7 +224,7 @@
                       </group>
                     </group>
 
-                    <field name="detalle" widget="one2many_list" readonly="1" options="{'no_create': True, 'no_edit': True, 'no_open': True, 'no_create_edit': True}">
+                    <field name="detalle_venta" widget="one2many_list" readonly="1" options="{'no_create': True, 'no_edit': True, 'no_open': True, 'no_create_edit': True}">
                         <list string="Detalles de Venta">
                             <field name="producto_id" readonly="1"/>
                                 <field name="cantidad" readonly="1" sum="Cant."/>

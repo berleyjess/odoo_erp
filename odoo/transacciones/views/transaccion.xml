@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
   <data>
-
+<!-- transacciones/views/transaccion.xml -->
     <!-- ===================== SEARCH ===================== -->
     <record id="view_transacciones_transaccion_search" model="ir.ui.view">
       <field name="name">transacciones.transaccion.search</field>

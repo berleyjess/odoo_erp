@@ -12,7 +12,12 @@
     "views/factura_views.xml",      # define la acción principal action_facturas_ui
     "views/transaccion_vista.xml", # vista de transacciones (lista y formulario)
     "views/menu.xml",               # el menú la referencia (debe ir al final)
-],
+  ],
+  "assets": {
+    "web.assets_backend": [
+      "facturacion_ui/static/facturas.scss",
+    ],
+  },
   "installable": True,
   "application": True,
 }

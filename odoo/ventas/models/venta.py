@@ -10,6 +10,12 @@ class venta(models.Model):
     _description = 'Venta de artículos'
     _check_company_auto = False  # buenas prácticas multiempresa
     _inherit = ['mail.thread', 'mail.activity.mixin']
+    _rec_name = 'codigo'
+
+    def name_get(self):
+        # Mostrar folio (codigo); si algún registro antiguo no tiene codigo, cae a id
+        return [(r.id, r.codigo or str(r.id)) for r in self]
+
 
     invoice_status2 = fields.Selection([
         ('none', 'No facturada'),
@@ -56,6 +62,14 @@ class venta(models.Model):
     activa = fields.Boolean(string="Activa", default=True)
 
     detalle = fields.One2many('transacciones.transaccion', 'venta_id', string="Venta")
+
+    # Solo conceptos de venta visibles en la vista (excluye DEV/NC/PAGO)
+    detalle_venta = fields.One2many(
+        'transacciones.transaccion', 'venta_id',
+        string="Detalle (Venta)",
+        domain=[('tipo', 'not in', ['6', '10', '11'])]
+    )
+
 
     company_id = fields.Many2one('res.company', string='Compañía', required=True,
                                  default=lambda self: self.env.company, index=True)
@@ -198,36 +212,39 @@ class venta(models.Model):
         self._apply_prices_by_method()
 
     def _apply_prices_by_method(self):
-        """Forzar precio de líneas según PUE/PPD (mantengo tu lógica)."""
+        """Forzar precio de líneas según PUE/PPD solo en líneas de venta."""
         for v in self:
             metodo = v.metododepago or 'PPD'
-            for line in v.detalle:
+            lines = v.detalle_venta
+            for line in lines:
                 if line.producto_id:
                     line.precio = line.producto_id.contado if metodo == 'PUE' else line.producto_id.credito
 
-    @api.depends('detalle.subtotal', 'detalle.iva_amount', 'detalle.ieps_amount', 'detalle.importe')
+
+    @api.depends('detalle_venta.subtotal', 'detalle_venta.iva_amount', 'detalle_venta.ieps_amount', 'detalle_venta.importe', 'detalle_venta.tipo')
     def _add_detalles(self):
         for rec in self:
-            rec.importe = sum(l.subtotal for l in rec.detalle)
-            rec.iva     = sum(l.iva_amount for l in rec.detalle)
-            rec.ieps    = sum(l.ieps_amount for l in rec.detalle)
-            rec.total   = sum(l.importe for l in rec.detalle)
-    
-    @api.depends('importe', 'pagos')
-    def _compute_saldo(self):
-        for record in self:
-            record.saldo = record.importe - record.pagos
+            # Solo líneas de venta (excluir 6,10,11)
+            lines = rec.detalle_venta
+            rec.importe = sum(l.subtotal for l in lines)
+            rec.iva     = sum(l.iva_amount for l in lines)
+            rec.ieps    = sum(l.ieps_amount for l in lines)
+            rec.total   = sum(l.importe for l in lines)
+
 
     @api.constrains('detalle')
     def _check_detalle_venta(self):
         for record in self:
-            if not record.detalle:
+            # Validar solo líneas de venta (excluir DEV/NC/PAGO)
+            lines = record.detalle_venta
+            if not lines:
                 raise ValidationError(_('No se puede guardar una venta sin al menos un producto.'))
-            for linea in record.detalle:
+            for linea in lines:
                 if linea.cantidad <= 0 or linea.precio <= 0:
                     raise ValidationError(_('La Cantidad/Precio no pueden ser 0'))
                 if not linea.producto_id:
                     raise ValidationError(_('Debe seleccionar un producto'))
+
 
     def action_open_edit(self):
         self.ensure_one()
@@ -677,16 +694,18 @@ class venta(models.Model):
 
     
     # ✅ No referenciamos campos “custom” del comodel en depends, para evitar el KeyError en el registro
-    @api.depends('detalle', 'detalle.write_date')
+    @api.depends('detalle_venta', 'detalle_venta.write_date', 'detalle_venta.tipo', 'detalle_venta.cantidad')
     def _compute_agg_status(self):
         EPS = 1e-6
         for v in self:
-            if not v.detalle:
+            # Solo líneas de venta (excluir DEV/NC/PAGO)
+            lines = v.detalle_venta
+            if not lines:
                 v.invoice_status2 = 'none'
                 continue
 
             line_states = set()
-            for tx in v.detalle:
+            for tx in lines:
                 st = getattr(tx, 'invoice_status', False)
                 if not st:
                     # Fallback por cantidades si el campo aún no está disponible en registro
@@ -712,6 +731,7 @@ class venta(models.Model):
                 v.invoice_status2 = 'none'
             else:
                 v.invoice_status2 = 'partial'
+
 
     def action_open_attachments(self):
         self.ensure_one()

@@ -2,6 +2,9 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 from datetime import date
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class Transaccion(models.Model):
     _name = 'transacciones.transaccion'
@@ -43,12 +46,17 @@ class Transaccion(models.Model):
         ('7', "Dev a Proveedor"),# Salida
         ('8', "Excedente"),      # Entrada
         ('9', "Pérdida"),        # Salida
-        ('10', "Preventa"),      # Sin efecto
+        ('10', "Nota de crédito"),      # Sin efecto
         ('11', "Complemento de pago"),  # Sin efecto
     ], default='1', store=True)
 
     # Enlace con venta (One2many en ventas.venta -> venta_id aquí)
-    venta_id = fields.Many2one('ventas.venta', string="Venta", ondelete='cascade', index=True)
+    venta_id = fields.Many2one(
+        'ventas.venta', 
+        string="Venta", 
+        ondelete='set null',  # ⚠️ Cambiado de 'restrict' a 'set null'
+        index=True
+    )
 
     @api.depends('producto_id', 'cantidad', 'precio')
     def _calc_montos(self):
