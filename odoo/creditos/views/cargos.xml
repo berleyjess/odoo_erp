@@ -1,0 +1,22 @@
+<odoo>
+    <record id="view_cargos_list" model="ir.ui.view">
+        <field name="name">cargosdetail.list</field>
+        <field name="model">cargosdetail.cargodetail</field>
+        <field name="arch" type="xml">
+            <list create="false" delete="true" decoration-warning="cargocontrato">
+                <header>
+                    <button name="action_eliminar_cargo" string="Eliminar Cargo(s)" type="object" class="btn btn-danger" icon="fa-trash" confirm="Desea eliminar este Cargo del Contrato?"/>
+                </header>
+                <field name="fecha"/>
+                <field name="folio"/>
+                <field name = "cargo"/>
+                <field name="tipocargo"/>
+                <field name ="porcentaje" invisible = "not tipocargo in ['1', '3']"/>
+                <field name="costo" invisible = "tipocargo in ['1', '3']"/>
+                <field name="iva"/>
+                <field name="ieps"/>
+                <field name="importe"/>
+            </list>
+        </field>
+    </record>
+</odoo>

@@ -10,6 +10,6 @@
         'data/cultivos.cultivo.csv'
     ],
     'installable': True,
-    'application': True,
+    'application': False,
     'auto_install': True,
 }

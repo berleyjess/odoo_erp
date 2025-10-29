@@ -3,18 +3,20 @@
     <!-- Vista Árbol -->
     <record id="view_garantia_list" model="ir.ui.view">
         <field name="name">garantia.tree</field>
-        <field name="model">garantias.garantia</field>
+        <field name="model">creditos.garantia</field>
         <field name="arch" type="xml">
             <list create="false" delete="false">
                 <!--field name="titular"/>
                 <field name="RFC"/>
                 <field name="localidad"/-->
-                <field name="status"/>
+                <field name="fecha_entrega"/>
+                <field name="folio"/>
+                <field name="status" widget="badge" decoration-success="status == 'retained'" decoration-info="status == 'released'"/>
                 <field name="credito_id" readonly="true"/>
                 <field name="descripcion"/>
                 <field name="tipo"/>
                 <field name="valor"/>
-                <field name="fecha_entrega"/>
+                <field name="currency_id" invisible="1"/>
                 <!--field name="persona_entrega"/-->
                 <!--field name="persona_recibe"/-->
             </list>
@@ -24,10 +26,13 @@
     <!-- Vista Formulario -->
     <record id="view_garantia_form" model="ir.ui.view">
         <field name="name">garantia.form</field>
-        <field name="model">garantias.garantia</field>
+        <field name="model">creditos.garantia</field>
         <field name="arch" type="xml">
             <form>
                 <group>
+                    <field name="folio" invisible="not id"/>
+                    <field name="fecha_entrega"/>
+                    <field name="status" widget="badge" decoration-success="status == 'retained'" decoration-info="status == 'released'" invisible="not id"/>
                     <field name="credito_id" readonly="true"/>
                     <!--field name="titular"/>
                     <field name="RFC"/>
@@ -35,7 +40,8 @@
                     <field name="tipo"/>
                     <field name="descripcion"/>
                     <field name="valor"/>
-                    <field name="fecha_entrega"/>
+                    <field name="fecha_liberacion"/>
+                    <field name="currency_id" invisible="1"/>
                 </group>
                 <!--group>
                     <field name="persona_entrega"/>
@@ -48,7 +54,7 @@
     <!-- Acción -->
     <record id="action_garantias" model="ir.actions.act_window">
         <field name="name">Garantias</field>
-        <field name="res_model">garantias.garantia</field>
+        <field name="res_model">creditos.garantia</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p>Registra y consulta garantías de clientes.</p>

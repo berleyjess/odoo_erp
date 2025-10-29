@@ -141,3 +141,7 @@ class Transaccion(models.Model):
     @api.onchange('venta_id')
     def _onchange_venta_id_fill_helpers(self):
         self._update_helpers_from_sale()
+
+
+    #def generate_trans(self, tipo, ref, bodega, fecha, usuario, cantidad):
+        

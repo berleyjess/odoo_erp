@@ -19,5 +19,14 @@
             <field name="number_increment">1</field>
             <field name="implementation">standard</field>
         </record>
+
+        <record id="seq_garantia_folio" model="ir.sequence">
+            <field name="name">Folios de garantías</field>
+            <field name="code">creditos.garantia</field>
+            <field name="padding">6</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="implementation">standard</field>
+        </record>
     </data>
 </odoo>

@@ -5,7 +5,7 @@
         <field name="res_model">contratos.contrato</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Crea tu primer contrato</p>
+            <p class="o_view_nocontent_smiling_face">Genera Línea de Crédito</p>
         </field>
     </record>
 
@@ -19,6 +19,7 @@
                 <field name="ciclo"/>
                 <field name="cultivo"/>
                 <field name="aporte"/>
+                <field name="currency_id"/>
             </list>
         </field>
     </record>
@@ -31,6 +32,7 @@
             <form autosave = "False" string="Generar contrato">
                 <sheet>
                     <group>
+                        <field name="currency_id" invisible="1"/>
                         <field name="tipocredito" widget="radio" options="{'horizontal': true}"/>
                         <field name="ciclo"/>
                         <field name="cultivo"
@@ -41,9 +43,10 @@
                             invisible="tipocredito == '2'"/>
                     </group>
                     <notebook>
-                        <page string="Cargos a contratos">
+                        <page string="Cargos a los contratos">
+                            <button name="action_add_cargos" string="Añadir" type="object" class="btn btn-primary" icon="fa-plus-circle"/>
                             <field name="cargos">
-                                <list editable="bottom">
+                                <list create="false" edit="false">
                                     <field name="cargo"/>
                                     <field name = "tipocargo"/>
                                     <field name="descripcion"/>
@@ -53,8 +56,9 @@
                             </field>
                         </page>
                         <page string="Límite de Insumos por Hectárea" invisible="tipocredito == '2'">
+                            <button name="action_add_limites" string="Añadir" type="object" class="btn btn-primary" icon="fa-plus-circle"/>
                             <field name="limiteinsumos">
-                                <list editable="bottom">
+                                <list create="false" edit="false">
                                     <field name="producto"/>
                                     <field name="limite"/>
                                 </list>
@@ -66,25 +70,8 @@
         </field>
     </record>
 
-    <!--record id="view_contratoscargos_form" model="ir.ui.view">
-        <field name="name">cargo.form</field>
-        <field name="model">contratos.cargo</field>
-        <field name="arch" type="xml">
-            <form autosave = "false" string="Agregar Cargo">
-                <field name = "cargo"/>
-                <field name = "tipocargo" readonly = "true"/>
-                <field name = "iva" readonly = "true"/>
-                <field name = "ieps" readonly = "true"/>
-                <field name ="porcentaje" invisible = "tipocargo != '1'"/>
-                <field name="costo" invisible = "tipocargo == '1'"/>
-            </form>
-        </field>
-    </record-->
-
-
     <!-- Menús -->
     <menuitem id="menu_root" name="contratos"/>
-    <menuitem id="menu_action" name="Lista de contratos" parent="menu_root" action="action_contratos"/>
+    <menuitem id="menu_action" name="Líneas de Crédito" parent="menu_root" action="action_contratos"/>
     <!--        <menuitem id="menu_final" name="contratos" parent="menu_action" action="action_contratos"/>-->
 </odoo>
-

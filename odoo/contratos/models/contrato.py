@@ -10,6 +10,14 @@ class contrato(models.Model):
     _description='Contratos agrícolas a clientes'
     _rec_name = 'display_name'
 
+    currency_id = fields.Many2one(
+            'res.currency', 
+            string='Moneda',
+            # Por defecto, toma la moneda de la compañía del usuario actual
+            default=lambda self: self.env.company.currency_id.id,
+            required=True
+        )
+
     tipocredito = fields.Selection(
         selection = [
             ('0', "AVIO"),
@@ -17,9 +25,9 @@ class contrato(models.Model):
             ('2', "Especial")
         ], string = "Tipo de crédito", default = "0", required = True, store = True
     )
-    ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)    
-    cultivo = fields.Many2one('cultivos.cultivo', string="Cultivo")
-    aporte = fields.Integer(string="Aporte por Hectárea")
+    ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True, store=True)    
+    cultivo = fields.Many2one('cultivos.cultivo', string="Cultivo", store = True)
+    aporte = fields.Monetary(string="Aporte por Hectárea", store=True, required = True)
     
     limiteinsumos = fields.One2many(
         'contratos.limiteinsumo_ext', 'contrato_id', string="Límites de Insumos")
@@ -61,6 +69,30 @@ class contrato(models.Model):
             record.display_name = f"{tipocredito_label} {label_ciclo} {label_cultivo}"
 
     _sql_constraints = [
-        ('unique_display_name', 'unique(display_name)', 'Ya existe un Contrato con el mismo <<Tipo de Crédito>> y el mismo <<Ciclo>>.')
+        ('unique_display_name', 'unique(display_name)', 'Ya existe una Línea de Crédito con el mismo <<Tipo de Crédito>> y el mismo <<Ciclo>>.')
     ]
 
+    def action_add_cargos(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Añadir Cargos',
+            'res_model': 'cargosdetail.cargodetail',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_contrato_id': self.id
+            }
+        }
+    
+    
+    def action_add_limites(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Añadir Límite de Insumos',
+            'res_model': 'limiteinsumos.limiteinsumo',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_contrato_id': self.id
+            }
+        }

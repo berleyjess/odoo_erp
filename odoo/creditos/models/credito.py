@@ -8,119 +8,36 @@ _logger = logging.getLogger(__name__)
 class credito(models.Model):
     _name = 'creditos.credito'
     _description = 'Asignacion de contratos a clientes'
-    _rec_name = 'contrato'
-
-###########################################################################
-##                      Dictámentes de Autorización
-###########################################################################
-
-    #Referencia a todas las autorizaciones relacionadas con esta solicitud
-    autorizaciones = fields.One2many(
-        'creditos.autorizacion',
-        'credito_id',
-        string='Autorizaciones',
-    )
-
-    #Apunta a la última autorización aprobada
-    ultimaautorizacion = fields.Many2one('creditos.autorizacion', string = "Autorizado", compute='_compute_ultima_autorizacion', store=True)
-
-    @api.depends('autorizaciones')
-    def _compute_ultima_autorizacion(self):
-        for r in self:
-            if r.autorizaciones:
-                r.ultimaautorizacion = fields.first(
-                    r.autorizaciones.sorted('id', reverse=True)[0]
-                )
-            else:
-                # Si no hay autorizaciones, establecer como False o None
-                r.ultimaautorizacion = False
-            
-            if r.ultimaautorizacion:
-                if r.ultimaautorizacion_status == '1':
-                    serie = "A"
-                    if r.tipocredito == '1':
-                        serie = "P"
-                    else:
-                        serie = "E"
-
-                    nextCode = self.env['ir.sequence'].next_by_code('creditos.folioaut') or '000000'
-                    r.dictamen = 'confirmed'
-                    r.foliocredito= serie + nextCode
-                elif r.ultimaautorizacion_status == '0':
-                    r.dictamen = 'draft'
-                elif r.ultimaautorizacion_status == '2':
-                    r.dictamen = 'cancelled'
-                else:
-                    r.dictamen = 'draft'
-
-    ultimaautorizacion_fecha = fields.Date(string = "Fecha", related = 'ultimaautorizacion.fecha', readonly = True, stored = True)
-    ultimaautorizacion_descripcion = fields.Char(string = "Descripción", related = 'ultimaautorizacion.descripcion', readonly = True, stored = True)
-    ultimaautorizacion_status = fields.Selection(string = "Status", related = 'ultimaautorizacion.status', readonly = True, stored = True)
-
+    _rec_name = 'label'
     
+    currency_id = fields.Many2one(
+        'res.currency', 
+        string='Moneda',
+        # Por defecto, toma la moneda de la compañía del usuario actual
+        default=lambda self: self.env.company.currency_id.id,
+        required=True
+    )
+    
+    #Nomás para el _rec_name
+    label = fields.Char(string="Etiqueta", compute='_generate_label', store=True, default="Nuevo")
+
+    cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)  
+    contrato = fields.Many2one('contratos.contrato', string="Linea de crédito", required=True)  
+
     dictamen = fields.Selection(
         selection = [
             ('draft', 'Borrador'),
             ('check', 'En Comité'),
             ('confirmed', 'Aprobado'),
-            ('cancelled', 'Rechazado')
-        ], default='draft', string = "Estatus", compute='_compute_ultima_autorizacion', store = True)
+            ('discard', 'Rechazado'),
+            ('bloked', 'Bloqueado')
+        ], default='draft', string = "Estatus", compute='_nuevosuceso', store = True)
     
-###########################################################################
-##                      Cambio de Estatus
-###########################################################################
+    entrys = fields.One2many('creditos.entry', 'contrato_id', "Registro de sucesos")
 
-    #Referencia a todas las autorizaciones relacionadas con esta solicitud
-    activaciones = fields.One2many(
-        'creditos.activacion',
-        'credito_id',
-        string='Activaciones',
-        help='Activaciones relacionadas con esta solicitud de crédito.'
-    )
-
-    #Apunta a la última autorización aprobada
-    ultimaactivacion = fields.Many2one('creditos.activacion', string = "Autorizado", compute='_compute_ultima_activacion', store = True)
-    ultimaactivacion_fecha = fields.Date(string = "Fecha", related = 'ultimaactivacion.fecha', readonly = True, store = True)
-    ultimaactivacion_descripcion = fields.Char(string = "Detalle", related = 'ultimaactivacion.descripcion', readonly = True, store = True)
-    ultimaactivacion_status = fields.Selection(string = "Status", related = 'ultimaactivacion.status', readonly = True, store = True)
-
-    status = fields.Selection(
-        selection = [
-            ('active', 'Activo'),
-            ('paused', 'Pausado'),
-            ('expired', 'Vencido'),
-            ('exceeded', 'Excedido')
-        ], default='active', string = "Estatus", compute='_compute_ultima_activacion', store = True)
-    
-    @api.depends('activaciones')
-    def _compute_ultima_activacion(self):
-        for r in self:
-            if r.activaciones:
-                r.ultimaactivacion = fields.first(
-                    r.activaciones.sorted('id', reverse=True)[0]
-                )
-            else:
-                # Si no hay autorizaciones, establecer como False o None
-                r.ultimaactivacion = False
-
-            if r.ultimaactivacion:
-                if r.ultimaactivacion_status == '0' or r.dictamen != 'confirmed':
-                    r.status = 'paused'
-                elif r.ultimaactivacion_status == '1':
-                    r.status = 'active'
-                elif r.ultimaactivacion_status == "2":
-                    r.status = 'expired'
-                else:
-                    r.status = 'active'
-
-###########################################################################
-##                      Otros Campos
-###########################################################################
-    cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
     cliente_estado_civil = fields.Selection(related='cliente.estado_civil', string="Estado Civil", readonly=True)
     cliente_conyugue = fields.Char(related='cliente.conyugue', string="Cónyuge", readonly=True)
     #ciclo = fields.Many2one('ciclos.ciclo', string="Ciclo", required=True)
-    contrato = fields.Many2one('contratos.contrato', string="Tipo de contrato", required=True)
 
     cargos = fields.One2many('cargosdetail.cargodetail', 'credito_id',string = "Cargos al Crédito")
     cargoscontrato = fields.One2many('cargosdetail.cargodetail', 'contrato_id', related = 'contrato.cargos', string = "Cargos del Contrato")
@@ -130,8 +47,6 @@ class credito(models.Model):
 
     bonintereses = fields.Float(string = "Bonificación de Intereses (0 - 1)", store = True, default = 0.0)
     primermovimiento = fields.Date(store = True, default = fields.Date.today)
-
-    fechaacomite = fields.Date(string="Fecha a Comité", required = False)
 
     tipocredito = fields.Selection(
         selection = [
@@ -145,11 +60,67 @@ class credito(models.Model):
         required = True, string="El cliente es responsable del crédito?", default=True, store = True
     )
 
-    saldoporventas = fields.Float(string = "", compute='_saldoporventas', store=True)
-    capital  = fields.Float(string = "", compute='_calc_interes', store=True)
-    saldo = fields.Float(string ="Saldo", compute='_compute_saldo', store = False)
-    interes = fields.Float(string = "Intereses", store = True, compute='_calc_interes', readonly = True)
-    pagos = fields.Float(string="Pagos", default=0.0, store=True, readonly = True)
+    saldoporventas = fields.Monetary(string = "", compute='_saldoporventas', store=True)
+    capital  = fields.Monetary(string = "", compute='_calc_interes', store=True)
+    saldo = fields.Monetary(string ="Saldo", compute='_compute_saldo', store = False)
+    interes = fields.Monetary(string = "Intereses", store = True, compute='_calc_interes', readonly = True)
+    pagos = fields.Monetary(string="Pagos", default=0.0, store=True, readonly = True)
+    monto = fields.Monetary(string="Financiamiento", digits=(12, 4), store = True, readonly = True, compute = '_calc_monto')
+
+    predios = fields.One2many('creditos.predio', 'credito_id', string = "Predios")
+    garantias = fields.One2many('creditos.garantia', 'credito_id', string = "Garantías")
+    
+    # Datos variables dependiendo del tipo de crédito
+    vencimiento = fields.Date(string="Fecha de vencimiento del crédito",  default=fields.Date.today, store = True, readonly = True, compute = '_calc_vencimiento')
+    superficie = fields.Float(string="Superficie Habilitada", digits=(12, 4), compute="_compute_superficie", store=True, readonly=True)
+
+    usermonto = fields.Monetary(string = "Financiamiento", default = 0.0, store = True)
+    uservencimiento = fields.Date(string="Fecha de vencimiento del crédito", required=True, default=fields.Date.today, store = False)
+    usersuperficie = fields.Float(string="Superficie Habilitada", digits=(12, 4), store=True)
+
+    obligado = fields.Char(string="Nombre", size=100)
+    obligadodomicilio = fields.Many2one('localidades.localidad', string="Domicilio")
+    obligadoRFC = fields.Char(string = "RFC")
+
+    # Campo computed para validación de garantías
+    total_garantias = fields.Monetary(string="Monto de Garantías", compute="_compute_total_garantias", store=False, readonly=True)
+    
+    folio = fields.Char(
+        string="Solicitud",
+        required=True,
+        readonly=True,
+        copy=False,
+        default=lambda self: _('Nuevo'),
+        #help="Código único autogenerado con formato COD-000001"
+    )
+
+    foliocredito = fields.Char(string="Contrato", readonly=True, store = True)
+
+    @api.depends('entrys')
+    def _nuevosuceso(self):
+        for r in self:
+            if r.entrys:
+                ultimaentrada = fields.first(
+                    r.entrys.sorted('id', reverse=True)[0]
+                )
+                if ultimaentrada.tipo == 'confirmed' or ultimaentrada.tipo == 'open':
+                    r.dictamen = 'confirmed'
+                elif ultimaentrada.tipo == 'discard':
+                    r.dictamen = 'discard'
+                elif ultimaentrada.tipo == 'bloked':
+                    r.dictamen = 'blocked'
+                elif ultimaentrada.tipo == 'draft':
+                    r.dictamen = 'draft'
+                elif ultimaentrada.tipo == 'check':
+                    r.dictamen = 'check'
+
+    @api.depends('cliente', 'contrato', 'folio')
+    def _generate_label(self):
+        for record in self:
+            if record.dictamen != 'confirmed':
+                record.label = f"{record.folio}/{record.cliente.nombre}"
+            else:
+                record.label = f"{record.foliocredito}/{record.cliente.nombre}"
 
     @api.depends('capital', 'interes')
     def _compute_saldo(self):
@@ -213,8 +184,9 @@ class credito(models.Model):
     def _saldoporventas(self):
         for record in self:
             ufecha = self.env['ventas.venta'].search([('contrato', '=', record.id)], order='fecha desc', limit=1)
-            if ufecha.fecha < record.primermovimiento:
-                record.primermovimiento = ufecha.fecha
+            if ufecha and ufecha.fecha and record.primermovimiento:
+                if ufecha.fecha < record.primermovimiento:
+                    record.primermovimiento = ufecha.fecha
             total = sum(venta.total for venta in record.ventas_ids if venta.state in ('confirmed', 'invoiced') and venta.contrato.id==record.id)
             record.saldoporventas = total
             record.recalc_cargos()
@@ -223,8 +195,9 @@ class credito(models.Model):
     def _addCargos(self):
         for record in self:
             ufecha = self.env['cargosdetail.cargodetail'].search([('contrato', '=', record.id)], order='fecha desc', limit=1)
-            if ufecha.fecha < record.primermovimiento:
-                record.primermovimiento = ufecha.fecha
+            if ufecha and ufecha.fecha and record.primermovimiento:
+                if ufecha.fecha < record.primermovimiento:
+                    record.primermovimiento = ufecha.fecha
     
     def _calc_interes(self):
         for record in self:
@@ -257,8 +230,8 @@ class credito(models.Model):
                 record.capital = record.capital + capitaldia
                 record.pagos = record.pagos + pagosdia
                 dia = dia + timedelta(days=1)
-            if record.vencimiento > today:
-                record.status = 'expired'
+            #if record.vencimiento > today:
+            #    record.status = 'expired'
     
     @api.model
     def _cron_credito(self):
@@ -270,52 +243,6 @@ class credito(models.Model):
             _logger.error("Error en cron_credito: %s", e)
             return False
 
-    """
-    capital = fields.Float(string = "Saldo ejercito", store = False, compute = 'calc_saldosalidas')
-
-    @api.depends('venta_ids.total', 'venta_ids.state')
-    def _compute_saldo_ejercido(self):
-        for record in self:
-            # Suma el total de todas las ventas confirmadas ligadas a este crédito
-            total = sum(venta.total for venta in record.venta_ids if venta.state in ('confirmed', 'invoiced'))
-            record.saldo_ejercido = total
-    """
-    """edodecuenta = fields.One2many('cuentasxcobrar.cuentaxcobrar', 'contrato_id', string="Estado de cuenta")
-    intereses = fields.Float(string = "Intereses", compute = '_calc_intereses', store = False)
-
-    def _calc_intereses(self):
-        interes = 0
-        tot_interes = 0
-        lastdate = False
-        capital = 0
-        tasa = 0
-        saldo = 0
-        for cta in self.edodecuenta:
-            if lastdate != False and lastdate != cta.fecha:
-                interes = capital * (1 / 360) * tasa
-                tot_interes += interes
-            lastdate = cta.fecha
-            periodo = self._periodo(cta.fecha)
-            tasa = self.obtener_tasa(periodo)
-            saldo = cta.saldo
-            capital += saldo + interes
-        interes = capital * (1 / 360) * tasa
-        tot_interes += interes
-        capital += saldo + interes
-
-        self.intereses = tot_interes
-    
-    def obtener_tasa(self, periodo):
-        tasa = self.env['tasaintereses'].search([
-            ('periodo', '==', periodo),
-        ], order='fecha DESC', limit=1)
-        return tasa.tasa if tasa else 0.0
-
-    @staticmethod
-    def _periodo(fecha_date):
-        return f"{fecha_date.month:02d}{str(fecha_date.year)[-2:]}"
-    """
-
     FIELDS_TO_UPPER = ['obligado', 'obligadoRFC']
 
     @staticmethod
@@ -324,43 +251,6 @@ class credito(models.Model):
             if fname in vals and isinstance(vals[fname], str):
                 vals[fname] = vals[fname].upper()
         return vals
-
-    tipocredito_val = fields.Char(compute="_compute_tipocredito_val", store=False)
-
-    @api.depends('contrato')
-    def _compute_tipocredito_val(self):
-        for rec in self:
-            rec.tipocredito_val = rec.contrato.tipocredito or ''
-
-    predios = fields.One2many('creditos.predio_ext', 'credito_id', string = "Predios")
-    garantias = fields.One2many('creditos.garantia_ext', 'credito_id', string = "Garantías")
-    
-    # Datos variables dependiendo del tipo de crédito
-    monto = fields.Float(string="Monto solicitado", digits=(12, 4), store = True, readonly = True, compute = '_calc_monto')
-    vencimiento = fields.Date(string="Fecha de vencimiento",  default=fields.Date.today, store = True, readonly = True, compute = '_calc_vencimiento')
-    superficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), compute="_compute_superficie", store=True, readonly=True)
-
-    usermonto = fields.Float(string = "Monto Solicitado", default = 0.0, store = True)
-    uservencimiento = fields.Date(string="Fecha de vencimiento", required=True, default=fields.Date.today, store = False)
-    usersuperficie = fields.Float(string="Superficie (Hectáreas)", digits=(12, 4), store=True)
-
-    obligado = fields.Char(string="Nombre", size=100)
-    obligadodomicilio = fields.Many2one('localidades.localidad', string="Domicilio")
-    obligadoRFC = fields.Char(string = "RFC")
-
-    # Campo computed para validación de garantías
-    total_garantias = fields.Float(string="Total Garantías", compute="_compute_total_garantias", store=False)
-    
-    folio = fields.Char(
-        string="Solicitud",
-        required=True,
-        readonly=True,
-        copy=False,
-        default=lambda self: _('Nuevo'),
-        #help="Código único autogenerado con formato COD-000001"
-    )
-
-    foliocredito = fields.Char(string="Contrato", readonly=True, store = True)
 
     @api.model
     def create(self, vals):
@@ -380,34 +270,9 @@ class credito(models.Model):
                 contrato = self.env['contratos.contrato'].browse(vals['contrato'])
                 if hasattr(contrato, 'ciclo') and contrato.ciclo and contrato.ciclo.ffinal:
                     vals['vencimiento'] = contrato.ciclo.ffinal        
-        """
-        # Manejo de monto
-        if vals.get('contrato') and not vals.get('monto'):
-            contrato = self.env['contratos.contrato'].browse(vals['contrato'])
-            if contrato.tipocredito != '2' and contrato.aporte and vals.get('superficie'):
-                vals['monto'] = contrato.aporte * vals['superficie']
-            elif contrato.tipocredito=='2':
-                vals['monto'] = vals['usermonto']
-            elif not vals.get('monto'):
-                vals['monto'] = 0.0
-        """
         # --- FORZAR MAYÚSCULAS ---
         vals = self._fields_to_upper(vals, self.FIELDS_TO_UPPER)
         return super(credito, self).create(vals)
-
-    """@api.onchange('contrato', 'superficie')
-    def _onchange_monto(self):
-        if self.contrato:
-            if self.contrato.tipocredito != '2':  # Especial
-                # Para crédito especial, se mantiene el monto manual
-                if not self.monto:
-                    self.monto = 0.0
-            elif self.contrato.aporte and self.superficie:  # AVIO o Parcial
-                # Para AVIO y Parcial, se calcula automáticamente
-                self.monto = self.contrato.aporte * self.superficie
-            else:
-                self.monto = 0.0
-    """
 
     @api.depends('garantias.valor')
     def _compute_total_garantias(self):
@@ -423,16 +288,7 @@ class credito(models.Model):
             if (self.cliente.estado_civil in ['casado', 'union_libre'] and 
                 self.cliente.conyugue):
                 self.obligado = self.cliente.conyugue
-            #else:
-                # Si no está casado o no tiene cónyuge, usa el nombre del cliente
-            #    self.obligado = self.cliente.nombre  # CORREGIDO: era self.cliente.conyugue
-            
-            # Auto-rellena otros campos del cliente si existen
-            #if hasattr(self.cliente, 'domicilio') and self.cliente.domicilio:
-            #    self.obligadodomicilio = self.cliente.domicilio
-            #if hasattr(self.cliente, 'rfc') and self.cliente.rfc:
-            #    self.obligadoRFC = self.cliente.rfc
-
+           
     @api.onchange('titularr', 'cliente')
     def _onchange_titularr(self):
         """Auto-rellena los datos del obligado solidario cuando el cliente es responsable"""
@@ -451,24 +307,7 @@ class credito(models.Model):
             else:
                 self.obligado = ''  # Limpia el campo para llenado manual
                 self.obligadoRFC = ''  # Limpia el RFC para llenado manual
-    """
-    @api.depends('predios', 'contrato', 'usersuperficie')
-    def _depends_predios_superficie(self):
-        _logger.info(f"*/*/*/*/*/ CAMBIANDO LA SUPERFICIE */*/*/*/*/")
-        self.tipocredito = self.contrato.tipocredito if self.contrato else False
-        # Si es tipo 1 permite edición manual
-        
-        if self.contrato and self.contrato.tipocredito == "1":
-            return  # No actualiza automáticamente, el usuario puede escribir el valor
-        
-        # En cualquier otro tipo, actualiza automáticamente
-        total_superficie = sum(predio.superficiecultivable or 0.0 for predio in self.predios)
-        if self.tipocredito == '0':
-            self.superficie = total_superficie
-        elif self.tipocredito == '1':
-            self.superficie = self.usersuperficie
-            _logger.info(f"*/*/*/*/*/ CAMBIANDO LA SUPERFICIE tipocredito={self.tipocredito}, superficie={self.superficie}, usersuperficie={self.usersuperficie} */*/*/*/*/")
-    """
+   
     @api.depends('predios', 'contrato', 'superficie', 'usermonto')
     def _calc_monto(self):
         for r in self:
@@ -499,9 +338,8 @@ class credito(models.Model):
             elif self.ciclo.ffinal:#elif self.ciclo and self.ciclo.ffinal:
                 self.vencimiento = self.ciclo.ffinal
 
-    @api.constrains('cliente', 'contrato')
+    """@api.constrains('cliente', 'contrato')
     def _check_cliente_contrato_unico(self):
-        """Validación: Un cliente no puede tener el mismo contrato"""
         for record in self:
             if self.tipocredito == '2':
                 self.titularr = True
@@ -525,11 +363,10 @@ class credito(models.Model):
                     raise ValidationError(
                         f"El cliente {record.cliente.nombre} ya tiene asignado el contrato {contrato_name}. "
                         "Un cliente no puede tener el mismo contrato más de una vez."
-                    )
+                    )"""
 
-    @api.constrains('garantias', 'usermonto', 'contrato')
+    """@api.constrains('garantias', 'usermonto', 'contrato')
     def _check_garantias_monto(self):
-        """Validación: El total de garantías debe ser igual o mayor al monto del crédito"""
         for record in self:
             # CORREGIDO: Solo validar si el contrato requiere garantías (tipo AVIO - tipocredito == '0')
             if record.contrato and record.contrato.tipocredito == '0' and record.monto > 0:
@@ -538,10 +375,10 @@ class credito(models.Model):
                     raise ValidationError(
                         f"El valor total de las garantías (${total_garantias:,.2f}) debe ser igual o mayor "
                         f"al monto del crédito (${record.monto:,.2f}).\n"
-                        f"Faltan ${record.monto - total_garantias:,.2f} en garantías."
-                    )
+                        f"Faltan ${record.monto - total_garantias:,.2f} en garantías.
+                    )"""
                 
-    @api.constrains('superficie', 'contrato', 'predios')
+    """@api.constrains('superficie', 'contrato', 'predios')
     def _check_superficie_required(self):
         for record in self:
             if record.contrato:
@@ -553,13 +390,13 @@ class credito(models.Model):
                     # Se espera que sea suma de predios
                     total = sum(p.superficiecultivable or 0.0 for p in record.predios)
                     if not total or total <= 0:
-                        raise ValidationError("Debes agregar al menos un predio con superficie cultivable mayor a 0.")
+                        raise ValidationError("Debes agregar al menos un predio con superficie cultivable mayor a 0.")"""
                     
-    @api.constrains('titularr')
+    """@api.constrains('titularr')
     def _check_titular(self):
         for record in self:
             if not record.titularr and record.tipocredito != '2':
-                raise ValidationError("El campo Titular es obligatorio para el predio.")
+                raise ValidationError("El campo Titular es obligatorio para el predio.")"""
 
     @api.depends('predios.superficiecultivable', 'contrato', 'usersuperficie')
     def _compute_superficie(self):
@@ -571,116 +408,136 @@ class credito(models.Model):
                 record.superficie = record.usersuperficie
                 _logger.info(f"*/*/*/*/*/ CAMBIANDO LA SUPERFICIE tipocredito={record.tipocredito}, superficie={record.superficie}, usersuperficie={record.usersuperficie} */*/*/*/*/")
     
-    #BOTONES "Editar", "Guardar y Volver" y "Cancelar y volver a la lista"
-
-    def action_cambiar_a_habilitado(self):
-        for rec in self:
-            if rec.creditoestatu_id:
-                rec.creditoestatu_id.action_habilitar()
-        return {'type': 'ir.actions.client', 'tag': 'reload'}
-
-    def action_cambiar_a_deshabilitado(self):
-        for rec in self:
-            if rec.creditoestatu_id:
-                rec.creditoestatu_id.action_deshabilitar()
-        return {'type': 'ir.actions.client', 'tag': 'reload'}
-    
-    def action_enviaracomite(self):
-        self.ensure_one()
-        self.fechaacomite = fields.Date.today()
-        self.dictamen = 'check'
-
-    def action_borrador(self):
+    def action_entry_bloked(self):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'res_model': 'creditos.autorizacion',
+            'res_model': 'creditos.entry',
             'view_mode': 'form',
             'target': 'new',
-            'name': 'Solicitar correcciones',
+            'name': 'Bloquear contrato',
             'context': {
-                'default_credito_id': self.id,
-                'default_status': '0',
-            }
+                'default_contrato_id': self.id,
+                'default_tipo': 'bloked',
+            } 
         }
     
-    def action_autorizar(self):
+    def action_entry_open(self):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'res_model': 'creditos.autorizacion',
+            'res_model': 'creditos.entry',
             'view_mode': 'form',
             'target': 'new',
-            'name': 'Autorizar solicitud de crédito',
+            'name': 'Habilitar contrato',
             'context': {
-                'default_credito_id': self.id,
-                'default_status': '1',
-            }
+                'default_contrato_id': self.id,
+                'default_tipo': 'open',
+            } 
         }
     
-    def action_rechazar(self):
+    def action_entry_check(self):
         self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'creditos.autorizacion',
-            'view_mode': 'form',
-            'target': 'new',
-            'name': 'Rechazar solicitud de crédito',
-            'context': {
-                'default_credito_id': self.id,
-                'default_status': '2',
-            }
-        }
-
-    """    # Lógica para enviar la solicitud al comité
-    def action_autorizacion(self):
-        self.ensure_one()
+        if self.monto <= 0:
+            raise ValidationError("Debe incluir el <<Financiamiento>> solicitado antes de enviarlo a comité.")
+        if self.superficie <= 0:
+            raise ValidationError("En contrato debe especificar la <<Superficie>> que el cliente intenta habilitar.")
         
         return {
             'type': 'ir.actions.act_window',
-            'res_model': 'creditos.autorizacion',
+            'res_model': 'creditos.entry',
             'view_mode': 'form',
             'target': 'new',
-            'name': 'Autorización de Contrato',
+            'name': 'Enviar a comité',
             'context': {
-                'default_credito_id': self.id
-            }
-            
+                'default_contrato_id': self.id,
+                'default_tipo': 'check',
+            } 
         }
-    """
+    
+    def action_entry_draft(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'creditos.entry',
+            'view_mode': 'form',
+            'target': 'new',
+            'name': 'Sugerir correcciones',
+            'context': {
+                'default_contrato_id': self.id,
+                'default_tipo': 'draft',
+            } 
+        }
+    
+    def action_entry_tech(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'creditos.entry',
+            'view_mode': 'form',
+            'target': 'new',
+            'name': 'Dictamen técnico',
+            'context': {
+                'default_contrato_id': self.id,
+                'default_tipo': 'tech',
+            } 
+        }
+    
+    def action_entry_confirmed(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'creditos.entry',
+            'view_mode': 'form',
+            'target': 'new',
+            'name': 'Autorizar contrato',
+            'context': {
+                'default_contrato_id': self.id,
+                'default_tipo': 'confirmed',
+            } 
+        }
+    
+    def action_entry_discard(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'creditos.entry',
+            'view_mode': 'form',
+            'target': 'new',
+            'name': 'Rechazar contrato',
+            'context': {
+                'default_contrato_id': self.id,
+                'default_tipo': 'discard',
+            } 
+        }
 
-    def action_desbloquear(self):
-        self.ensure_one()
-        
+    #VER CARGOS RELACIONADAS
+    def action_abrir_cargos(self):
         return {
             'type': 'ir.actions.act_window',
-            'res_model': 'creditos.activacion',
-            'view_mode': 'form',
+            'name': 'Cargos relacionados',
+            'res_model': 'cargosdetail.cargodetail',
+            'view_mode': 'list',
             'target': 'new',
-            'name': 'Desbloquear crédito',
             'context': {
                 'default_credito_id': self.id,
-                'default_status': '1',
             }
-            
         }
     
-    def action_bloquear(self):
-        self.ensure_one()
-        
+    #VER VENTAS RELACIONADAS
+    def action_abrir_ventas(self):
         return {
             'type': 'ir.actions.act_window',
-            'res_model': 'creditos.activacion',
-            'view_mode': 'form',
+            'name': 'Ventas relacionadas',
+            'res_model': 'ventas.venta',
+            'view_mode': 'list',
             'target': 'new',
-            'name': 'Bloquear crédito',
             'context': {
-                'default_credito_id': self.id,
-                'default_status': '0',
+                'default_contrato': self.id,
             }
-            
         }
     
+    #CARGAR ESTADO DE CUENTA
     def action_abrir_edocta(self):
         return {
             'type': 'ir.actions.act_window',
@@ -695,18 +552,82 @@ class credito(models.Model):
                 'default_hasta': fields.Date.today(),
             }
         }
+    
+    #CARGAR GARANTÍAS
+    def action_abrir_garantias(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Garantías',
+            'res_model': 'creditos.garantia',
+            'view_mode': 'list',
+            'target': 'new',
+            'context': {}
+        }
+    
+        
+    """#CARGAR PREDIOS
+    def action_abrir_predios(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Predios',
+            'res_model': 'creditos.predio',
+            'view_mode': 'list',
+            'target': 'new',
+            'context': {
+                'default_status': 'unlinked'
+            }
+        }"""
+    
+    
+    #CARGAR REGISTRO DE EVENTOS
+    def action_abrir_registro(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Registro de sucesos',
+            'res_model': 'creditos.entry',
+            'view_mode': 'list',
+            'target': 'new',
+            'context': {
+                'default_contrato_id': self.id
+            }
+        }
+    
+    def action_add_garantias(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Añadir Garantías',
+            'res_model': 'creditos.garantia',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_credito_id': self.id
+            }
+        }
+    
+
+    def action_add_predios(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Añadir Predios',
+            'res_model': 'creditos.predio',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_credito_id': self.id
+            }
+        }
 
     #def cargar_saldos(self):
 
     #MONTO NUNCA DEBE SER <= 0
-    _sql_constraints = [
+    """_sql_constraints = [
         ('check_monto_positive', 'CHECK(monto > 0)', 'El monto solicitado no puede ser $0.'),
-    ]
+    ]"""
 
     #OBLIGADO SOLIDARIO ES REQUERIDO SI TIPOCREDITO != 2 Y SI NO ES EL TITULAR DEL CREDITO
-    @api.constrains('obligado', 'obligadorfc', 'obligadodomicilio')
+    """@api.constrains('obligado', 'obligadorfc', 'obligadodomicilio')
     def _check_obligado_solidario(self):
         for rec in self:
             if rec.tipocredito != '2' and (not rec.titularr or rec.cliente_estado_civil == 'casado'):
                 if not rec.obligado or not rec.obligadorfc or not rec.obligadodomicilio:
-                    raise ValidationError(_('Debe ingresar los datos completos del obligado solidario del crédito.'))
+                    raise ValidationError(_('Debe ingresar los datos completos del obligado solidario del crédito.'))"""

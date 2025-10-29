@@ -1,5 +1,6 @@
 #cargosdetail/models/cargodetail.py
 from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 class cargodetail(models.Model):
     _name = 'cargosdetail.cargodetail'
@@ -32,6 +33,9 @@ class cargodetail(models.Model):
     
     def action_eliminar_cargo(self):
         for rec in self:
+            if self.cargocontrato:
+                raise ValidationError("Error de Eliminación: Este cargo está asociado a la Linea de crédito y no al Contrato y no puede ser eliminado desde aquí.")
+
             cargos_a_eliminar = rec.filtered(lambda c: not c.cargocontrato)
             if cargos_a_eliminar:
                 cargos_a_eliminar.unlink()

@@ -11,55 +11,60 @@
     </record>
 
     <!-- Vista árbol -->
-    <record id="view_credito_list" model="ir.ui.view">
+    <record id="view_solicitudes_list" model="ir.ui.view">
         <field name="name">asignacion.list</field>
         <field name="model">creditos.credito</field>
         <field name="arch" type="xml">
             <list>
+                <field name="dictamen" widget="badge" decoration-success="dictamen == 'confirmed'" decoration-danger="dictamen == 'discard'"
+                    decoration-warning="dictamen == 'blocked'" decoration-muted="dictamen == 'tech' or dictamen == 'draft'" decoration-info="dictamen == 'check'"/>
                 <field name="folio" readonly="1"/>
                 <field name="cliente"/>
                 <field name="contrato"/>
                 <field name="monto"/>
-                <field name="vencimiento"/>
                 <field name="superficie"/>
                 <field name="saldo"/>
+                <field name="currency_id" invisible="1"/>
             </list>
         </field>
     </record>
 
-
-    <!--record id="view_temp_statement_simulation_form" model="ir.ui.view">
-        <field name="name">temp.statement.simulation.form</field>
-        <field name="model">edocta</field>
-        <field name="arch" type="xml">
-            <form>
-                <sheet>
-                    <group>
-                        <field name="contrato_id"/>
-                    </group>
-                                        
-                    <notebook>
-                        <page string="Resultados">
-                            <field name="lines">
-                                <list>
-                                    <field name="fecha"/>
-                                    <field name="concepto"/>
-                                    <field name="cantidad"/>
-                                    <field name="precio"/>
-                                    <field name="iva"/>
-                                    <field name="ieps"/>
-                                    <field name="importe"/>
-                                    <field name="cargo"/>
-                                    <field name="abono"/>
-                                    <field name="saldo"/>
-                                </list>
-                            </field>
-                        </page>
-                    </notebook>
-                </sheet>
-            </form>
+    <record id="action_creditos_draft" model="ir.actions.act_window">
+        <field name="name">Solicitudes de crédito</field>
+        <field name="res_model">creditos.credito</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_solicitudes_list"/>
+        <field name="domain">[('dictamen', '=', 'draft')]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Genera solicitudes de créditos!</p>
         </field>
-    </record-->
+    </record>
+    
+    <record id="view_contrato_list" model="ir.ui.view">
+        <field name="name">contrato.list</field>
+        <field name="model">creditos.credito</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="dictamen" widget="badge" decoration-success="dictamen == 'confirmed'" decoration-danger="dictamen == 'discard'"
+                    decoration-warning="dictamen == 'blocked'" decoration-muted="dictamen == 'tech' or dictamen == 'draft'" decoration-info="dictamen == 'check'"/>
+                <field name="foliocredito" readonly="1"/>
+                <field name="cliente"/>
+                <field name="contrato"/>
+                <field name="monto"/>
+                <field name="superficie"/>
+                <field name="saldo"/>
+                <field name="currency_id" invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_creditos" model="ir.actions.act_window">
+        <field name="name">Solicitudes de crédito</field>
+        <field name="res_model">creditos.credito</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_contrato_list"/>
+        <field name="domain">[('dictamen', '!=', 'draft')]</field>
+    </record>
     
     <record id="view_credito_detail" model="ir.ui.view">
         <field name="name">asignacion.form</field>
@@ -67,33 +72,19 @@
         <field name="arch" type="xml">
             <form autosave="False">
                 <header>
-                    <!--button name="action_editar" string="Editar" type="object" class="oe_highlight" invisible="not id"/-->
+                    <button name="action_entry_draft" string="Sugerir correciones" type="object" class="btn btn-primary" icon="fa-rotate" invisible="dictamen != 'check'"/>
+                    <button name="action_entry_confirmed" string="Autorizar" type="object" class="btn btn-primary" icon="fa-thumbs-up" invisible="dictamen != 'check'"/>
+                    <button name="action_entry_discard" string="Rechazar" type="object" class="btn btn-primary" icon="fa-thumbs-down" invisible="dictamen != 'check'"/>
+                    <button name="action_entry_check" string="Enviar a Comité" type="object" class="btn btn-primary" invisible="dictamen != 'draft' or not id"  confirm="¿Desea enviar la solicitud a comité?"/>
+                    <button name="action_entry_bloked" string="Bloquear" type="object" class="btn btn-primary" icon="fa-lock" invisible="dictamen != 'confirmed'"/>
+                    <button name="action_entry_open" string="Habilitar" type="object"  class="btn btn-primary" icon="fa-unlock" invisible="dictamen != 'bloked'"/>
+                    <button name="action_entry_tech" string="Dictamen técnico" type="object"  class="btn btn-primary" icon="fa-comment-o" invisible="not id"/>
 
-                    <!--button name="action_save_and_return" string="Guardar y Volver" type="object" class="btn btn-primary" icon="fa-save" invisible="id"/-->
-                        <button 
-                            name="action_abrir_edocta" 
-                            string="Ver Estado de Cuenta" 
-                            type="object" 
-                            class="btn-primary" invisible="not id or not dictamen == 'confirmed'"
-                            icon = "fa-list"/>
-                        <button name="action_borrador" string="Sugerir correciones" type="object" class="btn btn-primary" icon="fa-edit" invisible="dictamen != 'check'"/>
-                        <button name="action_autorizar" string="Autorizar contrato" type="object" class="btn btn-success" icon="fa-thumbs-up" invisible="dictamen != 'check'"/>
-                        <button name="action_rechazar" string="Rechazar contrato" type="object" class="btn btn-danger" icon="fa-thumbs-down" invisible="dictamen != 'check'"/>
-                        <button name ="action_enviaracomite" string="Enviar a Comité" type="object" class="btn-primary" invisible="dictamen != 'draft' or not id"  confirm="¿Desea enviar la solicitud a comité?"/>
-                        <button name="action_desbloquear" string="Habilitar contrato" type="object" class="btn btn-primary" icon="fa-unlock" invisible="dictamen != 'confirmed' or status != 'paused'"/>
-                        <button name="action_bloquear" string="Bloquear contrato" type="object"  class="btn btn-danger" icon="fa-lock" invisible="dictamen != 'confirmed' or status != 'active'"/>
-                        <!--button name="%(creditos.action_report_credito)d"
-                                        string="Generar solicitud"
-                                        type="action"
-                                        class="oe_highlight"
-                                        invisible="not id or is_editing"/-->
-                    <!--button name="action_edocuenta2" string="Estado de Cuenta" type="object" class="oe_highlight" invisible="not id or is_editing"/-->
-                    <field name="dictamen" widget="statusbar" statusbar_visible="draft,check,confirmed,cancelled" invisible="dictamen == 'confirmed' or not id"/>
-                    <field name="status" widget="statusbar" statusbar_visible="active,paused,expired,exceeded" invisible="dictamen != 'confirmed'"/>
+                    <field name="dictamen" widget="statusbar" statusbar_visible="draft,check,confirmed,discard,bloked" invisible="not id"/>
                 </header>
                 <group>
                 <!-- contenedor que Odoo interpreta (group) -->
-                <div style="display:flex; gap:1rem; align-items:flex-start; width:100%;">
+                <div style="display:flex; gap:1rem; align-items:flex-start; width:100%;" invisible = "dictamen != 'confirmed'">
                     <div style="flex:1; min-width:140px;">
                         <label for="capital"/>
                         <field name="capital" nolabel="1" style="font-weight: bold;"/>
@@ -116,17 +107,18 @@
                     <group>
                         <group>
                             <field name="foliocredito" readonly="1" style="font-size: 16px; font-weight: bold" invisible="dictamen == 'draft'"/>
-                            <field name="folio" invisible = "dictamen != 'draft' and dictamen != 'check'"/>
+                            <field name="folio" invisible = "dictamen != 'draft' or not id"/>
                             <field name="cliente"/>
                             <field name="contrato"/>
                             <field name="titularr" invisible="tipocredito == '2'"/>
-                            <field name="monto" widget = "monetary" invisible = "tipocredito == '2'"/>
-                            <field name="usermonto" invisible = "tipocredito != '2'" widget = "monetary"/>
+                            <field name="monto" invisible = "tipocredito == '2'"/>
+                            <field name="usermonto" invisible = "tipocredito != '2'"/>
+                            <field name="total_garantias" invisible="tipocredito != '0'"/>
                             <field name="vencimiento" invisible = "tipocredito == '2'"/>
-                            
                             <field name ="uservencimiento" invisible = "tipocredito != '2'"/>
                             <field name="superficie" invisible="tipocredito != '0'" />
                             <field name="usersuperficie" invisible="tipocredito != '1'" />
+                            <field name="currency_id" invisible="1"/>
                         </group>
                     </group>
                     <group name="datos_obligado" string="Obligado Solidario" invisible = "(titularr and cliente_estado_civil != 'casado') or tipocredito == '2'">
@@ -139,159 +131,114 @@
                         <field name="obligadoRFC" readonly="not cliente or not contrato"/>
                     </group>
 
-                    <!-- CORREGIDO: Agregar campo tipocredito_val oculto para que funcione la condición -->
-                    <field name="tipocredito_val" invisible="1"/>
-                    <notebook>
-                        <page string="Cargos" name="page_cargos" invisible = "dictamen != 'confirmed'">
-                            <field name="cargos" string = " ">
-                                <list editable="bottom" delete="0">
-                                    <!--field name="cargocontrato" widget="badge"
-                                    options='{"text_true": "Con contrato", "text_false": "Sin contrato", "color_true": "success", "color_false": "danger"}'/-->
-                                    <button name="action_eliminar_cargo" string="" type="object" class="btn-link" icon="fa-trash" invisible="cargocontrato" width="30px" confirmation="Desea eliminar este cargo?"/>
-                                    <field name="fecha"  readonly="cargocontrato"/>
-                                    <field name="folio" readonly="cargocontrato"/>
-                                    <field name = "cargo" readonly="cargocontrato"/>
-                                    <field name = "tipocargo" readonly="cargocontrato"/>
-                                    <field name ="porcentaje" invisible = "not tipocargo in ['1', '3']"  readonly="cargocontrato"/>
-                                    <field name="costo" invisible = "tipocargo in ['1', '3']"  readonly="cargocontrato"/>
-                                    <field name="iva"/>
-                                    <field name="ieps"/>
-                                    <field name="importe"  readonly="cargocontrato"/>
+                    <field name="tipocredito" invisible="1"/>
+                    <notebook invisible="tipocredito != '0' or not tipocredito">
+                        <page string="Predios" name="page_predios">
+                            <button name="action_add_predios" string="Añadir" type="object" class="btn btn-primary" icon="fa-plus-circle" invisible="dictamen != 'draft'"/>
+                            <field name="predios" readonly="not cliente or not contrato">
+                                <list create="false" edit="false">
+                                    <field name="credito_id" column_invisible="1"/>
+                                    <field name="superficie"/>
+                                    <field name="superficiecultivable" widget="badge" decoration-info="superficiecultivable"/>
+                                    <field name="nocertificado"/>
+                                    <field name="titular"/>
+                                    <field name="localidad"/>
                                 </list>
                             </field>
                         </page>
-                        <page string="Ventas" name="page_ventas" invisible = "dictamen != 'confirmed'">
-                            <field name="ventas_ids" readonly="not cliente or not contrato">
-                                <list>
-                                    <field name="fecha"/>
-                                    <field name="codigo" readonly="1"/>
-                                    <field name="observaciones"/>
-                                    <field name="importe" widget="monetary" readonly="1"/>
+                        <page string="Garantías" name="page_garantias">
+                            <button name="action_add_garantias" string="Añadir" type="object" class="btn btn-primary" icon="fa-plus-circle" invisible="dictamen != 'draft'"/>
+                            <field name="garantias" readonly="not cliente or not contrato">
+                                <list create="false" edit="false">
+                                    <field name="credito_id" column_invisible="1"/>
+                                    <field name="fecha_entrega"/>
+                                    <field name="folio"/>
+                                    <field name="tipo"/>
+                                    <field name="descripcion"/>
+                                    <field name="valor"/>
+                                    <field name="currency_id" invisible="1"/>
                                 </list>
                             </field>
                         </page>
                     </notebook>
-                    <!-- CORREGIDO: Mostrar predios solo para tipo AVIO (tipocredito == '0') -->
-                    <group name="predios" string="Predios" invisible="tipocredito_val != '0'">
-                        <field name="predios" readonly="not cliente or not contrato">
-                            <list editable="bottom">
-                                <field name="credito_id" column_invisible="1"/>
-                                <field name="es_dueno_predio" string="¿Es dueño?" width="80px"/>
-                                <field name="titular" width="150px" placeholder="Nombre del titular (si no es dueño)" readonly="es_dueno_predio == 'si'"/>
-                                <field name="RFC" string="RFC" width="120px"/>
-                                <field name="localidad" width="120px"/>
-                                <field name="superficie" string="Superficie Total" width="100px"/>
-                                <field name="superficiecultivable" string="Cultivable" width="90px"/>
-                                <field name="nocertificado" width="120px"/>
-                                <field name="colnorte" width="90px"/>
-                                <field name="colsur" width="90px"/>
-                                <field name="coleste" width="90px"/>
-                                <field name="coloeste" width="90px"/>
-                                <!-- Aquí podrías agregar georeferencias como smart button o vista aparte -->
-                            </list>
-                        </field>
-                    </group>
-
-                    <!-- CORREGIDO: Mostrar garantías solo para tipo AVIO (tipocredito == '0') -->
-                    <group name="garantias" string="Garantías" invisible="tipocredito_val != '0'">
-                        <div class="o_row">
-                            <field name="garantias" readonly="not cliente or not contrato">
-                                <list editable="bottom">
-                                    <field name="credito_id" column_invisible="1"/>
-                                    <field name="es_dueno_garantia" string="¿Es dueño?" width="90px"/>
-                                    <field name="tipo" width="120px"/>
-                                    <field name="titular" width="150px" readonly="es_dueno_garantia == 'si'"/>
-                                    <field name="RFC" string="RFC" width="120px"/>
-                                    <field name="localidad" width="120px"/>
-                                    <field name="valor" string="Valor" width="100px"/>
-                                    <field name="descripcion" width="200px"/>
-                                    <field name="fecha_entrega" string="F. Entrega" width="100px"/>
-                                    <field name="persona_entrega" string="Entrega" width="120px"/>
-                                    <field name="persona_recibe" string="Recibe" width="120px"/>
-                                </list>
-                            </field>
-                        </div>
-                    </group>
-                    <group invisible="tipocredito_val != '0'">
-                        <span>Total garantías: </span>
-                        <field name="total_garantias" readonly="1" widget="monetary"/>
-                        <span> / Monto crédito: </span>
-                        <field name="monto" readonly="1" widget="monetary" nolabel="1"/>
-                    </group>
-
-                    <sheet invisible="not activaciones">
-                        <group string="Dictamen de activación de crédito">
-                            <field name="ultimaactivacion_fecha" readonly = "1"/>
-                            <field name="ultimaactivacion_status" readonly = "1"/>
-                            <field name="ultimaactivacion_descripcion" readonly = "1"/>
-                        </group>
-                    </sheet>
-
-                    <sheet invisible="not autorizaciones">
-                        <group string="Dictamen de autorización de crédito">
-                            <field name="ultimaautorizacion_fecha" readonly = "1"/>
-                            <field name="ultimaautorizacion_status" readonly = "1"/>
-                            <field name="ultimaautorizacion_descripcion" readonly = "1"/>
-                        </group>
-                    </sheet>
                 </sheet>
             </form>
         </field>
     </record>
 
-    <record id="view_autorizacion_form" model="ir.ui.view">
-        <field name="name">autorizacion.form</field>
-        <field name="model">creditos.autorizacion</field>
-        <field name="arch" type="xml">
-            <form autosave="False">
-                <sheet>
-                    <group>
-                        <field name="status" widget="selection_badge" readonly = "1"/>
-                        <field name="descripcion"/>
-                    </group>
-                </sheet>
-            </form>
-        </field>
+    <record id="action_load_lineas" model="ir.actions.act_window">
+        <field name="name">Líneas de Crédito</field>
+        <field name="res_model">contratos.contrato</field> 
+        <field name="view_mode">list,form</field> 
+        <field name="views" eval="[(False, 'tree'), (False, 'form')]"/> 
+        <field name="context">{
+            'list_view_ref': 'contratos.contrato.view_contratos_tree',
+            'default_view_mode': 'list' 
+        }</field>
     </record>
 
-    <record id="view_activacion_form" model="ir.ui.view">
-        <field name="name">activacion.form</field>
-        <field name="model">creditos.activacion</field>
-        <field name="arch" type="xml">
-            <form autosave="False">
-                <sheet>
-                    <group>
-                        <field name="status" widget="selection_badge" readonly = "1"/>
-                        <field name="descripcion"/>
-                    </group>
-                </sheet>
-            </form>
-        </field>
+    <record id="action_load_ciclos" model="ir.actions.act_window">
+        <field name="name">Ciclos</field>
+        <field name="res_model">ciclos.ciclo</field> 
+        <field name="view_mode">list,form</field> 
+        <field name="views" eval="[(False, 'tree'), (False, 'form')]"/> 
+        <field name="context">{
+            'list_view_ref': 'ciclos.ciclo.view_ciclo_list',
+            'default_view_mode': 'list' 
+        }</field>
     </record>
 
-    <!--record id="view_edodecuenta_list" model="ir.ui.view">
-        <field name="name">credito.edodecuenta.list</field>
-        <field name="model">cuentasxcobrar.cuentaxcobrar</field>
-        
-        <field name="arch" type="xml">
-            <list string="Estado de cuenta">
-                <field name="fecha"/>
-                <field name="referencia"/>
-                <field name="concepto"/>
-                <field name="cantidad"/>
-                <field name="precio"/>
-                <field name="importe"/>
-                <field name="iva"/>
-                <field name="ieps"/>
-                <field name="cargo"/>
-                <field name="abono"/>
-                <field name="saldo"/>
-            </list>
-        </field>
-    </record-->
+    <record id="action_load_cultivos" model="ir.actions.act_window">
+        <field name="name">Cultivos</field>
+        <field name="res_model">cultivos.cultivo</field> 
+        <field name="view_mode">list,form</field> 
+        <field name="views" eval="[(False, 'tree'), (False, 'form')]"/> 
+        <field name="context">{
+            'list_view_ref': 'cultivos.cultivo.view_cultivo_list',
+            'default_view_mode': 'list' 
+        }</field>
+    </record>
 
+    <record id="action_load_cargos" model="ir.actions.act_window">
+        <field name="name">Cargos por Créditos</field>
+        <field name="res_model">cargos.cargo</field> 
+        <field name="view_mode">list,form</field> 
+        <field name="views" eval="[(False, 'tree'), (False, 'form')]"/> 
+        <field name="context">{
+            'list_view_ref': 'cargos.cargo.view_cargos_tree',
+            'default_view_mode': 'list' 
+        }</field>
+    </record>
 
-    <!-- Menús -->
-    <menuitem id="menu_root" name="Solicitudes de Créditos" sequence="10"/>
-    <menuitem id="menu_action" name="Catálogo de Solicitudes" parent="menu_root" action="credito_asignaciones"/>
+    <record id="action_load_ejidos" model="ir.actions.act_window">
+        <field name="name">Lista de ejidos</field>
+        <field name="res_model">ejidos.ejido</field> 
+        <field name="view_mode">list,form</field> 
+        <field name="views" eval="[(False, 'tree'), (False, 'form')]"/> 
+        <field name="context">{
+            'list_view_ref': 'ejidos.ejido.view_ejidos_list',
+            'default_view_mode': 'list' 
+        }</field>
+    </record>
+
+    <record id="action_load_garantias" model="ir.actions.act_window">
+        <field name="name">Garantías</field>
+        <field name="res_model">creditos.garantia</field> 
+        <field name="view_mode">list,form</field> 
+        <field name="views" eval="[(False, 'tree'), (False, 'form')]"/> 
+        <field name="context">{
+            'list_view_ref': 'creditos.garantia.view_garantia_list',
+            'default_view_mode': 'list' 
+        }</field>
+    </record>
+
+    <menuitem id="menu_root" name="Solicitudes de Crédito" sequence="10" action="action_creditos_draft"/>
+    <menuitem id="menu_contratos" name="Contratos" parent="menu_root" sequence="20" action="action_creditos"/>
+    <menuitem id="menu_lineas" name="Líneas" parent="menu_root" sequence="30" action="action_load_lineas"/>
+    <menuitem id="menu_garantias" name="Padrón de Garantías" parent="menu_root" sequence="40" action="action_load_garantias"/>
+    <menuitem id="menu_catalogo" name="Catálogo" parent="menu_root" sequence="50"/>
+        <menuitem id="menu_cargos" name="Cargos por Crédito" parent="menu_catalogo" action="action_load_cargos"/>
+        <menuitem id="menu_ciclos" name="Ciclos Agrícolas" parent="menu_catalogo" action="action_load_ciclos"/>
+        <menuitem id="menu_cultivos" name="Cultivos Agrícolas" parent="menu_catalogo" action="action_load_cultivos"/>
+        <menuitem id="menu_ejidos" name="Ejidos" parent="menu_catalogo" action="action_load_ejidos"/>
 </odoo>

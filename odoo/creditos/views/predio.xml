@@ -1,0 +1,29 @@
+<odoo>
+    <record id="view_predio_form" model="ir.ui.view">
+        <field name="name">predio.form</field>
+        <field name="model">creditos.predio</field>
+        <field name="arch" type="xml">
+            <form autosave="false">
+                <sheet>
+                    <group>
+                        <field name="credito_id" readonly="true"/>
+                        <field name="nocertificado"/>
+                        <field name="titular"/>
+                        <field name="localidad"/>
+                        <field name="superficie"/>
+                        <field name="superficiecultivable"/>
+                        <field name="colnorte"/>
+                        <field name="colsur"/>
+                        <field name="coleste"/>
+                        <field name="coloeste"/>
+                    </group>
+                    <!--notebook>
+                        <page string="Georeferencias">
+                            <field name="georeferencias" widget="one2many_list"/>
+                        </page>
+                    </notebook-->
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>

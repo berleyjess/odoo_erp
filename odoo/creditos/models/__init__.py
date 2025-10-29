@@ -1,1 +1,1 @@
-from . import autorizados, activados, credito, predios_ext, garantia_ext, transientmodel, transientline, cargodetail_ext
+from . import credito, garantia, transientmodel, transientline, cargodetail_ext, entry, predio

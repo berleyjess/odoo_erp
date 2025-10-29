@@ -1,0 +1,46 @@
+<odoo>
+
+    <record id="action_abrir_edocta" model="ir.actions.server">
+        <field name="name">Ver Estado de Cuenta</field>
+        <field name="model_id" ref="model_creditos_credito"/>
+        <field name="binding_model_id" ref="model_creditos_credito"/>
+        <field name="state">code</field>
+        <field name="binding_type">action</field>
+        <field name="code">
+            action = records.action_abrir_edocta()
+        </field>
+    </record> 
+
+    <record id="action_abrir_cargos" model="ir.actions.server">
+        <field name="name">Ver Cargos</field>
+        <field name="model_id" ref="model_creditos_credito"/>
+        <field name="binding_model_id" ref="model_creditos_credito"/>
+        <field name="state">code</field>
+        <field name="binding_type">action</field>
+        <field name="code">
+            action = records.action_abrir_cargos()
+        </field>
+    </record> 
+
+    <record id="action_abrir_ventas" model="ir.actions.server">
+        <field name="name">Ver Ventas</field>
+        <field name="model_id" ref="model_creditos_credito"/>
+        <field name="binding_model_id" ref="model_creditos_credito"/>
+        <field name="state">code</field>
+        <field name="binding_type">action</field>
+        <field name="code">
+            action = records.action_abrir_ventas()
+        </field>
+    </record> 
+
+    <record id="action_abrir_eventos" model="ir.actions.server">
+        <field name="name">Ver Registro de Eventos</field>
+        <field name="model_id" ref="model_creditos_credito"/>
+        <field name="binding_model_id" ref="model_creditos_credito"/>
+        <field name="state">code</field>
+        <field name="binding_type">action</field>
+        <field name="code">
+            action = records.action_abrir_registro()
+        </field>
+    </record> 
+</odoo>

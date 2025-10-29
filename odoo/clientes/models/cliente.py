@@ -146,7 +146,7 @@ class cliente(models.Model):
 
     conyugue = fields.Char(string="Nombre del Cónyuge", size=100, help="Nombre completo del cónyuge")
 
-    regimenconyugal = fields.Selection(
+    """regimenconyugal = fields.Selection(
         string = "Régimen Conyugal", store = True, selection = [
             ('0', "Sociedad Conyugal"),
             ('1', "Separación de Bienes"),
@@ -163,7 +163,7 @@ class cliente(models.Model):
             ('0', "Propia"),
             ('1', "Alquiler")
         ]
-    )
+    )"""
 
     usar_rfc_generico = fields.Boolean(
         string="Usar RFC genérico (XAXX010101000)",
@@ -172,9 +172,9 @@ class cliente(models.Model):
     )
     
     #Referencias Laborales
-    empresa = fields.Char(string = "Empresa donde labora", store = True, size = 32)
+    """empresa = fields.Char(string = "Empresa donde labora", store = True, size = 32)
     puesto = fields.Char(string = "Puesto que desempeña", store = True)
-    ingresomensual = fields.Float(string = "Ingreso Mensual Estimado", store = True, default = 0.0)
+    ingresomensual = fields.Float(string = "Ingreso Mensual Estimado", store = True, default = 0.0)"""
 
     #Relación con contactos
 # Contactos del cliente (externos). Se usa para auto-rellenar tel/email si Persona está vacía.

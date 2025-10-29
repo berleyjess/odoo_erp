@@ -12,9 +12,10 @@
 
             <field name="active">True</field>
 
-            <field name="user_id" ref="base.user_admin"/>
+            <field name="user_id" ref="base.user_root"/>
 
-            <field name="nextcall" eval="(DateTime.now().replace(hour=7, minute=0, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <!--field name="nextcall" eval="(DateTime.now().replace(hour=7, minute=0, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/-->
+            <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 07:00:00')"/>
         </record>
 
     </data>
