@@ -146,24 +146,6 @@ class cliente(models.Model):
 
     conyugue = fields.Char(string="Nombre del Cónyuge", size=100, help="Nombre completo del cónyuge")
 
-    """regimenconyugal = fields.Selection(
-        string = "Régimen Conyugal", store = True, selection = [
-            ('0', "Sociedad Conyugal"),
-            ('1', "Separación de Bienes"),
-            ('2', "Régimen Mixto")
-        ]
-    )
-
-    dependientes = fields.Integer(
-        string = "Dependientes económicos", default = 0, store = True
-    )
-
-    tipovivienda = fields.Selection(
-        string = "Tipo de Vivienda", store = True, selection = [
-            ('0', "Propia"),
-            ('1', "Alquiler")
-        ]
-    )"""
 
     usar_rfc_generico = fields.Boolean(
         string="Usar RFC genérico (XAXX010101000)",
@@ -171,26 +153,14 @@ class cliente(models.Model):
         help="Marca esto SOLO si quieres registrar al cliente con RFC genérico."
     )
     
-    #Referencias Laborales
-    """empresa = fields.Char(string = "Empresa donde labora", store = True, size = 32)
-    puesto = fields.Char(string = "Puesto que desempeña", store = True)
-    ingresomensual = fields.Float(string = "Ingreso Mensual Estimado", store = True, default = 0.0)"""
+
 
     #Relación con contactos
 # Contactos del cliente (externos). Se usa para auto-rellenar tel/email si Persona está vacía.
     contacto = fields.One2many('contactos.contacto', 'cliente_id', string="Contactos", help="Contactos externos relacionados con este cliente.")
 
 
-    # ONCHAGE METHODS
 
-    """
-        Actualiza el dominio del campo 'regimen' dependiendo del tipo de cliente.
-        Además, muestra una advertencia si hay RFC capturado para que se valide
-        coherencia con el tipo seleccionado.
-
-        Retorna:
-            dict: dominio dinámico para el campo 'regimen' y un warning opcional.
-    """
 # Invariantes a nivel BD:
 # - codigo único
 # - una persona no puede ser cliente dos veces (persona_id único) :contentReference[oaicite:10]{index=10}
@@ -434,14 +404,14 @@ class cliente(models.Model):
             if not es_generico and rec.search_count([('rfc', '=', rfc), ('id', '!=', rec.id)]):
                 raise ValidationError(_("El RFC '%s' ya está registrado en otro cliente.") % rfc)
 
-    @api.constrains('estado_civil', 'conyugue', 'regimenconyugal')
+    """@api.constrains('estado_civil', 'conyugue', 'regimenconyugal')
     def _check_requeridos_conyugue(self):
         for record in self:
             if record.estado_civil in ['casado', 'union_libre']:
                 if not record.conyugue:
                     raise ValidationError("¡El nombre del cónyuge es obligatorio!")
                 if not record.regimenconyugal:
-                    raise ValidationError("¡El régimen conyugal es obligatorio!")
+                    raise ValidationError("¡El régimen conyugal es obligatorio!")"""
             
     # ======= Tus onchanges/constraints originales que NO choquen con persona =======
     

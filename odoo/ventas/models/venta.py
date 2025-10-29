@@ -4,6 +4,8 @@ from odoo.exceptions import ValidationError, UserError
 from datetime import date
 from odoo import SUPERUSER_ID
 import base64
+import logging
+_logger = logging.getLogger(__name__)
 
 class venta(models.Model):
     _name = 'ventas.venta'
@@ -67,7 +69,7 @@ class venta(models.Model):
     detalle_venta = fields.One2many(
         'transacciones.transaccion', 'venta_id',
         string="Detalle (Venta)",
-        domain=[('tipo', 'not in', ['6', '10', '11'])]
+        domain=[('tipo', '=', '1')]
     )
 
 
@@ -693,22 +695,39 @@ class venta(models.Model):
 
 
     
-    # ✅ No referenciamos campos “custom” del comodel en depends, para evitar el KeyError en el registro
-    @api.depends('detalle_venta', 'detalle_venta.write_date', 'detalle_venta.tipo', 'detalle_venta.cantidad')
+    @api.depends('detalle', 'detalle.write_date', 'detalle.tipo', 'detalle.cantidad')
     def _compute_agg_status(self):
+        """
+        Solo considera conceptos que son verdaderas líneas de VENTA (tipo == '1').
+        Ignora NC, DEV, PAGO y cualquier otra transacción ajena relacionada.
+        """
         EPS = 1e-6
         for v in self:
-            # Solo líneas de venta (excluir DEV/NC/PAGO)
-            lines = v.detalle_venta
-            if not lines:
+            # Filtra duro por tipo '1' y cantidades > 0
+            sale_lines = v.detalle.filtered(
+                lambda t: str(getattr(t, 'tipo', '')) == '1' and float(getattr(t, 'cantidad', 0.0) or 0.0) > EPS
+            )
+
+            # Log de diagnóstico (ayuda a detectar cuando se cuelan líneas ajenas)
+            try:
+                _logger.debug(
+                    "[ventas.venta:%s] _compute_agg_status -> sale_lines=%s (tipos=%s)",
+                    v.id,
+                    sale_lines.ids,
+                    list({getattr(t, 'tipo', None) for t in v.detalle})
+                )
+            except Exception:
+                pass
+
+            if not sale_lines:
                 v.invoice_status2 = 'none'
                 continue
 
             line_states = set()
-            for tx in lines:
+            for tx in sale_lines:
                 st = getattr(tx, 'invoice_status', False)
                 if not st:
-                    # Fallback por cantidades si el campo aún no está disponible en registro
+                    # Fallback por cantidades: qty_invoiced vs cantidad
                     total = float(getattr(tx, 'cantidad', 0.0) or 0.0)
                     inv = float(getattr(tx, 'qty_invoiced', 0.0) or 0.0)
                     if inv <= EPS:
@@ -719,6 +738,7 @@ class venta(models.Model):
                         st = 'partial'
                 line_states.add(st)
 
+            # Agregación simple
             if line_states == {'canceled'}:
                 v.invoice_status2 = 'canceled'
             elif 'canceled' in line_states and (line_states - {'canceled'}):

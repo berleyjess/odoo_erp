@@ -69,14 +69,6 @@
                             </group>
                             <group invisible="not (estado_civil in ['casado', 'union_libre'])">
                                 <field name="conyugue"/>
-                                <field name="regimenconyugal"/>
-                            </group>
-                            <group>
-                                <field name="empresa"/>
-                                <field name="puesto"/>
-                                <field name="ingresomensual"/>
-                                <field name="dependientes"/>
-                                <field name="tipovivienda"/>
                             </group>
                         </page>
                         <page string="Contactos">
