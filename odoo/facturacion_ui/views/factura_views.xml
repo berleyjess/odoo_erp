@@ -1,5 +1,5 @@
 <odoo>
-
+<!-- facturacion_ui/views/factura_views.xml -->
   <!-- LIST: decoraciones y badge; SIN attrs -->
   <record id="view_factura_list18" model="ir.ui.view">
     <field name="name">facturas.factura.list18</field>
@@ -86,23 +86,25 @@
   </record>
 
 
-  <!-- FORM: solo retoques visuales; SIN attrs -->
   <record id="view_factura_form18" model="ir.ui.view">
     <field name="name">facturas.factura.form18</field>
     <field name="model">facturas.factura</field>
     <field name="arch" type="xml">
       <form string="Captura de Factura">
         <header>
-          <button name="action_build_and_stamp" type="object" string="Timbrar" class="btn-primary" invisible="state != 'draft'"/>
+          <button name="action_build_and_stamp" type="object" string="Timbrar" class="btn-primary"  confirm="¿Estás seguro de que quieres timbrar esta factura?" invisible="state != 'draft'"/>
           <button name="action_fetch_xml_from_sw" type="object" string="Recuperar XML de SW" class="btn-warning" invisible="not uuid"/>
-          <button name="action_prepare_credit_note" type="object" string="Nota de Crédito" class="btn-secondary" invisible="not (tipo == 'I' and state == 'stamped')"/>
-          <button name="action_prepare_payment" type="object" string="Registrar Pago (Complemento)" class="oe_highlight" invisible="not (tipo == 'I' and state == 'stamped' and saldo &gt; 0.0)"/>
-          <button name="action_cancel" type="object" string="Cancelar" class="btn-danger" context="{'cfdi_cancel_reason': '02'}" invisible="not (state == 'ready' or state == 'stamped')"/>
+          <button name="action_prepare_credit_note" type="object" string="Nota de Crédito" class="btn-secondary" confirm="¿Estás seguro de que quieres hacer una nota de crédito?" invisible="not (tipo == 'I' and state == 'stamped')"/>
+          <button name="action_prepare_payment" type="object" string="Registrar Pago (Complemento)" class="oe_highlight" confirm="¿Estás seguro de que quieres hacer un complemento de pago?" invisible="not (tipo == 'I' and state == 'stamped' and saldo &gt; 0.0)"/>
+          <button name="action_cancel" type="object" string="Cancelar" class="btn-danger" context="{'cfdi_cancel_reason': '02'}" confirm="¿Estás seguro de que quieres cancelar esta factura?" invisible="not (state == 'ready' or state == 'stamped')"/>
           <button name="action_close_form" type="object" string="Cerrar" class="btn-secondary"/>
           <field name="state" widget="statusbar" statusbar_visible="draft,ready,stamped,canceled"/>
         </header>
-
+        <h1>
+          <field name="id" readonly="1" invisible="not id"/>
+        </h1>
         <sheet>
+          
           <div class="oe_button_box" name="button_box">
             <button name="action_open_attachments" type="object" class="oe_stat_button" icon="fa-paperclip">
               <field name="attachment_count" widget="statinfo" string="Adjuntos"/>
@@ -159,33 +161,56 @@
               <field name="fecha" readonly="state != 'draft'"/>
             </group>
           </group>
+          <group>
+            <button name="%(action_wiz_add_sales)d" type="action" string="Agregar Ventas completas"
+                    invisible="state != 'draft' or tipo == 'P'"
+                    context="{
+                      'default_factura_id': id,
+                      'empresa_id':  empresa_id,
+                      'sucursal_id': sucursal_id,
+                      'cliente_id':  cliente_id
+                    }"
+                    class="btn-secondary"/>
+
+            <button name="%(action_wiz_add_lines)d" type="action" string="Agregar Transacciones"
+                    invisible="state != 'draft' or tipo == 'P'"
+                    context="{
+                      'default_factura_id': id,
+                      'empresa_id':  empresa_id,
+                      'sucursal_id': sucursal_id,
+                      'cliente_id':  cliente_id
+                    }"
+                    class="btn-secondary"/>
+          </group>
 
           <notebook>
             <page string="Productos/Servicios" invisible="tipo == 'P'">
               <!-- Ingresos -->
-              <field name="line_ids" readonly="state != 'draft'" invisible="tipo != 'I'">
-                <list editable="bottom" create="state == 'draft'" delete="state == 'draft'">
-                  <field name="line_type" required="1" readonly="source_model"/>
-                  <field name="empresa_id" readonly="1"/>
-                  <field name="cliente_id" readonly="1"/>
-                  <field name="sale_id" readonly="1" invisible="parent.tipo == 'E'"/>
-                  <field name="transaccion_id" readonly="1" invisible="parent.tipo == 'E'"/>
-                  <field name="producto_id" readonly="source_model"/>
-                  <field name="descripcion" readonly="source_model"/>
-                  <field name="cantidad" readonly="source_model"/>
-                  <field name="precio" readonly="source_model"/>
-                  <field name="iva_ratio" readonly="source_model"/>
-                  <field name="ieps_ratio" readonly="source_model"/>
-                  <field name="subtotal" readonly="1" sum="Total"/>
-                  <field name="iva_amount" readonly="1" sum="IVA"/>
-                  <field name="ieps_amount" readonly="1" sum="IEPS"/>
-                  <field name="total" readonly="1" sum="Total"/>
-                </list>
-              </field>
+              <div class="no_addline">
+                <field name="line_ids" readonly="state != 'draft'" invisible="tipo != 'I'">
+                  <list editable="bottom" create="state == 'draft'" delete="state == 'draft'">
+                    <field name="line_type" required="1" readonly="source_model"/>
+                    <field name="empresa_id" readonly="1"/>
+                    <field name="cliente_id" readonly="1"/>
+                    <field name="sale_id" readonly="1" invisible="parent.tipo == 'E'"/>
+                    <field name="transaccion_id" readonly="1" invisible="parent.tipo == 'E'"/>
+                    <field name="producto_id" readonly="source_model"/>
+                    <field name="descripcion" readonly="source_model"/>
+                    <field name="cantidad" readonly="source_model"/>
+                    <field name="precio" readonly="source_model"/>
+                    <field name="iva_ratio" readonly="source_model"/>
+                    <field name="ieps_ratio" readonly="source_model"/>
+                    <field name="subtotal" readonly="1" sum="Total"/>
+                    <field name="iva_amount" readonly="1" sum="IVA"/>
+                    <field name="ieps_amount" readonly="1" sum="IEPS"/>
+                    <field name="total" readonly="1" sum="Total"/>
+                  </list>
+                </field>
+              </div>
 
               <!-- Nota de crédito -->
               <field name="line_ids" readonly="state != 'draft'" invisible="not (tipo == 'E' and egreso_tipo == 'nc')" options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True}">
-                <list editable="bottom" create="state == 'draft'" delete="state == 'draft'">
+                <list editable="bottom" create="0" delete="state == 'draft'">
                   <field name="line_type" required="1" readonly="1"/>
                   <field name="empresa_id" readonly="1"/>
                   <field name="cliente_id" readonly="1"/>
