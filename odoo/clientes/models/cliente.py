@@ -34,11 +34,12 @@ class cliente(models.Model):
     
     _name='clientes.cliente'  #Modelo.Cliente ("nombre del modulo"."nombre del modelo")
     _description='Cartera de clientes'
-    _rec_name='nombre'  #Nombre del campo que se mostrará en las vistas de lista y búsqueda
+    _rec_name='label'  #Nombre del campo que se mostrará en las vistas de lista y búsqueda
     # _inherits (delegación): cada cliente apunta a una persona mediante persona_id
     # y expone sus campos como si fueran propios. :contentReference[oaicite:1]{index=1}
     _inherits = {'persona.persona': 'persona_id'}
     _order = 'codigo'  #Orden por defecto en las vistas de lista
+
     
     # Código interno: se llena en create() usando ir.sequence 'seq_client_code'. :contentReference[oaicite:8]{index=8}
     codigo = fields.Char( #Código interno del Cliente
@@ -50,6 +51,8 @@ class cliente(models.Model):
         default=lambda self: self._generate_code(),
         help="Código interno autogenerado (ej. 000001). Controlado por la secuencia 'seq_client_code'."
     )
+
+    label = fields.Char(store=True, compute='_compute_label', string="Etiqueta")
 
 # Enlace de delegación (_inherits): Cliente -> Persona. ondelete='restrict' para no dejar huérfanos. :contentReference[oaicite:7]{index=7}
     persona_id = fields.Many2one('persona.persona', required=True, ondelete='restrict', index=True, string="Persona")
@@ -81,7 +84,7 @@ class cliente(models.Model):
         selection = [
             ("0", "Persona Física"),
             ("1", "Persona Moral")
-        ], string="Tipo de Cliente", required=True, default = "0",
+        ], string="Tipo de Cliente", default = "0",
         help="Define si el cliente es Persona Física o Persona Moral. Afecta el dominio del campo Régimen Fiscal."
     )
 
@@ -91,6 +94,13 @@ class cliente(models.Model):
     # RFC genéricos SAT admitidos para altas mínimas; NO pasan validación estricta.
     RFC_GENERICOS = ('XAXX010101000', 'XEXX010101000')
 
+    @api.depends('rfc', 'nombre')
+    def _compute_label(self):
+        for rec in self:
+            if rec.rfc:
+                rec.label = f"{rec.nombre}:{rec.rfc}"
+            else:
+                rec.label = f"{rec.nombre}"
 
 # Devuelve el contacto marcado como 'principal' (o el primero si no hay principal).
     def _get_contacto_ppal(self):
@@ -229,6 +239,8 @@ class cliente(models.Model):
         # 1) Asegurar persona_id
         if not vals.get('persona_id'):
             if r:
+                if not vals.get('rfc'):
+                    vals['rfc'] = RFC_GENERICS[0]  # XAXX010101000
                 p = Person.search([('rfc', '=', r)], limit=1)
                 if p:
                     vals['persona_id'] = p.id
@@ -244,7 +256,7 @@ class cliente(models.Model):
                         'calle': vals.get('calle') or False,
                         'codigop': vals.get('codigop') or False,
                     }).id
-            else:
+            """else:
                 if vals.get('usar_rfc_generico'):
                     vals['persona_id'] = Person.create({
                         'name': vals.get('nombre') or _('SIN NOMBRE'),
@@ -258,10 +270,10 @@ class cliente(models.Model):
                         'codigop': vals.get('codigop') or False,
                     }).id
                 else:
-                    # Pide explícitamente el RFC o marcar el checkbox
                     raise ValidationError(_("RFC obligatorio para crear cliente. "
                                             "Usa 'Crear y editar…' y captura el RFC, "
                                             "o marca 'Usar RFC genérico' en el formulario."))
+                                            """
         pid = vals['persona_id']
     # 2) NO duplicar cliente para la misma persona (incluye archivados)
         if self.with_context(active_test=False).search_count([('persona_id', '=', pid)]):

@@ -78,6 +78,11 @@ class Persona(models.Model):
 
     @api.model
     def create(self, vals):
+        if not vals.get('rfc'):
+            vals['rfc'] = str(GENERIC_RFC)
+
+        if vals.get('nombre'):
+            vals['nombre'] = vals['nombre'].strip().upper()
         if vals.get('rfc'):
             vals['rfc'] = vals['rfc'].strip().upper()
         if vals.get('email'):
@@ -87,6 +92,11 @@ class Persona(models.Model):
         return super().create(vals)
 
     def write(self, vals):
+        if not vals.get('rfc'):
+            vals['rfc'] = str(GENERIC_RFC)
+            
+        if vals.get('nombre'):
+            vals['nombre'] = vals['nombre'].strip().upper()
         if 'rfc' in vals and vals['rfc']:
             vals['rfc'] = vals['rfc'].strip().upper()
         if 'email' in vals and vals['email']:

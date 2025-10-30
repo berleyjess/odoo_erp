@@ -41,7 +41,7 @@ class venta(models.Model):
         if self.cliente:
             return [
                 ('cliente', '=', self.cliente.id),
-                ('status', '=', 'active'),
+                ('dictamen', '=', 'confirmed'),
                 ('vencimiento', '>', fields.Date.context_today(self)),
             ]
         return [('id', '=', 0)]

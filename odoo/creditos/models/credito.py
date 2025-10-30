@@ -19,7 +19,7 @@ class credito(models.Model):
     )
     
     #Nomás para el _rec_name
-    label = fields.Char(string="Etiqueta", compute='_generate_label', store=True, default="Nuevo")
+    label = fields.Char(string="Folio", compute='_generate_label', store=True, default="Nuevo")
 
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)  
     contrato = fields.Many2one('contratos.contrato', string="Linea de crédito", required=True)  
@@ -86,15 +86,13 @@ class credito(models.Model):
     total_garantias = fields.Monetary(string="Monto de Garantías", compute="_compute_total_garantias", store=False, readonly=True)
     
     folio = fields.Char(
-        string="Solicitud",
+        string="Folio",
         required=True,
         readonly=True,
         copy=False,
         default=lambda self: _('Nuevo'),
         #help="Código único autogenerado con formato COD-000001"
     )
-
-    foliocredito = fields.Char(string="Contrato", readonly=True, store = True)
 
     @api.depends('entrys')
     def _nuevosuceso(self):
@@ -114,13 +112,18 @@ class credito(models.Model):
                 elif ultimaentrada.tipo == 'check':
                     r.dictamen = 'check'
 
-    @api.depends('cliente', 'contrato', 'folio')
+    @api.depends('cliente', 'contrato')
     def _generate_label(self):
         for record in self:
-            if record.dictamen != 'confirmed':
+            if record.dictamen != 'confirmed' and record.dictamen != 'bloked':
                 record.label = f"{record.folio}/{record.cliente.nombre}"
-            else:
-                record.label = f"{record.foliocredito}/{record.cliente.nombre}"
+    
+    @api.depends('dictamen')
+    def _generate_folio(self):
+        for record in self:
+            if record.dictamen == 'confirmed':
+                record.folio = self.env['ir.sequence'].next_by_code('creditos.folioaut') or _('Nuevo')
+
 
     @api.depends('capital', 'interes')
     def _compute_saldo(self):

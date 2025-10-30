@@ -16,14 +16,11 @@
         <field name="model">creditos.credito</field>
         <field name="arch" type="xml">
             <list>
-                <field name="dictamen" widget="badge" decoration-success="dictamen == 'confirmed'" decoration-danger="dictamen == 'discard'"
-                    decoration-warning="dictamen == 'blocked'" decoration-muted="dictamen == 'tech' or dictamen == 'draft'" decoration-info="dictamen == 'check'"/>
                 <field name="folio" readonly="1"/>
                 <field name="cliente"/>
                 <field name="contrato"/>
                 <field name="monto"/>
                 <field name="superficie"/>
-                <field name="saldo"/>
                 <field name="currency_id" invisible="1"/>
             </list>
         </field>
@@ -47,7 +44,7 @@
             <list>
                 <field name="dictamen" widget="badge" decoration-success="dictamen == 'confirmed'" decoration-danger="dictamen == 'discard'"
                     decoration-warning="dictamen == 'blocked'" decoration-muted="dictamen == 'tech' or dictamen == 'draft'" decoration-info="dictamen == 'check'"/>
-                <field name="foliocredito" readonly="1"/>
+                <field name="folio" readonly="1"/>
                 <field name="cliente"/>
                 <field name="contrato"/>
                 <field name="monto"/>
@@ -59,7 +56,7 @@
     </record>
 
     <record id="action_creditos" model="ir.actions.act_window">
-        <field name="name">Solicitudes de crédito</field>
+        <field name="name">Contratos</field>
         <field name="res_model">creditos.credito</field>
         <field name="view_mode">list,form</field>
         <field name="view_id" ref="view_contrato_list"/>
@@ -106,8 +103,7 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="foliocredito" readonly="1" style="font-size: 16px; font-weight: bold" invisible="dictamen == 'draft'"/>
-                            <field name="folio" invisible = "dictamen != 'draft' or not id"/>
+                            <field name="folio" invisible = "not id"/>
                             <field name="cliente"/>
                             <field name="contrato"/>
                             <field name="titularr" invisible="tipocredito == '2'"/>
