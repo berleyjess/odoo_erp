@@ -19,32 +19,21 @@ class venta(models.Model):
         return [(r.id, r.codigo or str(r.id)) for r in self]
 
 
-    invoice_status2 = fields.Selection([
-        ('none', 'No facturada'),
-        ('partial', 'Semifacturada'),
-        ('full', 'Facturada'),
-        ('canceled', 'Cancelada'),
-        ('semi_canceled', 'Semi cancelada'),
-    ], compute='_compute_agg_status', store=True, default='none', string="Estado de facturación")
+    #invoice_status2 = fields.Selection([
+    #    ('none', 'No facturada'),
+    #    ('partial', 'Semifacturada'),
+    #    ('full', 'Facturada'),
+    #    ('canceled', 'Cancelada'),
+    #    ('semi_canceled', 'Semi cancelada'),
+    #], compute='_compute_agg_status', store=True, default='none', string="Estado de facturación")
 
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)
-    contrato = fields.Many2one('creditos.credito', string="Contrato",
-                               domain=lambda self: self._domain_contrato())
-                               #domain="[('cliente', '=', cliente), ('status','=','active'), ('vencimiento', '>', context_today())]" if cliente else "[('id', '=', 0)]")
+    contrato = fields.Many2one('creditos.credito', string="Contrato", ondelete='set null')
+                               #domain=lambda self: self._domain_contrato())
 
     # Calcula siempre la fecha actual sin depender de otros campos
     hoy = fields.Date(compute='_compute_hoy')
 
-
-    @api.depends('cliente')
-    def _domain_contrato(self):
-        if self.cliente:
-            return [
-                ('cliente', '=', self.cliente.id),
-                ('dictamen', '=', 'confirmed'),
-                ('vencimiento', '>', fields.Date.context_today(self)),
-            ]
-        return [('id', '=', 0)]
 
     @api.depends()
     def _compute_hoy(self):
@@ -73,8 +62,6 @@ class venta(models.Model):
     )
 
 
-    company_id = fields.Many2one('res.company', string='Compañía', required=True,
-                                 default=lambda self: self.env.company, index=True)
     saldo = fields.Float(string="Saldo", readonly=True, store=True, compute="_compute_saldo")
     pagos = fields.Float(string="Pagos", readonly=True, store=True, compute='_add_detalles')
 
@@ -93,10 +80,7 @@ class venta(models.Model):
 
     @api.onchange('empresa_id')
     def _onchange_empresa_id(self):
-        if self.empresa_id:
-            comp = getattr(self.empresa_id, 'company_id', False) or getattr(self.empresa_id, 'res_company_id', False)
-            if comp:
-                self.company_id = comp
+        # Sincroniza sucursal con empresa (sin tocar company_id porque ya no existe)
         if self.sucursal_id and self.sucursal_id.empresa != self.empresa_id:
             self.sucursal_id = False
 
@@ -121,10 +105,6 @@ class venta(models.Model):
         string="Estado", default='draft', required=True, index=True
     )
 
-    # Enlace con la factura generada (OCA/Enterprise)
-    move_id = fields.Many2one('account.move', string='Factura', copy=False, readonly=True, check_company=True, # ⬅️ Garantiza que la factura sea de la misma compañía que la venta
-                              )
-
     is_editing = fields.Boolean(default=False, store=True)
 
     # NEW: para no aplicar/revertir stock dos veces
@@ -145,13 +125,6 @@ class venta(models.Model):
         string="Método de Pago", required=True, default="PPD", store=True
     )
 
-    res_company_cfdi_id = fields.Many2one(
-        'res.company',
-        string='Compañía fiscal',
-        compute='_compute_res_company_cfdi',
-        store=False,
-        readonly=True,
-    )
 
     # Forma de pago SAT
     formadepago = fields.Selection(
@@ -162,48 +135,38 @@ class venta(models.Model):
         ],
         string="Forma de Pago", default="01"
     )
-    @api.depends('empresa_id')
-    def _compute_res_company_cfdi(self):
-        for r in self:
-            comp = False
-            emp = r.empresa_id
-            if emp:
-                # intenta ambos nombres de campo en empresas.empresa
-                comp = getattr(emp, 'company_id', False) or getattr(emp, 'res_company_id', False)
-            r.res_company_cfdi_id = comp or False
+
     
-    @api.depends('state', 'importe', 'move_id.amount_residual', 'move_id.state', 'move_id.move_type')
+    @api.depends('state', 'importe', 'codigo', 'detalle_venta.write_date')
     def _compute_saldo(self):
-        Move = self.env['account.move']
+        FUI = self.env['facturas.factura']
+        FUIL = self.env['facturas.factura.line']
         for r in self:
             if r.state == 'cancelled':
                 r.saldo = 0.0
                 continue
 
-            residual = 0.0
-            # 1) Si hay move_id y está posteada, úsalo
-            if r.move_id and r.move_id.state == 'posted':
-                if r.move_id.move_type in ('out_invoice', 'out_refund'):
-                    sign = 1.0 if r.move_id.move_type == 'out_invoice' else -1.0
-                    residual += sign * (r.move_id.amount_residual or 0.0)
+            # Ingresos timbrados ligados a esta venta:
+            ingresos = FUI.search([
+                ('tipo', '=', 'I'),
+                ('state', '=', 'stamped'),
+                ('venta_ids', 'in', r.id),
+            ])
 
-            # 2) Fallback: otras facturas ligadas por origen (parciales), si existen
-            if r.codigo:
-                others = Move.search([
-                    ('state', '=', 'posted'),
-                    ('move_type', 'in', ('out_invoice', 'out_refund')),
-                    ('invoice_origin', '=', r.codigo),
-                    ('company_id', '=', r.company_id.id),
-                ])
-                for m in others.filtered(lambda m: m.id != (r.move_id.id if r.move_id else 0)):
-                    sign = 1.0 if m.move_type == 'out_invoice' else -1.0
-                    residual += sign * (m.amount_residual or 0.0)
+            # Fallback: si no hubo M2M, liga por líneas con sale_id = esta venta
+            if not ingresos:
+                cand = FUIL.search([('sale_id', '=', r.id)]).mapped('factura_id')
+                ingresos = cand.filtered(lambda f: f.tipo == 'I' and f.state == 'stamped')
 
-            # 3) Sin factura: saldo = importe si la venta está confirmada; si no, 0
-            if not residual and r.state == 'confirmed':
+            if ingresos:
+                # Suma el saldo que ya calcula FacturaUI (incluye NC/DEV/Pagos aplicados)
+                r.saldo = sum(max(f.saldo or 0.0, 0.0) for f in ingresos)
+            elif r.state == 'confirmed':
+                # Sin facturas aún: saldo = total de la venta
                 r.saldo = r.importe or 0.0
             else:
-                r.saldo = max(residual, 0.0)
+                r.saldo = 0.0
+
 
 
     @api.onchange('metododepago')
@@ -332,20 +295,32 @@ class venta(models.Model):
             sale.stock_aplicado = False
 
     def action_open_payments(self):
-        """Smart button: abre pagos ligados a la factura."""
+        """Abre Complementos de Pago (FacturasUI tipo P) ligados a los Ingresos de esta venta."""
         self.ensure_one()
-        if not self.move_id:
-            raise ValidationError(_('No hay factura vinculada para ver pagos.'))
-        payments = self.env['account.payment'].search([('reconciled_invoice_ids', 'in', self.move_id.id)])
-        action = {
+        FUI = self.env['facturas.factura']
+        FUIL = self.env['facturas.factura.line']
+
+        ingresos = FUI.search([
+            ('tipo', '=', 'I'),
+            ('state', '=', 'stamped'),
+            ('venta_ids', 'in', self.id),
+        ])
+        if not ingresos:
+            cand = FUIL.search([('sale_id', '=', self.id)]).mapped('factura_id')
+            ingresos = cand.filtered(lambda f: f.tipo == 'I' and f.state == 'stamped')
+
+        if not ingresos:
+            raise ValidationError(_('No hay facturas timbradas vinculadas a esta venta.'))
+
+        return {
             'type': 'ir.actions.act_window',
-            'name': _('Pagos'),
-            'res_model': 'account.payment',
+            'name': _('Complementos de pago'),
+            'res_model': 'facturas.factura',
             'view_mode': 'list,form',
-            'domain': [('id', 'in', payments.ids)],
+            'domain': [('tipo', '=', 'P'), ('origin_factura_id', 'in', ingresos.ids)],
             'target': 'current',
         }
-        return action
+
 
     def action_open_contrato(self):
         """Smart button: abre el contrato (crédito) relacionado."""
@@ -396,33 +371,19 @@ class venta(models.Model):
             if 'empresa_id' in vals or 'sucursal_id' in vals:
                 rec._check_user_company_branch(vals=vals)
 
-            # Si se enlaza una factura posteada, marcar la venta como 'invoiced'
-            if vals.get('move_id'):
-                mv = self.env['account.move'].browse(vals['move_id'])
-                if mv and mv.state == 'posted':
-                    vals.setdefault('state', 'invoiced')
-
         res = super().write(vals)
 
         # Recalcular saldo de contrato si aplica
         for rec in self:
             if rec.contrato:
-                rec.contrato._calc_saldoporventas()
+                rec.contrato._saldoporventas()
         return res
 
     @api.model
     def create(self, vals):
         vals.setdefault('empresa_id', self.env.user.empresa_actual_id.id)
         vals.setdefault('sucursal_id', self.env.user.sucursal_actual_id.id)
-
-        if vals.get('empresa_id'):
-            emp = self.env['empresas.empresa'].browse(vals['empresa_id'])
-            if emp:
-                comp = getattr(emp, 'company_id', False) or getattr(emp, 'res_company_id', False)
-                if comp:
-                    vals['company_id'] = comp.id
-
-
+        # Ya no seteamos company_id
         self._check_user_company_branch(vals=vals)
         return super().create(vals)
 
@@ -507,42 +468,52 @@ class venta(models.Model):
     def action_download_cfdi(self):
         self.ensure_one()
         Att = self.env['ir.attachment']
+        FUI = self.env['facturas.factura']
+        FUIL = self.env['facturas.factura.line']
+
+        # 1) Buscar la factura UI de Ingreso más reciente ligada a la venta
+        fact = FUI.search([
+            ('tipo', '=', 'I'),
+            ('state', '=', 'stamped'),
+            ('venta_ids', 'in', self.id)
+        ], limit=1, order='id desc')
+
+        if not fact:
+            cand = FUIL.search([('sale_id', '=', self.id)], limit=100).mapped('factura_id')
+            fact = cand.filtered(lambda f: f.tipo == 'I' and f.state == 'stamped')[:1]
+
         att = False
-        # 1) Preferir adjuntos del account.move
-        if self.move_id:
+        if fact:
             att = Att.search([
-                ('res_model', '=', 'account.move'),
-                ('res_id', '=', self.move_id.id),
-                ('mimetype', '=', 'application/xml'),
+                ('res_model', '=', 'facturas.factura'),
+                ('res_id', '=', fact.id),
+                ('mimetype', 'in', ['application/xml', 'text/xml']),
             ], limit=1, order='id desc')
-        # 2) Complemento de pagos: buscar XML en movimientos de pago ligados a la factura
-        if not att and self.move_id:
-            Pay = self.env['account.payment']
-            payments = Pay.search([('reconciled_invoice_ids', 'in', self.move_id.id), ('state', '=', 'posted')], limit=5)
-            if payments:
-                att = Att.search([
-                    ('res_model', '=', 'account.move'),
-                    ('res_id', 'in', payments.mapped('move_id').ids),
-                    ('mimetype', '=', 'application/xml'),
-                ], limit=1, order='id desc')
-        # 3) Fallback a adjuntos en la propia venta (legacy dummy)
+
+        # 2) Fallback: adjunto en la propia venta
         if not att:
             att = Att.search([
-                ('res_model', '=', 'ventas.venta'),
+                ('res_model', '=', self._name),
                 ('res_id', '=', self.id),
-                ('mimetype', '=', 'application/xml'),
+                ('mimetype', 'in', ['application/xml', 'text/xml']),
             ], limit=1, order='id desc')
-        if not att:
-            # Busca por doc de tu engine como fallback
-            att = Att.search([
-                ('res_model', '=', 'mx.cfdi.document'),
-                ('res_id', 'in', self.env['mx.cfdi.document'].search([
-                    ('origin_model', '=', 'ventas.venta'),
-                    ('origin_id', '=', self.id),
+
+        # 3) Fallback: documento del engine (mx.cfdi.document)
+        if not att and self.cfdi_uuid:
+            Doc = self.env['mx.cfdi.document'] if 'mx.cfdi.document' in self.env else False
+            if Doc:
+                doc_ids = Doc.search([
+                    ('origin_model', 'in', ['facturas.factura', self._name]),
+                    ('origin_id', 'in', (fact and [fact.id]) + [self.id] if fact else [self.id]),
                     ('uuid', '=', self.cfdi_uuid),
-                ]).ids),
-                ('mimetype', '=', 'application/xml'),
-            ], limit=1, order='id desc')
+                ]).ids
+                if doc_ids:
+                    att = Att.search([
+                        ('res_model', '=', 'mx.cfdi.document'),
+                        ('res_id', 'in', doc_ids),
+                        ('mimetype', 'in', ['application/xml', 'text/xml']),
+                    ], limit=1, order='id desc')
+
         if not att:
             raise ValidationError(_("No hay XML adjunto para esta venta."))
 
@@ -551,6 +522,7 @@ class venta(models.Model):
             'url': f'/web/content/{att.id}?download=true',
             'target': 'self',
         }
+
 
     def action_cancel_cfdi(self):
         self.ensure_one()
@@ -581,13 +553,28 @@ class venta(models.Model):
 
     def action_open_invoice(self):
         self.ensure_one()
-        if not getattr(self, 'move_id', False):
-            raise ValidationError(_('No hay factura vinculada a esta venta.'))
+        FUI = self.env['facturas.factura']
+        FUIL = self.env['facturas.factura.line']
+
+        fact = FUI.search([
+            ('tipo', '=', 'I'),
+            ('state', 'in', ['draft', 'ready', 'stamped']),
+            ('venta_ids', 'in', self.id),
+        ], limit=1, order='id desc')
+
+        if not fact:
+            cand = FUIL.search([('sale_id', '=', self.id)], limit=100).mapped('factura_id')
+            facts = cand.filtered(lambda f: f.tipo == 'I')
+            fact = facts[:1] if facts else False
+
+        if not fact:
+            raise ValidationError(_('No hay FacturaUI vinculada a esta venta.'))
+
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Factura'),
-            'res_model': 'account.move',
-            'res_id': self.move_id.id,
+            'name': _('Factura (UI)'),
+            'res_model': 'facturas.factura',
+            'res_id': fact.id,
             'view_mode': 'form',
             'target': 'current',
         }
@@ -595,74 +582,65 @@ class venta(models.Model):
 
 
 
+
     def action_fetch_cfdi_from_sw(self):
-        """Si ya tengo UUID, bajo el XML desde SW y lo adjunto (venta y factura)."""
+        """Baja XML desde SW y lo adjunta a FacturaUI (si existe) y a la venta."""
         self.ensure_one()
         if not self.cfdi_uuid:
             raise ValidationError(_('No hay UUID en la venta.'))
+
         provider = self.env['mx.cfdi.engine']._get_provider().with_context(empresa_id=self.empresa_id.id)
         data = provider.download_xml_by_uuid(self.cfdi_uuid, tries=10, delay=1.0)
         if not data or not data.get('xml'):
             raise UserError(_('SW no devolvió XML para el UUID %s.') % self.cfdi_uuid)
 
-        # A) factura
-        att_move = self.env['ir.attachment'].sudo().create({
-            'name': f"{self.cfdi_uuid}.xml",
-            'res_model': 'account.move',
-            'res_id': self.move_id.id,
-            'type': 'binary',
-            'datas': base64.b64encode(data['xml']).decode('ascii'),   # <- aquí
-            'mimetype': 'application/xml',
-            'description': _('CFDI timbrado %s (descargado de SW)') % self.cfdi_uuid,
-        })
+        Att = self.env['ir.attachment'].sudo()
+        FUI = self.env['facturas.factura']
 
-        # B) copia en venta
-        self.env['ir.attachment'].sudo().create({
+        # Buscar FacturaUI de Ingreso de esta venta
+        fact = FUI.search([
+            ('tipo', '=', 'I'),
+            ('state', 'in', ['ready', 'stamped']),
+            ('venta_ids', 'in', self.id),
+        ], limit=1, order='id desc')
+
+        # A) Adjuntar a FacturaUI (si la hay)
+        if fact:
+            Att.create({
+                'name': f"{self.cfdi_uuid}.xml",
+                'res_model': 'facturas.factura',
+                'res_id': fact.id,
+                'type': 'binary',
+                'datas': base64.b64encode(data['xml']).decode('ascii'),
+                'mimetype': 'application/xml',
+                'description': _('CFDI timbrado %s (descargado de SW)') % self.cfdi_uuid,
+            })
+
+        # B) Copia en venta
+        Att.create({
             'name': f"{self.cfdi_uuid}-venta.xml",
             'res_model': self._name,
             'res_id': self.id,
             'type': 'binary',
-            'datas': base64.b64encode(data['xml']).decode('ascii'),   # <- aquí
+            'datas': base64.b64encode(data['xml']).decode('ascii'),
             'mimetype': 'application/xml',
             'description': _('CFDI timbrado %s (copia en venta)') % self.cfdi_uuid,
         })
 
-        # C) acuse (si viene)
+        # C) Acuse (si viene)
         if data.get('acuse'):
-            self.env['ir.attachment'].sudo().create({
+            Att.create({
                 'name': f"acuse-{self.cfdi_uuid}.xml",
-                'res_model': self._name,
-                'res_id': self.id,
+                'res_model': self._name if not fact else 'facturas.factura',
+                'res_id': self.id if not fact else fact.id,
                 'type': 'binary',
-                'datas': base64.b64encode(data['acuse']).decode('ascii'),  # <- aquí
+                'datas': base64.b64encode(data['acuse']).decode('ascii'),
                 'mimetype': 'application/xml',
                 'description': _('Acuse CFDI %s (SW DW)') % self.cfdi_uuid,
             })
 
         return True
 
-    """def action_open_factura_ui(self):
-        ""Abre la Interfaz de Facturas prellenada con esta venta (sin timbrar).""
-        self.ensure_one()
-        fac = self.env['facturas.factura'].create({
-            'empresa_id': self.empresa_id.id,
-            #'company_id': self.company_id.id,
-            'sucursal_id': self.sucursal_id.id,
-            'cliente_id': self.cliente.id,   # tu modelo clientes.cliente
-            'tipo': 'I',
-            'metodo': self.metododepago or 'PPD',
-            'forma': (self.formadepago if (self.metododepago == 'PUE') else '99'),
-            'origen_venta_id': self.id,      # ← si tu modelo lo tiene, útil para trazar
-            'origen_codigo': self.codigo,    # ← opcional; ayuda a ligar por invoice_origin
-        })
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'facturas.factura',
-            'res_id': fac.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
-        """
     
     def action_open_factura_ui(self):
         """Abre la Interfaz de Facturas prellenada con esta venta (sin timbrar)."""
@@ -681,9 +659,6 @@ class venta(models.Model):
         # Ligar la venta si el modelo lo soporta (usa tu M2M venta_ids)
         if 'venta_ids' in Factura._fields:
             vals['venta_ids'] = [(6, 0, [self.id])]
-        # Solo manda campos si existen en el modelo
-        if 'company_id' in Factura._fields:
-            vals['company_id'] = self.company_id.id
         fac = Factura.create(vals)
         return {
             'type': 'ir.actions.act_window',
@@ -694,13 +669,13 @@ class venta(models.Model):
         }
 
 
-    
+    """
     @api.depends('detalle', 'detalle.write_date', 'detalle.tipo', 'detalle.cantidad')
     def _compute_agg_status(self):
-        """
+        ""
         Solo considera conceptos que son verdaderas líneas de VENTA (tipo == '1').
         Ignora NC, DEV, PAGO y cualquier otra transacción ajena relacionada.
-        """
+        ""
         EPS = 1e-6
         for v in self:
             # Filtra duro por tipo '1' y cantidades > 0
@@ -751,7 +726,7 @@ class venta(models.Model):
                 v.invoice_status2 = 'none'
             else:
                 v.invoice_status2 = 'partial'
-
+"""
 
     def action_open_attachments(self):
         self.ensure_one()

@@ -101,6 +101,10 @@ class FacturaUI(models.Model):
             .with_context(allowed_company_ids=[inv_company.id])
 
         mxn = self.env.ref('base.MXN', raise_if_not_found=False)
+        cur_id = inv_company.currency_id.id
+        # Si MXN existe y está activa, úsala; si no, conserva la de la compañía
+        if mxn and mxn.exists() and getattr(mxn, 'active', True):
+            cur_id = mxn.id
 
         # Asegurar invoice_origin correcto
         origin_codes = []
@@ -131,7 +135,7 @@ class FacturaUI(models.Model):
             'move_type': 'out_invoice' if self.tipo == 'I' else 'out_refund',
             'partner_id': partner.id,
             'company_id': inv_company.id,
-            'currency_id': (mxn.id if mxn else inv_company.currency_id.id),
+            'currency_id': cur_id,
             'invoice_origin': invoice_origin,
             'invoice_date': fields.Date.context_today(self),
             'invoice_line_ids': lines_cmd,
@@ -554,16 +558,16 @@ class FacturaUI(models.Model):
 
                 # ====== TIPO P (Complemento de pago) ======
                 if r.tipo == 'P':
-                    # 1) Timbrar complemento de pago (sin account.move)
+                    # 1) Registrar efectos internos PRIMERO:
+                    #    - Crea la transacción de pago (tipo 11)
+                    #    - Descuenta counters en la factura origen
+                    #    Si algo falla aquí (parámetro, modelo, permisos), se aborta ANTES de timbrar.
+                    r._apply_payment_effects()
+
+                    # 2) Timbrar complemento de pago (sin account.move)
                     stamped = r._stamp_payment_with_engine()
                     self._logger.info("CFDI FLOW | PAYMENT STAMPED | uuid=%s", stamped.get('uuid'))
                     r.write({'state': 'stamped', 'uuid': stamped.get('uuid'), 'move_id': False})
-
-                    # 2) Registrar efectos internos: transacción de abono y bajar saldo disponible del origen
-                    try:
-                        r._apply_payment_effects()
-                    except Exception as _e:
-                        self._logger.warning("PAGO | no se pudo crear transacción de pago / ajustar counters: %s", _e)
 
                     # 3) Recomputar saldo en la factura origen y ventas ligadas
                     if r.origin_factura_id:
@@ -597,6 +601,20 @@ class FacturaUI(models.Model):
                         r._apply_stock_on_ingreso()
                     except Exception as _e:
                         self._logger.warning("STOCK | no se pudo descontar en ingreso: %s", _e)
+
+
+                if r.tipo in ('I', 'E'):
+                    mv_cur = r.currency_id or r.env.company.currency_id
+                    if mv_cur and hasattr(mv_cur, 'active') and not mv_cur.active:
+                        try:
+                            inv_company = r._resolve_inv_company()
+                            r.message_post(body=_(
+                                "Advertencia: la moneda configurada (%s) está INACTIVA; se usará la moneda activa de la compañía contable (%s)."
+                            ) % ((mv_cur.name or mv_cur.display_name or '??'),
+                                 (inv_company.currency_id.name or '??')))
+                        except Exception:
+                            pass
+
 
                 # === Efectos post-timbrado por tipo ===
                 if r.tipo == 'I':
@@ -635,13 +653,11 @@ class FacturaUI(models.Model):
                 ventas = (r.venta_ids | ventas_from_lines).sudo()
 
                 if ventas:
-                    if move.state == 'posted':
-                        if len(ventas) == 1:
-                            ventas.write({'state': 'invoiced', 'move_id': move.id})
-                        else:
-                            ventas.write({'state': 'invoiced'})
-                    else:
-                        ventas.write({'state': 'invoiced'})  # por si cambias el posteo más arriba
+                    vals = {'state': 'invoiced'}
+                    # Solo intenta ligar el move si el modelo lo soporta
+                    if move.state == 'posted' and len(ventas) == 1 and 'move_id' in ventas._fields:
+                        vals['move_id'] = move.id
+                    ventas.write(vals)
 
                 # === si es EGRESO, recomputar origen y sus ventas (ya lo tenías)
                 if r.tipo == 'E' and r.origin_factura_id:
@@ -678,6 +694,25 @@ class FacturaUI(models.Model):
 
 
     # === Helpers post-operación ===
+    # R<esolver compañía contable destino ===
+    def _resolve_inv_company(self):
+        ICP = self.env['ir.config_parameter'].sudo()
+        cid = int(ICP.get_param('facturacion_ui.technical_company_id', '0') or 0)
+        if cid:
+            c = self.env['res.company'].browse(cid)
+            if c and c.exists():
+                return c
+
+        # Fallbacks desde empresas.empresa → res.company
+        emp = self.empresa_id
+        for fname in ('res_company_id', 'company_id', 'company'):
+            c = getattr(emp, fname, False)
+            if c and getattr(c, '_name', '') == 'res.company':
+                return c
+
+        # Último recurso: compañía actual del entorno
+        return self.env.company
+
 
     def _return_devolucion_to_stock(self):
         """Regresa a stock las cantidades devueltas (por sucursal) usando stock.sucursal.producto."""
@@ -993,20 +1028,26 @@ class FacturaUI(models.Model):
         )
 
 
-
-
-    def _get_payment_product(self):
+    def _get_payment_product(self, strict=False):
+        """
+        Devuelve el producto de pago configurado en el parámetro del sistema
+        'facturacion_ui.payment_product_id'. En modo estricto, exige que el parámetro
+        exista y apunte a un producto válido (sin hacer búsquedas ni autocorrecciones).
+        """
         ICP = self.env['ir.config_parameter'].sudo()
-        pid = int(ICP.get_param('facturacion_ui.payment_product_id', '0') or 0)
+        raw = (ICP.get_param('facturacion_ui.payment_product_id', '') or '').strip()
+        pid = int(raw) if raw.isdigit() else 0
         p = self.env['productos.producto'].browse(pid) if pid else False
         if p and p.exists():
             return p
-        # Fallback por nombre
-        p = self.env['productos.producto'].search([('name','ilike','pago')], limit=1)
+
+        if strict:
+            raise ValidationError(_("Configura el parámetro del sistema 'facturacion_ui.payment_product_id' con el ID de un producto válido para registrar la transacción del complemento de pago."))
+
+        # --- Modo no estricto (fallback legacy): intenta localizar por nombre y autoajustar parámetro ---
+        p = self.env['productos.producto'].search([('name', 'ilike', 'pago')], limit=1)
         if not p:
-            # En lugar de romper el flujo, da una pista clara:
             raise ValidationError(_("Configura el parámetro 'facturacion_ui.payment_product_id' o crea un producto llamado 'Pago' sin impuestos."))
-        # Actualiza el parámetro para la próxima vez
         ICP.set_param('facturacion_ui.payment_product_id', str(p.id))
         return p
 
@@ -1024,11 +1065,11 @@ class FacturaUI(models.Model):
         try:
             Tx = self.env['transacciones.transaccion'].sudo()
         except KeyError:
-            self._logger.warning("PAGO | modelo 'transacciones.transaccion' no disponible; no se crean transacciones.")
-            return
+            raise ValidationError(_("No está disponible el modelo 'transacciones.transaccion'; no se puede registrar la transacción de pago."))
+
     
         if (self.pago_importe or 0.0) > 0.0:
-            pago_prod = self._get_payment_product()
+            pago_prod = self._get_payment_product(strict=True)
     
             # elegir alguna venta del origen
             venta = origin.venta_ids[:1] and origin.venta_ids[0] or False
@@ -1828,10 +1869,33 @@ class FacturaUI(models.Model):
     @api.depends('empresa_id')
     def _compute_currency(self):
         ICP = self.env['ir.config_parameter'].sudo()
-        cid = int(ICP.get_param('facturacion_ui.currency_id', '0') or 0)
-        cur = self.env['res.currency'].browse(cid) if cid else self.env.ref('base.MXN', raise_if_not_found=False)
+        val = (ICP.get_param('facturacion_ui.currency_id') or '').strip()
+
+        cur = False
+        if val:
+            # 1) Si es ID numérico
+            if val.isdigit():
+                cur = self.env['res.currency'].browse(int(val))
+            # 2) Si parece xmlid: ej. 'base.MXN'
+            elif '.' in val:
+                cur = self.env.ref(val, raise_if_not_found=False)
+            else:
+                # 3) Código/Nombre de moneda: 'MXN', 'USD', etc.
+                Cur = self.env['res.currency']
+                cur = Cur.search([('name', '=', val)], limit=1) or Cur.search([('name', 'ilike', val)], limit=1)
+
+        # 4) Fallback a MXN por xmlid
+        if not cur:
+            cur = self.env.ref('base.MXN', raise_if_not_found=False)
+
+        # 5) Si la moneda está inactiva o no existe, caer a la moneda activa de la compañía
+        if not cur or (hasattr(cur, 'active') and not cur.active):
+            company_cur = self.env.company.currency_id
+            cur = company_cur if (company_cur and company_cur.active) else False
+
         for r in self:
-            r.currency_id = cur or False  # si no hay MXN instalado, deja vacío (forzará configurar param)
+            r.currency_id = cur or False
+
 
 
 

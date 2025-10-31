@@ -33,10 +33,29 @@
                 <field name="sucursal_id"/>
                 <!--<field name="total" sum="Total"/-->
                 <field name="state"/>
-                <field name="invoice_status2" widget="badge"/>
+                <!--field name="invoice_status2" widget="badge"/-->
             </list>
         </field>
     </record>
+
+    <!-- Subform para líneas de venta (transacciones.transaccion)-->
+    <record id="view_transaccion_form_detalle" model="ir.ui.view">
+        <field name="name">transaccion.form.detalle</field>
+        <field name="model">transacciones.transaccion</field>
+        <field name="arch" type="xml">
+            <form string="Detalle de Venta">
+                <group>
+                    <field name="producto_id" required="1"/>
+                    <field name="cantidad"/>
+                    <field name="precio"/>
+                    <field name="iva_amount" readonly="1"/>
+                    <field name="ieps_amount" readonly="1"/>
+                    <field name="importe" readonly="1"/>
+                </group>
+            </form>
+        </field>
+    </record>
+
 
     <!-- =============================
          FORM EDITABLE
@@ -65,8 +84,6 @@
 
                 <sheet>
 
-                    <field name="move_id" invisible="1"/>
-
                     <!-- Tiles arriba a la derecha -->
                     <div class="oe_button_box" name="venta_header_stats">
                         <button type="object" name="action_noop" class="oe_stat_button" icon="fa-hashtag">
@@ -85,11 +102,11 @@
                             <div class="o_stat_info"><span class="o_stat_text">Contrato</span></div>
                         </button>
 
-                        <button type="object" name="action_open_payments" class="oe_stat_button" icon="fa-credit-card" invisible="not move_id">
+                        <button type="object" name="action_open_payments" class="oe_stat_button" icon="fa-credit-card" >
                             <div class="o_stat_info"><span class="o_stat_text">Pagos</span></div>
                         </button>
 
-                        <button type="object" name="action_open_invoice" class="oe_stat_button" icon="fa-file-text" invisible="not move_id">
+                        <button type="object" name="action_open_invoice" class="oe_stat_button" icon="fa-file-text" >
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Factura</span>
                             </div>
@@ -117,6 +134,20 @@
                             <field name="observaciones"/>
                         </group>
 
+                        <!--field name="detalle_venta"
+                               widget="one2many_list"
+                               context="{'default_tipo': '1', 'form_view_ref': 'ventas.view_transaccion_form_detalle'}">
+                            <list editable="bottom" string="Detalles">
+                                <field name="producto_id"/>
+                                <field name="cantidad" sum="Cant."/>
+                                <field name="precio"/>
+                                <field name="iva_amount"/>
+                                <field name="ieps_amount"/>
+                                <field name="importe" sum="Importe"/>
+                            </list>
+                        </field-->
+
+
                     <notebook>
                      <page string="Detalles de Venta">
                         <field name="detalle_venta" widget="one2many_list" context="{'default_tipo': '1'}">
@@ -124,8 +155,8 @@
                             <field name="producto_id"/>
                             <field name="cantidad" sum="Cant."/>
                             <field name="precio"/>
-                            <field name="iva"/>
-                            <field name="ieps"/>
+                            <field name="iva_amount"/>
+                            <field name="ieps_amount"/>
                             <field name="importe" sum="Importe"/>
                          </list>
                         </field>
@@ -186,7 +217,7 @@
                     <button name="action_open_edit" type="object" string="Editar" class="btn-primary" confirm="¿Editar este registro?" invisible="state == 'cancelled' or state == 'invoiced'"/>
                     <button name="%(ventas.action_ventas)d" type="action" string="Volver" class="btn-secondary"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,invoiced,cancelled"/>
-                    <field name="invoice_status2" widget="badge"/>
+                    <!--field name="invoice_status2" widget="badge"/-->
                 </header>
 
                 <sheet>
@@ -207,7 +238,7 @@
                         <button type="object" name="action_open_contrato" class="oe_stat_button" icon="fa-handshake-o" invisible="not contrato">
                             <div class="o_stat_info"><span class="o_stat_text">Contrato</span></div>
                         </button>
-                        <button type="object" name="action_open_payments" class="oe_stat_button" icon="fa-credit-card" invisible="not move_id">
+                        <button type="object" name="action_open_payments" class="oe_stat_button" icon="fa-credit-card" >
                             <div class="o_stat_info"><span class="o_stat_text">Pagos</span></div>
                         </button>
                     </div>
@@ -229,8 +260,8 @@
                             <field name="producto_id" readonly="1"/>
                                 <field name="cantidad" readonly="1" sum="Cant."/>
                                 <field name="precio" readonly="1"/>
-                                <field name="iva" readonly="1"/>
-                                <field name="ieps" readonly="1"/>
+                                <field name="iva_amount" readonly="1"/>
+                                <field name="ieps_amount" readonly="1"/>
                                 <field name="importe" readonly="1" sum="Importe"/>
                         </list>
                     </field>

@@ -215,11 +215,16 @@ class credito(models.Model):
             record.pagos = 0.0
             while dia <= today:
                 tasa = 0.18 - record.bonintereses # <--- LECTURA DE TASA DE INTERÉS MENSUAL CAPTURADA
-                capitaldia = sum(record.cargos.importe for cargo in record.cargos if cargo.credito_id.id==record.id and cargo.fecha == dia)
-                capitaldia += sum(record.cargoscontrato.importe for cargo in record.cargos if cargo.credito_id.id==record.id and cargo.fecha == dia and cargo.tipocargo in ('0','1','2'))
+                capitaldia = sum(c.importe for c in record.cargos
+                 if c.credito_id.id == record.id and c.fecha == dia)
+                capitaldia += sum(cc.importe for cc in record.cargoscontrato
+                                  if cc.fecha == dia and cc.tipocargo in ('0', '1', '2'))
                 if dia == today:
-                    capitaldia += sum(record.cargoscontrato.importe for cargo in record.cargos if cargo.credito_id.id==record.id and cargo.fecha == dia and cargo.tipocargo == '3')
-                capitaldia += sum(record.ventas_ids.importe for venta in record.ventas_ids if venta.contrato.id==record.id and venta.fecha == dia and venta.state in ('confirmed', 'invoiced'))
+                    capitaldia += sum(cc.importe for cc in record.cargoscontrato
+                                      if cc.fecha == dia and cc.tipocargo == '3')
+                capitaldia += sum(v.importe for v in record.ventas_ids
+                  if v.contrato.id == record.id and v.fecha == dia and v.state in ('confirmed', 'invoiced'))
+
                 #pagosdia = sum(record.pagos_ids.importe for pago in record.pagos_ids if pago.credito.id==record.id and pago.fecha == dia and pago.state in ('posted'))
                 try:
                     pagosdia = sum(record.env['pagos.pago'].search([('credito', '=', record.id), ('fecha', '=', dia), ('status', '=', 'posted')]).mapped('monto'))

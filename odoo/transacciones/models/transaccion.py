@@ -1,7 +1,6 @@
-#transacciones/models/transaccion.py
+# transacciones/models/transaccion.py
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
-from datetime import date
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -29,11 +28,12 @@ class Transaccion(models.Model):
     subtotal = fields.Float(string="Subtotal", readonly=True, store=True, compute='_calc_montos')
     importe = fields.Float(string="Importe", readonly=True, store=True, compute='_calc_montos')
 
-    stock = fields.Selection(string="Tipo", default='0', readonly=True, selection=[
-        ('0', "Sin efecto"),
-        ('1', "Entrada"),
-        ('2', "Salida"),
-    ], compute='_stock_tipo', store=True)
+    # Helper de impacto en stock
+    stock = fields.Selection(
+        string="Tipo",
+        selection=[('0', "Sin efecto"), ('1', "Entrada"), ('2', "Salida")],
+        compute='_stock_tipo', store=True, readonly=True, default='0'
+    )
 
     tipo = fields.Selection(string="Tipo de Transacción", selection=[
         ('0', "Compra"),         # Entrada
@@ -48,7 +48,7 @@ class Transaccion(models.Model):
         ('9', "Pérdida"),        # Salida
         ('10', "Nota de crédito"),      # Sin efecto
         ('11', "Complemento de pago"),  # Sin efecto
-    ], default='1', store=True)
+    ], default='1', store=True, required=True, index=True)
 
     # Enlace con venta (One2many en ventas.venta -> venta_id aquí)
     venta_id = fields.Many2one(
@@ -76,13 +76,12 @@ class Transaccion(models.Model):
     def _stock_tipo(self):
         ENTRADA = {'0', '2', '4', '6', '8'}
         for i in self:
-            if i.tipo in {'10', '11'}:   # ⬅️ también sin efecto
+            if i.tipo in {'10', '11'}:
                 i.stock = '0'
             elif i.tipo in ENTRADA:
                 i.stock = '1'
             else:
                 i.stock = '2'
-
 
     @api.constrains('venta_id', 'sucursal_id')
     def _constrain_sucursal_venta(self):
@@ -98,10 +97,9 @@ class Transaccion(models.Model):
             metodo = (line.venta_id.metododepago or 'PPD') if line.venta_id else 'PPD'
             line.precio = line.producto_id.contado if metodo == 'PUE' else line.producto_id.credito
 
-
     @api.model
     def create(self, vals):
-        # 1) Precio por defecto si no viene explícito
+        # Precio por defecto si no viene
         if not vals.get('precio') and vals.get('producto_id'):
             venta = self.env['ventas.venta'].browse(vals.get('venta_id')) if vals.get('venta_id') else False
             metodo = (venta.metododepago if venta and venta.metododepago else 'PPD')
@@ -109,12 +107,10 @@ class Transaccion(models.Model):
             vals['precio'] = prod.contado if metodo == 'PUE' else prod.credito
 
         rec = super().create(vals)
-
-        # 2) Sincroniza helpers desde la venta (si hay)
         rec._update_helpers_from_sale()
-
         return rec
 
+    # Helpers para búsquedas/reportes
     empresa_id_helper  = fields.Many2one('empresas.empresa', index=True)
     cliente_rfc_helper = fields.Char(index=True)
 
@@ -132,24 +128,15 @@ class Transaccion(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-
-        # Si cambia la venta, re-sincroniza helpers
         if 'venta_id' in vals:
             self._update_helpers_from_sale()
-
-        # (Opcional) Si cambió producto o venta y el precio quedó 0, recalcular por método
         if 'venta_id' in vals or 'producto_id' in vals:
             for line in self:
                 if line.producto_id and (not line.precio or vals.get('producto_id')):
                     metodo = (line.venta_id.metododepago or 'PPD') if line.venta_id else 'PPD'
                     line.precio = line.producto_id.contado if metodo == 'PUE' else line.producto_id.credito
-
         return res
-    
+
     @api.onchange('venta_id')
     def _onchange_venta_id_fill_helpers(self):
         self._update_helpers_from_sale()
-
-
-    #def generate_trans(self, tipo, ref, bodega, fecha, usuario, cantidad):
-        
