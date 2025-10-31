@@ -1,0 +1,4 @@
+facturacion_ui.payment_product_id		    <id de "Pago/Abono">
+mx_cfdi_engine.provider				          mx.cfdi.engine.provider.sw / dummy
+facturacion_ui.technical_company_id		  1 / 0 
+facturacion_ui.currency_id			        MXN	(dentro de res.compay ajustar la moneda de la empresa.)
