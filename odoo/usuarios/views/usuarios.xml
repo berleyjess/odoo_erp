@@ -1,4 +1,5 @@
 <odoo>
+ <!-- usuarios/views/usuarios.xml -->
   <record id="view_users_form_inherit_empresa_sucursal" model="ir.ui.view">
     <field name="name">res.users.form.empresa.sucursal</field>
     <field name="model">res.users</field>
@@ -8,14 +9,11 @@
         <page string="Empresas y Sucursales">
           <group>
             <field name="empresas_ids" widget="many2many_tags"/>
-            <field name="sucursales_ids" widget="many2many_tags"
-                   domain="[('empresa','in', empresas_ids)]"/>
+            <field name="sucursales_ids" widget="many2many_tags" context="{'limit_to_empresas_selected_on_user_form': 1}"/>
           </group>
           <group>
-            <field name="empresa_actual_id"
-                   domain="[('id','in', empresas_ids)]"/>
-            <field name="sucursal_actual_id"
-                   domain="[('id','in', sucursales_ids), ('empresa','=', empresa_actual_id)]"/>
+            <field name="empresa_actual_id" context="{'limit_to_empresas_selected_on_user_form': 1}"/>
+            <field name="sucursal_actual_id" context="{'limit_to_empresa_actual_on_user_form': 1}"/>
           </group>
         </page>
       </xpath>

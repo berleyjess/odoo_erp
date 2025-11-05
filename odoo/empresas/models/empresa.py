@@ -25,8 +25,9 @@ class empresa(models.Model):
 
     codigo = fields.Char(
         string='Código', size=10, required=True, readonly=True, copy=False,
-        default=lambda self: self._generate_code(),
+        default=lambda s: s.env['ir.sequence'].next_by_code('seq_emp_code') or '00',
     )
+
 
     REGIMEN_SAT = [
         # PM
@@ -114,10 +115,6 @@ class empresa(models.Model):
             self._validate_fiscal()
         return res
 
-    def _generate_code(self):
-        sequence = self.env['ir.sequence'].next_by_code('seq_emp_code') or '/'
-        number = sequence.split('/')[-1]
-        return f"{number.zfill(2)}"
     
 
 

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_bodega_form" model="ir.ui.view">
+        <field name="name">bodega.form</field>
+        <field name="model">bodegas.bodega</field>
+        <field name="arch" type="xml">
+            <form string="Bodega">
+                <sheet>
+                    <group>
+                        <field name="activa"/>
+                        <field name="nombre"/>
+                        <field name="empresa_id"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_bodega_list" model="ir.ui.view">
+        <field name="name">bodega.list</field>
+        <field name="model">bodegas.bodega</field>
+        <field name="arch" type="xml">
+            <list string="Bodegas">
+                <field name="activa"/>
+                <field name="nombre"/>
+                <field name="empresa_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_bodegas" model="ir.actions.act_window">
+        <field name="name">Bodegas</field>
+        <field name="res_model">bodegas.bodega</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_bodegas_root" name="Bodegas"/>
+    <menuitem id="menu_bodegas" name="Gestión de Bodegas"
+              parent="menu_bodegas_root" action="action_bodegas"/>
+</odoo>

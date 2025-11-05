@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_permisos_modulo,access_permisos_modulo,model_permisos_modulo,base.group_system,1,1,1,1
+access_permisos_permiso,access_permisos_permiso,model_permisos_permiso,base.group_system,1,1,1,1
+access_permisos_rango,access_permisos_rango,model_permisos_rango,base.group_system,1,1,1,1
+access_permisos_asig_rango,access_permisos_asig_rango,model_permisos_asignacion_rango,base.group_system,1,1,1,1
+access_permisos_asig_perm,access_permisos_asig_perm,model_permisos_asignacion_permiso,base.group_system,1,1,1,1
+
+access_permisos_efectivo_wiz,access_permisos_efectivo_wiz,model_permisos_efectivo_wiz,base.group_user,1,1,1,1
+access_permisos_efectivo_wiz_line,access_permisos_efectivo_wiz_line,model_permisos_efectivo_wiz_line,base.group_user,1,1,1,1

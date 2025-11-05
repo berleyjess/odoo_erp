@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <!-- Módulo VENTAS -->
+  <record id="permisos_modulo_ventas" model="permisos.modulo">
+    <field name="code">ventas</field>
+    <field name="name">Ventas</field>
+  </record>
+
+  <!-- Permisos de ventas -->
+  <record id="perm_ventas_crear_venta" model="permisos.permiso">
+    <field name="modulo_id" ref="permisos_modulo_ventas"/>
+    <field name="code">crear_venta</field>
+    <field name="name">Crear venta</field>
+  </record>
+  <record id="perm_ventas_editar_venta" model="permisos.permiso">
+    <field name="modulo_id" ref="permisos_modulo_ventas"/>
+    <field name="code">editar_venta</field>
+    <field name="name">Editar venta</field>
+  </record>
+  <record id="perm_ventas_facturar_venta" model="permisos.permiso">
+    <field name="modulo_id" ref="permisos_modulo_ventas"/>
+    <field name="code">facturar_venta</field>
+    <field name="name">Facturar venta</field>
+  </record>
+  <record id="perm_ventas_enviar_comite" model="permisos.permiso">
+    <field name="modulo_id" ref="permisos_modulo_ventas"/>
+    <field name="code">enviar_comite</field>
+    <field name="name">Enviar a comité</field>
+  </record>
+  <record id="perm_ventas_confirmar_venta" model="permisos.permiso">
+    <field name="modulo_id" ref="permisos_modulo_ventas"/>
+    <field name="code">confirmar_venta</field>
+    <field name="name">Confirmar venta</field>
+  </record>
+
+  <!-- Rango Capturista de Venta -->
+  <record id="rango_capturista_venta" model="permisos.rango">
+    <field name="code">capturista_venta</field>
+    <field name="name">Capturista de venta</field>
+    <field name="description">Puede crear y editar ventas, enviar a comité; no factura ni confirma.</field>
+    <field name="permiso_ids" eval="[(6,0,[ref('perm_ventas_crear_venta'), ref('perm_ventas_editar_venta'), ref('perm_ventas_enviar_comite')])]"/>
+  </record>
+</odoo>

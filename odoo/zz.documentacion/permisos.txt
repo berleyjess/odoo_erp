@@ -1,0 +1,19 @@
+
+can_edit = fields.Boolean(string='Puede editar', compute='_compute_can_edit')
+
+    @api.depends('empresa_id', 'sucursal_id')
+    def _compute_can_edit(self):
+        for rec in self:
+            emp = rec.empresa_id.id if getattr(rec, 'empresa_id', False) else None
+            suc = rec.sucursal_id.id if getattr(rec, 'sucursal_id', False) else None
+            rec.can_edit = self.env.user.has_perm('ventas', 'editar_venta', empresa_id=emp, sucursal_id=suc) ==========
+
+
+
+    def write(self, vals):
+        """Bloqueo duro: si no tiene permiso, no puede escribir."""
+        for rec in self:
+            emp = rec.empresa_id.id if getattr(rec, 'empresa_id', False) else None
+            suc = rec.sucursal_id.id if getattr(rec, 'sucursal_id', False) else None
+            self.env.user.check_perm('ventas', 'editar_venta', empresa_id=emp, sucursal_id=suc) ============
+        return super().write(vals)

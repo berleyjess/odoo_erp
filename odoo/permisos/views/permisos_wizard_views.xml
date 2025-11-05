@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <!-- Acción del Wizard -->
+  <record id="action_permisos_efectivo_wiz" model="ir.actions.act_window">
+    <field name="name">Permisos del Usuario</field>
+    <field name="res_model">permisos.efectivo.wiz</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+    <field name="context">{}</field>
+  </record>
+
+  <!-- Vista del Wizard -->
+  <record id="view_permisos_efectivo_wiz_form" model="ir.ui.view">
+    <field name="name">permisos.efectivo.wiz.form</field>
+    <field name="model">permisos.efectivo.wiz</field>
+    <field name="arch" type="xml">
+      <form string="Permisos efectivos">
+        <sheet>
+          <group>
+            <field name="usuario_id"/>
+            <field name="empresa_id"/>
+            <field name="sucursal_id" invisible="[('empresa_id','=',False)]"/>
+          </group>
+
+          <group>
+            <button string="Recalcular" type="object" name="action_rebuild_lines" class="btn-primary"/>
+          </group>
+
+          <group>
+            <field name="line_ids" create="0" delete="0" context="{'from_wiz': True}">
+                <list editable="bottom">
+                  <field name="seleccionar"/>
+                  <field name="modulo_code"/>
+                  <field name="permiso_code"/>
+                  <field name="permiso_name"/>
+                  <field name="allowed"/>
+                  <field name="override_state"/>
+                  <field name="permiso_id" invisible="1"/>
+                </list>
+            </field>
+          </group>
+        </sheet>
+        <footer>
+          <button string="Permitir seleccionados" type="object" name="action_allow_selected" class="btn-primary"/>
+          <button string="Denegar seleccionados" type="object" name="action_deny_selected" class="btn-secondary"/>
+          <button string="Quitar overrides seleccionados" type="object" name="action_clear_selected" class="btn-secondary"/>
+          <button string="Cerrar" class="btn-link" special="cancel"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+
+  <!-- Botón en Usuarios para abrir el Wizard -->
+  <record id="view_users_form_inherit_permisos" model="ir.ui.view">
+    <field name="name">res.users.form.permisos.buttons</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//header" position="inside">
+        <button name="%(action_permisos_asig_rango)d" string="Rangos" type="action" class="oe_stat_button"/>
+        <button name="%(action_permisos_asig_perm)d" string="Overrides" type="action" class="oe_stat_button"/>
+        <button name="%(action_permisos_efectivo_wiz)d" string="Permisos" type="action" class="oe_stat_button"
+                context="{'default_usuario_id': id, 'default_empresa_id': empresa_actual_id, 'default_sucursal_id': sucursal_actual_id}"/>
+      </xpath>
+    </field>
+  </record>
+</odoo>

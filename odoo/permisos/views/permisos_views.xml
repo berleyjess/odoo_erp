@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <!-- Menú -->
+  <menuitem id="menu_seguridad_root" name="Seguridad" sequence="5"/>
+  <menuitem id="menu_permisos_root" name="Permisos" parent="menu_seguridad_root" sequence="10"/>
+
+  <!-- Módulos -->
+  <record id="action_permisos_modulo" model="ir.actions.act_window">
+    <field name="name">Módulos</field>
+    <field name="res_model">permisos.modulo</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_permisos_modulo" name="Módulos" parent="menu_permisos_root" action="action_permisos_modulo" sequence="10"/>
+
+  <record id="view_permisos_modulo_list" model="ir.ui.view">
+    <field name="name">permisos.modulo.list</field>
+    <field name="model">permisos.modulo</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="code"/>
+        <field name="name"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_permisos_modulo_form" model="ir.ui.view">
+    <field name="name">permisos.modulo.form</field>
+    <field name="model">permisos.modulo</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <group>
+            <field name="code"/>
+            <field name="name"/>
+            <field name="description"/>
+            <field name="active"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <!-- Permisos -->
+  <record id="action_permisos_permiso" model="ir.actions.act_window">
+    <field name="name">Permisos</field>
+    <field name="res_model">permisos.permiso</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_permisos_permiso" name="Permisos" parent="menu_permisos_root" action="action_permisos_permiso" sequence="20"/>
+
+  <record id="view_permisos_permiso_list" model="ir.ui.view">
+    <field name="name">permisos.permiso.list</field>
+    <field name="model">permisos.permiso</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="modulo_id"/>
+        <field name="code"/>
+        <field name="name"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_permisos_permiso_form" model="ir.ui.view">
+    <field name="name">permisos.permiso.form</field>
+    <field name="model">permisos.permiso</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <group>
+            <field name="modulo_id"/>
+            <field name="code"/>
+            <field name="name"/>
+            <field name="description"/>
+            <field name="active"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <!-- Rangos -->
+  <record id="action_permisos_rango" model="ir.actions.act_window">
+    <field name="name">Rangos</field>
+    <field name="res_model">permisos.rango</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_permisos_rango" name="Rangos" parent="menu_permisos_root" action="action_permisos_rango" sequence="30"/>
+
+  <record id="view_permisos_rango_list" model="ir.ui.view">
+    <field name="name">permisos.rango.list</field>
+    <field name="model">permisos.rango</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="code"/>
+        <field name="name"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_permisos_rango_form" model="ir.ui.view">
+    <field name="name">permisos.rango.form</field>
+    <field name="model">permisos.rango</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <group>
+            <field name="code"/>
+            <field name="name"/>
+            <field name="description"/>
+            <field name="active"/>
+          </group>
+          <notebook>
+            <page string="Permisos">
+              <field name="permiso_ids" widget="many2many_tags"/>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <!-- Asignaciones de Rangos -->
+  <record id="action_permisos_asig_rango" model="ir.actions.act_window">
+    <field name="name">Asignaciones de Rangos</field>
+    <field name="res_model">permisos.asignacion.rango</field>
+    <field name="view_mode">list,form</field>
+    <field name="context">{}</field>
+  </record>
+  <menuitem id="menu_permisos_asig_rango" name="Asignaciones de Rangos" parent="menu_permisos_root" action="action_permisos_asig_rango" sequence="40"/>
+
+  <record id="view_permisos_asig_rango_list" model="ir.ui.view">
+    <field name="name">permisos.asignacion.rango.list</field>
+    <field name="model">permisos.asignacion.rango</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="usuario_id"/>
+        <field name="rango_id"/>
+        <field name="empresa_id"/>
+        <field name="sucursal_id"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_permisos_asig_rango_form" model="ir.ui.view">
+    <field name="name">permisos.asignacion.rango.form</field>
+    <field name="model">permisos.asignacion.rango</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <group>
+            <field name="usuario_id"/>
+            <field name="rango_id"/>
+            <field name="empresa_id"/>
+            <field name="sucursal_id" invisible="['|',('empresa_id','=',False),('sucursal_id','!=',False)]"/>
+            <field name="active"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <!-- Overrides de Permisos -->
+  <record id="action_permisos_asig_perm" model="ir.actions.act_window">
+    <field name="name">Overrides de Permisos</field>
+    <field name="res_model">permisos.asignacion.permiso</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_permisos_asig_perm" name="Overrides de Permisos" parent="menu_permisos_root" action="action_permisos_asig_perm" sequence="50"/>
+
+  <record id="view_permisos_asig_perm_list" model="ir.ui.view">
+    <field name="name">permisos.asignacion.permiso.list</field>
+    <field name="model">permisos.asignacion.permiso</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="usuario_id"/>
+        <field name="permiso_id"/>
+        <field name="allow"/>
+        <field name="empresa_id"/>
+        <field name="sucursal_id"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_permisos_asig_perm_form" model="ir.ui.view">
+    <field name="name">permisos.asignacion.permiso.form</field>
+    <field name="model">permisos.asignacion.permiso</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <group>
+            <field name="usuario_id"/>
+            <field name="permiso_id"/>
+            <field name="allow"/>
+            <field name="empresa_id"/>
+            <field name="sucursal_id" invisible="['|',('empresa_id','=',False),('sucursal_id','!=',False)]"/>
+            <field name="active"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <!-- Botón en Usuarios (smart button a Asignaciones) -->
+  <record id="view_users_form_inherit_permisos" model="ir.ui.view">
+    <field name="name">res.users.form.permisos.button</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//header" position="inside">
+        <button name="%(action_permisos_asig_rango)d" string="Rangos" type="action" class="oe_stat_button"/>
+        <button name="%(action_permisos_asig_perm)d" string="Overrides" type="action" class="oe_stat_button"/>
+      </xpath>
+    </field>
+  </record>
+</odoo>

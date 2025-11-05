@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+bodega_user_read,bodegas.bodega user read,model_bodegas_bodega,base.group_user,1,0,0,0
+bodega_manager_all,bodegas.bodega manager all,model_bodegas_bodega,base.group_system,1,1,1,1

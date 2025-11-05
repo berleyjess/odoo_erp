@@ -1,0 +1,28 @@
+<odoo>
+    <!-- LEER: sólo bodegas incluidas en user.acceso_bodega_ids_read -->
+    <record id="bodega_rule_read_by_accesos" model="ir.rule">
+        <field name="name">Bodegas: leer según accesos</field>
+        <field name="model_id" ref="model_bodegas_bodega"/>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        <field name="perm_read" eval="1"/>
+        <field name="domain_force">[('id', 'in', user.acceso_bodega_ids_read.ids)]</field>
+    </record>
+
+    <!-- ESCRIBIR: sólo bodegas incluidas en user.acceso_bodega_ids_write -->
+    <record id="bodega_rule_write_by_accesos" model="ir.rule">
+        <field name="name">Bodegas: escribir según accesos</field>
+        <field name="model_id" ref="model_bodegas_bodega"/>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        <field name="perm_write" eval="1"/>
+        <field name="domain_force">[('id', 'in', user.acceso_bodega_ids_write.ids)]</field>
+    </record>
+
+    <!-- BORRAR: igual que escribir -->
+    <record id="bodega_rule_unlink_by_accesos" model="ir.rule">
+        <field name="name">Bodegas: borrar según accesos</field>
+        <field name="model_id" ref="model_bodegas_bodega"/>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        <field name="perm_unlink" eval="1"/>
+        <field name="domain_force">[('id', 'in', user.acceso_bodega_ids_write.ids)]</field>
+    </record>
+</odoo>

@@ -1,0 +1,11 @@
+<odoo>
+    <data noupdate="1">
+        <record id="seq_accesos_acceso" model="ir.sequence">
+            <field name="name">Accesos</field>
+            <field name="code">accesos.acceso</field>
+            <field name="prefix">ACC/%(year)s/</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+        </record>
+    </data>
+</odoo>

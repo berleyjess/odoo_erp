@@ -1,6 +1,6 @@
 {
     'name': "Ventas",
-    'post_init_hook': 'post_init_hook',
+    #'post_init_hook': 'post_init_hook',
     'summary': "Ventas",
     'description': """Módulo para gestionar ventas de artículos""",
     'author': "Grupo Safinsa",
