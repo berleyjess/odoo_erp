@@ -1,5 +1,6 @@
+#bodegas/models/bodega.py
 from odoo import models, fields
-class bodega(models.Model):
+class Bodega(models.Model):
     _name= 'bodegas.bodega'
     _description= "Modelo de Bodega, almacena el catálogo de bodegas."
     _order = "id desc"
@@ -8,8 +9,8 @@ class bodega(models.Model):
         'empresas.empresa', string='Empresa',
         required=True, ondelete='restrict', index=True)
     
-    nombre = fields.Char (String = "Nombre", required = True, index=True)
-    activa = fields.Boolean (String="Activa", required = True, default = True)
+    nombre = fields.Char(string="Nombre", required=True, index=True)
+    activa = fields.Boolean (string="Activa", required = True, default = True)
 
 
 

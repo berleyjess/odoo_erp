@@ -6,15 +6,66 @@
     <field name="inherit_id" ref="base.view_users_form"/>
     <field name="arch" type="xml">
       <xpath expr="//sheet/notebook" position="inside">
-        <page string="Empresas y Sucursales">
+        <page string="Empresas • Sucursales • Bodegas" name="emp_suc_bod">
+          <!-- Sección: Entidades permitidas (estilo buscador arriba, tags debajo) -->
           <group>
-            <field name="empresas_ids" widget="many2many_tags"/>
-            <field name="sucursales_ids" widget="many2many_tags" context="{'limit_to_empresas_selected_on_user_form': 1}"/>
+            <separator string="Empresas permitidas" colspan="4"/>
+            <!-- El widget many2many_tags ya trae buscador: escribes y seleccionas; los chips quedan abajo -->
+            <field name="empresas_ids"
+                   widget="many2many_tags"
+                   options="{'no_open': True, 'no_create_edit': True}"/>
+            <div class="text-muted" style="margin: 4px 0 12px 0;">
+              Escribe para <b>buscar empresas</b> y presiona Enter; se irán agregando debajo.
+            </div>
           </group>
+          
           <group>
-            <field name="empresa_actual_id" context="{'limit_to_empresas_selected_on_user_form': 1}"/>
-            <field name="sucursal_actual_id" context="{'limit_to_empresa_actual_on_user_form': 1}"/>
+            <separator string="Sucursales permitidas" colspan="4"/>
+            <field name="sucursales_ids"
+                   widget="many2many_tags"
+                   context="{'limit_to_empresas_selected_on_user_form': 1}"
+                   options="{'no_open': True, 'no_create_edit': True}"/>
+            <div class="text-muted" style="margin: 4px 0 12px 0;">
+              El buscador filtra por las <b>Empresas permitidas</b>. Selecciona y se adjuntan abajo.
+            </div>
           </group>
+          
+          <group>
+            <separator string="Bodegas permitidas" colspan="4"/>
+            <field name="bodegas_ids"
+                   widget="many2many_tags"
+                   options="{'no_open': True, 'no_create_edit': True}"/>
+            <div class="text-muted" style="margin: 4px 0;">
+              Busca y selecciona <b>Bodegas</b>; los tags se agregan debajo.
+            </div>
+          </group>
+
+
+          <!-- Sección: Contexto actual -->
+          <group>
+            <separator string="Contexto actual" colspan="4"/>
+          </group>
+          <group col="3">
+            <group string="Empresa actual" col="1">
+              <field name="empresa_actual_id" domain="[('id','in', empresas_ids)]" context="{'limit_to_empresas_selected_on_user_form': 1}"/>
+
+            </group>
+            <group string="Sucursal actual" col="1">
+              <field name="sucursal_actual_id" domain="[('id','in', sucursales_ids), ('empresa','=', empresa_actual_id)]" context="{'limit_to_empresa_actual_on_user_form': 1}"/>
+
+            </group>
+            <group string="Bodega actual" col="1">
+              <field name="bodega_actual_id" domain="[('id','in', bodegas_ids), ('empresa_id','=', empresa_actual_id)]"/>
+            </group>
+          </group>
+
+          <!-- Ayudita visual (informativa, no cambia funcionalidad) -->
+          <div class="alert alert-info" role="alert" style="margin-top: 8px;">
+            <ul style="margin:0 0 0 20px;">
+              <li>Las <b>Sucursales</b> y <b>Bodegas</b> se filtran por la <b>Empresa actual</b>.</li>
+              <li>Primero selecciona las <b>Empresas permitidas</b> y luego define el <b>Contexto actual</b>.</li>
+            </ul>
+          </div>
         </page>
       </xpath>
     </field>

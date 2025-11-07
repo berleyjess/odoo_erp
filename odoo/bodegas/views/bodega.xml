@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+<!-- bodegas/views/bodega.xml -->
     <record id="view_bodega_form" model="ir.ui.view">
         <field name="name">bodega.form</field>
         <field name="model">bodegas.bodega</field>

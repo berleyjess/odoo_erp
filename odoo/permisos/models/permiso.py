@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
+# permisos/models/permiso.py
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
+from odoo.osv import expression
+from logging import getLogger
+_logger = getLogger(__name__)
 
 class ResUsers(models.Model):
     _inherit = 'res.users'
+    
 
     # 1er. Primer nivel: verificar si tiene el permiso
     def has_perm(self, modulo_code, permiso_code, empresa_id=None, sucursal_id=None, bodega_id=None):
@@ -25,63 +30,80 @@ class ResUsers(models.Model):
                 -> True / False
         """
         res = {}
+        Permiso = self.env['permisos.permiso'].sudo()
+        AsigRango = self.env['permisos.asignacion.rango'].sudo()
+        AsigPerm = self.env['permisos.asignacion.permiso'].sudo()
+        Acceso = self.env['accesos.acceso'].sudo()
+
         for user in self:
-            # 1) Admin por Accesos (empresa/bodega)
-            is_admin = False
-            dom_admin = [('usuario_id', '=', user.id)]
-            if empresa_id:
-                dom_admin += [('empresa_id', '=', empresa_id)]
-            if bodega_id:
-                dom_admin += [('bodega_id', '=', bodega_id)]
-            admin = self.env['accesos.acceso'].sudo().search(dom_admin, limit=1)
-            if admin and admin.is_admin:
-                res[user.id] = True
-                continue
-
-            # 2) Rangos aplicables (global + por empresa/sucursal)
-            dom_r = [('usuario_id', '=', user.id), ('active', '=', True)]
-            if empresa_id:
-                dom_r += ['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)]
-            else:
-                dom_r += [('empresa_id', '=', False)]
-            if sucursal_id:
-                dom_r += ['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)]
-            else:
-                dom_r += [('sucursal_id', '=', False)]
-
-            rango_asigs = self.env['permisos.asignacion.rango'].sudo().search(dom_r)
-            rango_perm = self.env['permisos.permiso'].sudo().browse()
-            if rango_asigs:
-                rango_perm = (rango_asigs.mapped('rango_id.permiso_ids')).filtered(lambda p: p.active)
-            # Filtrar por módulo + código
-            target_perm = self.env['permisos.permiso'].sudo().search([
+            # === 0) Resolver permiso objetivo de una vez
+            target_perm = Permiso.search([
                 ('active', '=', True),
                 ('code', '=', permiso_code),
                 ('modulo_id.code', '=', modulo_code),
             ], limit=1)
 
-            has = target_perm and target_perm in rango_perm
+            if not target_perm:
+                _logger.info("PERM: no existe permiso %s/%s", modulo_code, permiso_code)
+                res[user.id] = False
+                continue
+            scope = target_perm.scope 
 
-            # 3) Overrides (global + contexto)
-            dom_o = [('usuario_id', '=', user.id), ('permiso_id', '=', target_perm.id), ('active', '=', True)]
-            if empresa_id:
-                dom_o += ['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)]
-            else:
-                dom_o += [('empresa_id', '=', False)]
-            if sucursal_id:
-                dom_o += ['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)]
-            else:
-                dom_o += [('sucursal_id', '=', False)]
-            overrides = self.env['permisos.asignacion.permiso'].sudo().search(dom_o)
-            # aplicar overrides: deny gana sobre allow en el mismo nivel; el último no importa, basta ver si hay algún deny.
+            # 1) Admin por accesos (global/empresa/sucursal/bodega según existan campos)
+            dom_admin_parts = [[('usuario_id', '=', user.id)]]
+            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id is not None:
+                dom_admin_parts.append(['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)])
+            # sucursal si tu modelo accesos.acceso la tiene
+            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and 'sucursal_id' in Acceso._fields and sucursal_id is not None:
+                dom_admin_parts.append(['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)])
+            # bodega si la maneja accesos.acceso
+            if scope == 'empresa_sucursal_bodega' and 'bodega_id' in Acceso._fields and bodega_id is not None:
+                dom_admin_parts.append(['|', ('bodega_id', '=', False), ('bodega_id', '=', bodega_id)])
+
+            dom_admin = expression.AND(dom_admin_parts)
+            admin = Acceso.search(dom_admin, limit=1)
+            if admin and getattr(admin, 'is_admin', False):
+                _logger.info("PERM[%s]: ADMIN ok por accesos -> True", user.id)
+                res[user.id] = True
+                continue
+
+            # 2) Rangos aplicables (solo añadimos filtros de las dimensiones que aplique el scope y que vengan definidas)
+            base = [('usuario_id', '=', user.id), ('active', '=', True)]
+            parts = [base]
+            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id is not None:
+                parts.append(['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)])
+            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and sucursal_id is not None:
+                parts.append(['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)])
+            if scope == 'empresa_sucursal_bodega' and bodega_id is not None and 'bodega_id' in AsigRango._fields:
+                parts.append(['|', ('bodega_id', '=', False), ('bodega_id', '=', bodega_id)])
+
+            dom_r = expression.AND(parts)
+            rango_asigs = AsigRango.search(dom_r)
+            rango_perm = rango_asigs.mapped('rango_id.permiso_ids').filtered(lambda p: p.active) if rango_asigs else Permiso.browse()
+            has = target_perm in rango_perm
+
+            # 3) Overrides (mismo criterio de filtros)
+            base_o = [('usuario_id', '=', user.id), ('permiso_id', '=', target_perm.id), ('active', '=', True)]
+            parts_o = [base_o]
+            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id is not None:
+                parts_o.append(['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)])
+            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and sucursal_id is not None:
+                parts_o.append(['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)])
+            if scope == 'empresa_sucursal_bodega' and bodega_id is not None and 'bodega_id' in AsigPerm._fields:
+                parts_o.append(['|', ('bodega_id', '=', False), ('bodega_id', '=', bodega_id)])
+
+            dom_o = expression.AND(parts_o)
+            overrides = AsigPerm.search(dom_o)
             if overrides:
                 if any(not o.allow for o in overrides):
                     has = False
                 elif any(o.allow for o in overrides):
                     has = True
 
+            _logger.info("PERM[%s]: rango=%s overrides=%s -> has=%s",
+                         user.id, bool(rango_asigs), [(o.id, o.allow) for o in overrides], has)
             res[user.id] = bool(has)
-        # Si se llamó con un solo usuario, devolver bool; si no, dict
+
         return res[self.id] if len(self) == 1 else res
 
     def check_perm(self, modulo_code, permiso_code, empresa_id=None, sucursal_id=None, bodega_id=None):
@@ -145,6 +167,17 @@ class PermPermiso(models.Model):
                "Ejemplo: 'Permite modificar líneas y totales de una venta antes de confirmar'.")
                )
     active = fields.Boolean(default=True)
+    #Decide qué dimensiones filtrar
+    scope = fields.Selection(
+        selection=[
+            ('global', 'Global (sin contexto)'),
+            ('empresa', 'Por empresa'),
+            ('empresa_sucursal', 'Por empresa + sucursal'),
+            ('empresa_sucursal_bodega', 'Por empresa + sucursal + bodega'),
+        ],
+        required=True, default='empresa',
+        string='Ámbito'
+    )
 
     _sql_constraints = [
         ('permisos_permiso_mod_code_uniq', 'unique(modulo_id, code)',
@@ -202,20 +235,24 @@ class PermAsignacionRango(models.Model):
                                   help=_("Opcional. Si lo estableces, el rango aplica solo en esa sucursal (que pertenezca a la empresa indicada).\n"
                                     "Ejemplo: Sucursal = 'Sucursal Centro'.")
                                   )
+    bodega_id = fields.Many2one('bodegas.bodega', string='Bodega', ondelete='restrict', index=True)
 
     active = fields.Boolean(default=True)
 
     _sql_constraints = [
         ('permisos_asig_rango_unique',
-         'unique(usuario_id, rango_id, empresa_id, sucursal_id)',
+         'unique(usuario_id, rango_id, empresa_id, sucursal_id, bodega_id)',
          'Ya existe esa asignación de rango para ese usuario y contexto.'),
     ]
 
-    @api.constrains('sucursal_id', 'empresa_id')
-    def _check_sucursal_vs_empresa(self):
+
+    @api.constrains('sucursal_id', 'empresa_id', 'bodega_id')
+    def _check_contexto_vs_empresa(self):
         for r in self:
             if r.sucursal_id and r.empresa_id and r.sucursal_id.empresa.id != r.empresa_id.id:
                 raise ValidationError(_('La sucursal no pertenece a la empresa.'))
+            if r.bodega_id and r.empresa_id and r.bodega_id.empresa_id.id != r.empresa_id.id:
+                raise ValidationError(_('La bodega no pertenece a la empresa.'))
 
 # Asignaciones de overrides de permisos a usuarios con contexto
 #Ajusta la base solo para ese permiso: permite o deniega explícitamente. hace una excepcion a lo que traen los rangos.
@@ -246,17 +283,21 @@ class PermAsignacionPermiso(models.Model):
                                   help=_("Opcional. Si lo estableces, la excepción aplica solo en esa sucursal.\n"
                                     "Ejemplo: Sucursal = 'Sucursal Norte'.")
                                   )
+    bodega_id = fields.Many2one('bodegas.bodega', string='Bodega', ondelete='restrict', index=True)
 
     active = fields.Boolean(default=True)
 
     _sql_constraints = [
         ('permisos_asig_perm_unique',
-         'unique(usuario_id, permiso_id, empresa_id, sucursal_id)',
+         'unique(usuario_id, permiso_id, empresa_id, sucursal_id, bodega_id)',
          'Ya existe un override para ese permiso/usuario en ese contexto.'),
     ]
 
-    @api.constrains('sucursal_id', 'empresa_id')
-    def _check_sucursal_vs_empresa(self):
+
+    @api.constrains('sucursal_id', 'empresa_id', 'bodega_id')
+    def _check_contexto_vs_empresa(self):
         for r in self:
             if r.sucursal_id and r.empresa_id and r.sucursal_id.empresa.id != r.empresa_id.id:
                 raise ValidationError(_('La sucursal no pertenece a la empresa.'))
+            if r.bodega_id and r.empresa_id and r.bodega_id.empresa_id.id != r.empresa_id.id:
+                raise ValidationError(_('La bodega no pertenece a la empresa.'))

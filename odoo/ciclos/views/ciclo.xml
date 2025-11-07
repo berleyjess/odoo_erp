@@ -30,13 +30,11 @@
         <field name="model">ciclos.ciclo</field>
         <field name="arch" type="xml">
             <form autosave="False">
+             <header>
+              <button name="action_back_to_list" string="Volver" type="object" class="btn btn-secondary" icon="fa-arrow-left"/>
+             </header>
                 <sheet>
                     <group>
-
-                        <!--<field name="usuario_editor_id" />
-                        <field name="usuario_lector_id" />
-                        <field name="usuario_admin_id" />
-                        <field name="soloLectura_id" usuario de apoyoo/>-->
                         <field name="periodo" autofocus="autofocus"/>
                         <field name="finicio"/>
                         <field name="ffinal"/>
@@ -44,6 +42,41 @@
                 </sheet>
             </form>
         </field>
+    </record>
+    <!-- FORM SOLO LECTURA + Botón Editar -->
+    <record id="view_ciclo_form_ro" model="ir.ui.view">
+        <field name="name">ciclos.form.readonly</field>
+        <field name="model">ciclos.ciclo</field>
+        <field name="arch" type="xml">
+            <form string="Ciclo" edit="false" create="false" delete="false">
+                <header>
+                    <button name="action_open_edit" type="object" string="Editar" class="btn-primary" />
+                    <button name="%(ciclos.action_ciclos)d" type="action" string="Volver" class="btn-secondary"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="periodo" readonly="1"/>
+                        <field name="finicio" readonly="1"/>
+                        <field name="ffinal" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Bindings para que el FORM por defecto sea el de solo lectura -->
+    <record id="action_ciclos_list_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="10"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_ciclo_list"/>
+        <field name="act_window_id" ref="action_ciclos"/>
+    </record>
+
+    <record id="action_ciclos_form_ro" model="ir.actions.act_window.view">
+        <field name="sequence" eval="20"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_ciclo_form_ro"/>
+        <field name="act_window_id" ref="action_ciclos"/>
     </record>
 
     <!-- Menús -->

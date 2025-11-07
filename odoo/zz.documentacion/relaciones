@@ -1,0 +1,9 @@
+PERMISOS (res.user)
+    Modulo:     usuarios
+    Modulo:     permisos_grupos
+    Modulo:     permisos
+
+Facturacion (res.company)
+    Modulo:     mx_cfdi_core
+    Modulo:     mx_cfdi_provider_sw
+

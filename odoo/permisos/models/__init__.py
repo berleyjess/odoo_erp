@@ -1,1 +1,1 @@
-from . import permisos 
+from . import permiso 

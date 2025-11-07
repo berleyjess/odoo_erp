@@ -1,3 +1,4 @@
+#bodegas/models/res_users.py
 from odoo import models, fields
 
 class ResUsers(models.Model):

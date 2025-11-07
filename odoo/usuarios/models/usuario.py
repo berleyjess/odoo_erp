@@ -1,10 +1,12 @@
 # usuarios/models/res_users.py
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
+from logging import getLogger
+_logger = getLogger(__name__)
 
 class ResUsers(models.Model):
     _inherit = 'res.users'
-    _description = 'Extensión de usuarios para gestión de empresas y sucursales.'
+    _description = 'Extensión de usuarios para gestión de empresas, sucursales y bodegas.'
 
     empresas_ids = fields.Many2many(
         'empresas.empresa', 'res_users_empresas_rel', 'user_id', 'empresa_id',
@@ -21,32 +23,52 @@ class ResUsers(models.Model):
     sucursal_actual_id = fields.Many2one(
         'sucursales.sucursal',
         string='Sucursal actual',
-)
+    )
+    bodegas_ids = fields.Many2many(
+        'bodegas.bodega', 'res_users_bodegas_rel', 'user_id', 'bodega_id',
+        string='Bodegas permitidas'
+    )
+    bodega_actual_id = fields.Many2one(
+        'bodegas.bodega', string='Bodega actual',
+        domain="[('id','in', bodegas_ids), ('empresa_id','=', empresa_actual_id)]"
+    )
+
+    
 
 
     @api.onchange('empresa_actual_id')
     def _onchange_empresa_actual_id(self):
         for u in self:
             if u.sucursal_actual_id and u.sucursal_actual_id.empresa.id != u.empresa_actual_id.id:
+                _logger.info("Users: limpiar sucursal_actual por empresa_actual (user=%s)", u.id)
                 u.sucursal_actual_id = False
+            if u.bodega_actual_id and u.bodega_actual_id.empresa_id.id != u.empresa_actual_id.id:
+                _logger.info("Users: limpiar bodega_actual por empresa_actual (user=%s)", u.id)
+                u.bodega_actual_id = False
+
+
 
     @api.onchange('empresas_ids')
     def _onchange_empresas_ids(self):
         for u in self:
-            # Limpiar sucursales que no pertenezcan a empresas elegidas
             if u.sucursales_ids:
-                bad = u.sucursales_ids.filtered(lambda s: s.empresa.id not in u.empresas_ids.ids)
-                if bad:
-                    u.sucursales_ids = [(3, x) for x in bad.ids]
-            # Si quitaron la empresa actual, reset
+                bad_s = u.sucursales_ids.filtered(lambda s: s.empresa.id not in u.empresas_ids.ids)
+                if bad_s:
+                    u.sucursales_ids = [(3, x) for x in bad_s.ids]
+            if u.bodegas_ids:
+                bad_b = u.bodegas_ids.filtered(lambda b: b.empresa_id.id not in u.empresas_ids.ids)
+                if bad_b:
+                    u.bodegas_ids = [(3, x) for x in bad_b.ids]
+
             if u.empresa_actual_id and u.empresa_actual_id.id not in u.empresas_ids.ids:
                 u.empresa_actual_id = False
-            # UX: si hay empresas y no hay empresa_actual, proponer la primera
             if not u.empresa_actual_id and u.empresas_ids:
                 u.empresa_actual_id = u.empresas_ids[0]
-            # Si la sucursal actual ya no está permitida, reset
+
             if u.sucursal_actual_id and u.sucursal_actual_id.empresa.id not in u.empresas_ids.ids:
                 u.sucursal_actual_id = False
+            if u.bodega_actual_id and u.bodega_actual_id.empresa_id.id not in u.empresas_ids.ids:
+                u.bodega_actual_id = False
 
     @api.onchange('sucursales_ids')
     def _onchange_sucursales_ids(self):
@@ -54,34 +76,33 @@ class ResUsers(models.Model):
             if u.sucursal_actual_id and u.sucursal_actual_id not in u.sucursales_ids:
                 u.sucursal_actual_id = False
 
-    @api.constrains('empresas_ids', 'sucursales_ids')
-    def _check_sucursales_permitidas(self):
+    @api.onchange('bodegas_ids')
+    def _onchange_bodegas_ids(self):
         for u in self:
-            bad = u.sucursales_ids.filtered(lambda s: s.empresa.id not in u.empresas_ids.ids)
-            if bad:
-                raise ValidationError(_("Hay sucursales que no pertenecen a las empresas permitidas: %s") %
-                                      ", ".join(bad.mapped('display_name')))
+            if u.bodega_actual_id and u.bodega_actual_id not in u.bodegas_ids:
+                u.bodega_actual_id = False
+            if u.bodega_actual_id and u.empresa_actual_id and u.bodega_actual_id.empresa_id.id != u.empresa_actual_id.id:
+                u.bodega_actual_id = False
 
-    @api.constrains('empresa_actual_id', 'sucursal_actual_id')
+    @api.constrains('empresas_ids', 'sucursales_ids', 'bodegas_ids')
+    def _check_permitidas(self):
+        for u in self:
+            bad_s = u.sucursales_ids.filtered(lambda s: s.empresa.id not in u.empresas_ids.ids)
+            if bad_s:
+                raise ValidationError(_("Hay sucursales que no pertenecen a las empresas permitidas: %s") %
+                                      ", ".join(bad_s.mapped('display_name')))
+            bad_b = u.bodegas_ids.filtered(lambda b: b.empresa_id.id not in u.empresas_ids.ids)
+            if bad_b:
+                raise ValidationError(_("Hay bodegas que no pertenecen a las empresas permitidas: %s") %
+                                      ", ".join(bad_b.mapped('display_name')))
+
+    @api.constrains('empresa_actual_id', 'sucursal_actual_id', 'bodega_actual_id')
     def _check_actuales_coherentes(self):
         for u in self:
-            if u.sucursal_actual_id and u.empresa_actual_id and \
-               u.sucursal_actual_id.empresa.id != u.empresa_actual_id.id:
+            if u.sucursal_actual_id and u.empresa_actual_id and u.sucursal_actual_id.empresa.id != u.empresa_actual_id.id:
                 raise ValidationError(_("La sucursal actual no pertenece a la empresa actual."))
-
-
-
-    @api.onchange('empresas_ids', 'sucursales_ids', 'empresa_actual_id')
-    def _onchange_apply_domains(self):
-        for u in self:
-            if u.empresa_actual_id and u.empresa_actual_id.id not in u.empresas_ids.ids:
-                u.empresa_actual_id = False
-            if u.sucursal_actual_id:
-                invalid_by_ids = u.sucursal_actual_id.id not in u.sucursales_ids.ids
-                invalid_by_company = (u.empresa_actual_id and u.sucursal_actual_id.empresa.id != u.empresa_actual_id.id)
-                if invalid_by_ids or invalid_by_company:
-                    u.sucursal_actual_id = False
-        return
+            if u.bodega_actual_id and u.empresa_actual_id and u.bodega_actual_id.empresa_id.id != u.empresa_actual_id.id:
+                raise ValidationError(_("La bodega actual no pertenece a la empresa actual."))
 
     @api.constrains('empresa_actual_id')
     def _check_empresa_actual_en_seleccionadas(self):
@@ -93,11 +114,30 @@ class ResUsers(models.Model):
     def _check_sucursal_actual_en_seleccionadas(self):
         for u in self:
             if u.sucursal_actual_id and u.sucursal_actual_id not in u.sucursales_ids:
-                raise ValidationError(_("La sucursal actual debe estar en 'Sucursales permitidas'."))       
+                raise ValidationError(_("La sucursal actual debe estar en 'Sucursales permitidas'."))
 
-        # === Helpers de permisos aplicables al proyecto ===
-    def has_perm(self, modulo_code, permiso_code, empresa_id=None, sucursal_id=None, bodega_id=None):
-        return super(ResUsers, self).has_perm(modulo_code, permiso_code, empresa_id=empresa_id, sucursal_id=sucursal_id, bodega_id=bodega_id)
+    @api.constrains('bodega_actual_id')
+    def _check_bodega_actual_en_seleccionadas(self):
+        for u in self:
+            if u.bodega_actual_id and u.bodega_actual_id not in u.bodegas_ids:
+                raise ValidationError(_("La bodega actual debe estar en 'Bodegas permitidas'."))
+            
 
-    def check_perm(self, modulo_code, permiso_code, empresa_id=None, sucursal_id=None, bodega_id=None):
-        return super(ResUsers, self).check_perm(modulo_code, permiso_code, empresa_id=empresa_id, sucursal_id=sucursal_id, bodega_id=bodega_id)
+
+    @api.onchange('empresas_ids')
+    def _onchange_empresas_ids_set_domain_empresa_actual(self):
+        return {'domain': {'empresa_actual_id': [('id', 'in', self.empresas_ids.ids)]}}
+    
+    @api.onchange('sucursales_ids', 'empresa_actual_id')
+    def _onchange_sucursales_ids_set_domain_sucursal_actual(self):
+        dom = [('id', 'in', self.sucursales_ids.ids)]
+        if self.empresa_actual_id:
+            dom.append(('empresa', '=', self.empresa_actual_id.id))
+        return {'domain': {'sucursal_actual_id': dom}}
+    
+    @api.onchange('bodegas_ids', 'empresa_actual_id')
+    def _onchange_bodegas_ids_set_domain_bodega_actual(self):
+        dom = [('id', 'in', self.bodegas_ids.ids)]
+        if self.empresa_actual_id:
+            dom.append(('empresa_id', '=', self.empresa_actual_id.id))
+        return {'domain': {'bodega_actual_id': dom}}

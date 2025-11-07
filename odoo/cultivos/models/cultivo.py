@@ -4,6 +4,7 @@ import os
 
 class cultivo(models.Model):
     _name='cultivos.cultivo'
+    _description = 'Cultivos'
     _rec_name='nombre'
 
     nombre=fields.Char(string="Nombre del cultivo", required=True)

@@ -1,5 +1,6 @@
 <odoo>
   <!-- Reglas actuales (bien) -->
+  <!-- usuarios/views/record_rules.xml -->
   <record id="rule_empresas_por_usuario" model="ir.rule">
     <field name="name">Empresas permitidas por usuario</field>
     <field name="model_id" ref="empresas.model_empresas_empresa"/>

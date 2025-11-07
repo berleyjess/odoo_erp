@@ -1,0 +1,23 @@
+    *****   SHELL   *****
+cd "C:\Program Files\Odoo 18.0.20250811\server"
+..\python\python.exe .\odoo-bin shell -d prueba
+
+    ***** ACTUALIZAR MODULOS *****
+    (Modulos exactos)
+    "CMD"
+"C:\Program Files\Odoo 18.0.20250811\python\python.exe" "C:\Program Files\Odoo 18.0.20250811\server\odoo-bin" -c "C:\Program Files\Odoo 18.0.20250811\server\odoo.conf" -d pruebas -u NOMBRE, DE, MODULOS, ETC --stop-after-init
+    "POWERSHELL"
+& "C:\Program Files\Odoo 18.0.20250811\python\python.exe" "C:\Program Files\Odoo 18.0.20250811\server\odoo-bin" -c "C:\Program Files\Odoo 18.0.20250811\server\odoo.conf" -d pruebas -u bodegas,usuarios,permisos,accesos --stop-after-init
+
+    (Todos los Modulos instalados)
+    "CMD"
+"C:\Program Files\Odoo 18.0.20250811\python\python.exe" "C:\Program Files\Odoo 18.0.20250811\server\odoo-bin" -c "C:\Program Files\Odoo 18.0.20250811\server\odoo.conf" -d pruebas -u all --stop-after-init
+    "POWERSHELL"
+& "C:\Program Files\Odoo 18.0.20250811\python\python.exe" "C:\Program Files\Odoo 18.0.20250811\server\odoo-bin" -c "C:\Program Files\Odoo 18.0.20250811\server\odoo.conf" -d pruebas -u all --stop-after-init
+
+    ***** INSTALAR MODULOS NUEVOS *****
+    "CMD"
+"C:\Program Files\Odoo 18.0.20250811\python\python.exe" "C:\Program Files\Odoo 18.0.20250811\server\odoo-bin" -c "C:\Program Files\Odoo 18.0.20250811\server\odoo.conf" -d pruebas -i bodegas,usuarios,permisos,accesos --stop-after-init
+    "POWERSHELL"
+& "C:\Program Files\Odoo 18.0.20250811\python\python.exe" "C:\Program Files\Odoo 18.0.20250811\server\odoo-bin" -c "C:\Program Files\Odoo 18.0.20250811\server\odoo.conf" -d pruebas -i bodegas,usuarios,permisos,accesos --stop-after-init
+
