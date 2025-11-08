@@ -141,3 +141,22 @@ class ResUsers(models.Model):
         if self.empresa_actual_id:
             dom.append(('empresa_id', '=', self.empresa_actual_id.id))
         return {'domain': {'bodega_actual_id': dom}}
+    
+    # --- Defaults / autocorrección de Empresa actual ---
+    @api.model_create_multi
+    def create(self, vals_list):
+        users = super().create(vals_list)
+        for u in users:
+            if not u.empresa_actual_id and u.empresas_ids:
+                u.empresa_actual_id = u.empresas_ids[0].id
+        return users
+    
+    def write(self, vals):
+        res = super().write(vals)
+        for u in self:
+            # Si se cambiaron empresas_ids o se limpió la actual, re-encajar
+            if (('empresas_ids' in vals) or (not u.empresa_actual_id)) and u.empresas_ids:
+                if not u.empresa_actual_id or u.empresa_actual_id not in u.empresas_ids:
+                    u.empresa_actual_id = u.empresas_ids[0].id
+        return res
+

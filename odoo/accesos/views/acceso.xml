@@ -1,5 +1,6 @@
 <odoo>
     <!-- Lista (editable) -->
+    <!-- accesos/views/acceso.xml -->
     <record id="view_accesos_list" model="ir.ui.view">
         <field name="name">accesos.acceso.list</field>
         <field name="model">accesos.acceso</field>

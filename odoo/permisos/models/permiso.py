@@ -34,6 +34,14 @@ class ResUsers(models.Model):
         AsigRango = self.env['permisos.asignacion.rango'].sudo()
         AsigPerm = self.env['permisos.asignacion.permiso'].sudo()
         Acceso = self.env['accesos.acceso'].sudo()
+        # --- Normalizar posibles recordsets a IDs (o False) ---
+        empresa_id = getattr(empresa_id, 'id', empresa_id) or False
+        sucursal_id = getattr(sucursal_id, 'id', sucursal_id) or False
+        bodega_id  = getattr(bodega_id,  'id', bodega_id)  or False
+
+        _logger.info("PERM[%s] ctx recibido -> emp_id=%s suc_id=%s bod_id=%s | REQ[uid=%s login=%s]",
+                     (self.ids and self.ids[0]) or 'set', empresa_id, sucursal_id, bodega_id,
+                     self.env.uid, self.env.user.login)
 
         for user in self:
             # === 0) Resolver permiso objetivo de una vez
@@ -47,20 +55,28 @@ class ResUsers(models.Model):
                 _logger.info("PERM: no existe permiso %s/%s", modulo_code, permiso_code)
                 res[user.id] = False
                 continue
+            _logger.info("PERM[%s] target_perm=%s scope=%s", user.id, target_perm.id, target_perm.scope)
+
+            if target_perm.scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and not empresa_id:
+                _logger.warning("PERM[%s] SIN EMPRESA EN CONTEXTO -> empresa_actual_id=%s empresas_ids=%s",
+                                user.id,
+                                (user.empresa_actual_id.id if user.empresa_actual_id else False),
+                                user.sudo().empresas_ids.ids)
             scope = target_perm.scope 
 
             # 1) Admin por accesos (global/empresa/sucursal/bodega según existan campos)
             dom_admin_parts = [[('usuario_id', '=', user.id)]]
-            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id is not None:
+            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id:
                 dom_admin_parts.append(['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)])
             # sucursal si tu modelo accesos.acceso la tiene
-            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and 'sucursal_id' in Acceso._fields and sucursal_id is not None:
+            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and 'sucursal_id' in Acceso._fields and sucursal_id:
                 dom_admin_parts.append(['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)])
             # bodega si la maneja accesos.acceso
-            if scope == 'empresa_sucursal_bodega' and 'bodega_id' in Acceso._fields and bodega_id is not None:
+            if scope == 'empresa_sucursal_bodega' and 'bodega_id' in Acceso._fields and bodega_id:
                 dom_admin_parts.append(['|', ('bodega_id', '=', False), ('bodega_id', '=', bodega_id)])
 
             dom_admin = expression.AND(dom_admin_parts)
+            _logger.debug("PERM[%s] dom_admin=%s", user.id, dom_admin)
             admin = Acceso.search(dom_admin, limit=1)
             if admin and getattr(admin, 'is_admin', False):
                 _logger.info("PERM[%s]: ADMIN ok por accesos -> True", user.id)
@@ -70,14 +86,16 @@ class ResUsers(models.Model):
             # 2) Rangos aplicables (solo añadimos filtros de las dimensiones que aplique el scope y que vengan definidas)
             base = [('usuario_id', '=', user.id), ('active', '=', True)]
             parts = [base]
-            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id is not None:
+            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id:
                 parts.append(['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)])
-            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and sucursal_id is not None:
+            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and sucursal_id:
                 parts.append(['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)])
-            if scope == 'empresa_sucursal_bodega' and bodega_id is not None and 'bodega_id' in AsigRango._fields:
+            if scope == 'empresa_sucursal_bodega' and 'bodega_id' in AsigRango._fields and bodega_id:
                 parts.append(['|', ('bodega_id', '=', False), ('bodega_id', '=', bodega_id)])
 
+
             dom_r = expression.AND(parts)
+            _logger.debug("PERM[%s] dom_rangos=%s", user.id, dom_r)
             rango_asigs = AsigRango.search(dom_r)
             rango_perm = rango_asigs.mapped('rango_id.permiso_ids').filtered(lambda p: p.active) if rango_asigs else Permiso.browse()
             has = target_perm in rango_perm
@@ -85,12 +103,13 @@ class ResUsers(models.Model):
             # 3) Overrides (mismo criterio de filtros)
             base_o = [('usuario_id', '=', user.id), ('permiso_id', '=', target_perm.id), ('active', '=', True)]
             parts_o = [base_o]
-            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id is not None:
+            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id:
                 parts_o.append(['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)])
-            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and sucursal_id is not None:
+            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and sucursal_id:
                 parts_o.append(['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)])
-            if scope == 'empresa_sucursal_bodega' and bodega_id is not None and 'bodega_id' in AsigPerm._fields:
+            if scope == 'empresa_sucursal_bodega' and 'bodega_id' in AsigPerm._fields and bodega_id:
                 parts_o.append(['|', ('bodega_id', '=', False), ('bodega_id', '=', bodega_id)])
+
 
             dom_o = expression.AND(parts_o)
             overrides = AsigPerm.search(dom_o)

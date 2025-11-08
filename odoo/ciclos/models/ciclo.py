@@ -6,7 +6,6 @@ _logger = logging.getLogger(__name__)
 class ciclo(models.Model):
     _name = 'ciclos.ciclo'
     _description = 'Ciclos Agrícolas'
-    _rec_name = 'label'
 
     periodo = fields.Selection(selection=
                                [
@@ -53,10 +52,14 @@ class ciclo(models.Model):
         """Abrir este registro en el form editable."""
         
         rec = self[:1]  # evitar ensure_one
-        #  result = rec._get_perm('editar_ciclo')
-        #_logger.info(f"=================================Permiso para editar un ciclo: {result}")
+        _logger.warning("REQ[uid=%s] user.id=%s login=%s sudo?=%s",
+                self.env.uid, self.env.user.id, self.env.user.login,
+                'YES' if self.env.su else 'NO')
 
-        #_logger.info("=================================Permiso para editar un ciclo: 22222222222222222222")
+        # Exigir permiso y empresa definidos (truena con ValidationError si no)
+        rec._get_perm('editar_ciclo', raise_if_false=True, message=_(
+            "No puedes editar ciclos: falta Empresa actual o no tienes permiso."
+        ))
         return {
             'type': 'ir.actions.act_window',
             'name': 'Editar Ciclo',
@@ -82,19 +85,63 @@ class ciclo(models.Model):
     
     @api.model
     def _get_perm(self, permiso_code, *, modulo_code='ciclos', empresa_id=None, sucursal_id=None, bodega_id=None, raise_if_false=False, message=None):
+        _logger.info("PERM-CHECK[IN]: user=%s modulo=%s perm=%s arg.emp=%s arg.suc=%s arg.bod=%s", self.env.user.id, modulo_code, permiso_code, getattr(empresa_id, 'id', empresa_id), getattr(sucursal_id, 'id', sucursal_id), getattr(bodega_id, 'id', bodega_id))
+
         u = self.env.user
         Permiso = self.env['permisos.permiso'].sudo()
-        p = Permiso.search([('code','=',permiso_code), ('modulo_id.code','=',modulo_code)], limit=1)
+        p = Permiso.search([('code', '=', permiso_code),
+                            ('modulo_id.code', '=', modulo_code)], limit=1)
+        p_id = p.id or False
+        _logger.info("PERM-CHECK[PERM]: target_perm_id=%s", p_id)
+        if not p:
+            _logger.warning("PERM-CHECK[NO-PERM]: permiso inexistente %s/%s", modulo_code, permiso_code)
+            if raise_if_false:
+                raise ValidationError(_("Permiso inexistente: %(m)s/%(p)s", m=modulo_code, p=permiso_code))
+            return False
         scope = p.scope or 'empresa'
+        # Foto del usuario y su contexto actual
+        _logger.info("PERM-CHECK[USR]: uid=%s login=%s emp_act=%s suc_act=%s bod_act=%s emp_m2m=%s",
+                     u.id, u.login, (u.empresa_actual_id.id if u.empresa_actual_id else False),
+                     (u.sucursal_actual_id.id if u.sucursal_actual_id else False),
+                     (getattr(u, 'bodega_actual_id', False) and u.bodega_actual_id.id or False),
+                     u.sudo().empresas_ids.ids)
 
-        # Completar contexto con “actuales” SOLO si aplica el scope y no se pasaron explícitos
-        emp = empresa_id if empresa_id is not None else (u.empresa_actual_id.id if scope in ('empresa','empresa_sucursal','empresa_sucursal_bodega') else None)
-        suc = sucursal_id if sucursal_id is not None else (u.sucursal_actual_id.id if scope in ('empresa_sucursal','empresa_sucursal_bodega') else None)
-        bod = bodega_id if bodega_id is not None else (getattr(u, 'bodega_actual_id', False) and u.bodega_actual_id.id if scope == 'empresa_sucursal_bodega' else None)
+        def _id(v):
+            return getattr(v, 'id', v) or False
 
-        ok = bool(u.has_perm(modulo_code, permiso_code, empresa_id=emp, sucursal_id=suc, bodega_id=bod))
-        _logger.info("PERM-CHECK: mod=%s perm=%s scope=%s -> emp=%s suc=%s bod=%s -> ok=%s",
-                     modulo_code, permiso_code, scope, emp, suc, bod, ok)
+        # Resolver IDs efectivamente usados
+        if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega'):
+            emp_id = _id(empresa_id) or (u.empresa_actual_id.id or (u.sudo().empresas_ids[:1].id) or False)
+        else:
+            emp_id = False
+
+        if scope in ('empresa_sucursal', 'empresa_sucursal_bodega'):
+            suc_id = _id(sucursal_id) or (u.sucursal_actual_id.id or False)
+        else:
+            suc_id = False
+
+        if scope == 'empresa_sucursal_bodega':
+            bod_id = _id(bodega_id) or (getattr(u, 'bodega_actual_id', False) and u.bodega_actual_id.id) or False
+        else:
+            bod_id = False
+
+        _logger.info("PERM-CHECK[CTX]: scope=%s -> emp_id=%s suc_id=%s bod_id=%s | REQ[uid=%s login=%s]",
+                     scope, emp_id, suc_id, bod_id, self.env.uid, self.env.user.login)
+
+        # ---- ERROR EXPLÍCITO SI FALTA EMPRESA (cuando el permiso la requiere) ----
+        if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and not emp_id:
+            _logger.error("PERM-CHECK[ERR]: Falta empresa en contexto para %s/%s (uid=%s login=%s)",
+                          modulo_code, permiso_code, self.env.uid, self.env.user.login)
+            msg = message or _("Falta empresa en contexto para evaluar el permiso: %(m)s/%(p)s",
+                               m=modulo_code, p=permiso_code)
+            if raise_if_false:
+                raise ValidationError(msg)
+            return False
+
+        ok = bool(u.has_perm(modulo_code, permiso_code,
+                             empresa_id=emp_id, sucursal_id=suc_id, bodega_id=bod_id))
+
+        _logger.info("PERM-CHECK[RESULT]: %s/%s -> ok=%s", modulo_code, permiso_code, ok)
 
         if raise_if_false and not ok:
             raise ValidationError(message or _(

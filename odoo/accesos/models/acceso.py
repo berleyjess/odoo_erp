@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#accesos/models/acceso.py
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 

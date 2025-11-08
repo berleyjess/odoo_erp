@@ -58,6 +58,7 @@
                         <field name="periodo" readonly="1"/>
                         <field name="finicio" readonly="1"/>
                         <field name="ffinal" readonly="1"/>
+                        <field name="label" readonly="1"/>
                     </group>
                 </sheet>
             </form>
@@ -81,5 +82,5 @@
 
     <!-- Menús -->
     <menuitem id="menu_root" name="ciclos" sequence="10" />
-    <menuitem id="menu_action" name="Ciclos Agrícolas" parent="menu_root" action="action_ciclos" />
+    <menuitem id="menu_action" name="Ciclos Agrícolas" parent="menu_root" action="action_ciclos" groups="base.group_user"/>
 </odoo>
