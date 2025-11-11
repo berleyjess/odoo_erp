@@ -16,11 +16,11 @@ class FacturaUI(models.Model):
     # Encabezado
     empresa_id   = fields.Many2one(
         'empresas.empresa', string='Empresa', required=True, index=True,
-        default=lambda s: s.env.user.empresa_actual_id.id
+        #default=lambda s: s.env.user.empresa_actual_id.id ###YA NO EXISTE LA EMPRESA ACTUAL CAMBIAR A EMPRESA ACTUAL DEL MODULO DE FACTURACION.
     )
     sucursal_id = fields.Many2one(
         'sucursales.sucursal', string='Sucursal', required=True,
-        default=lambda s: s.env.user.sucursal_actual_id.id
+        #default=lambda s: s.env.user.sucursal_actual_id.id ###YA NO EXISTE LA SUCURSAL ACTUAL CAMBIAR A LA SUCURSAL ACTUAL DEL MODULO DE FACTURACION.
     )
     cliente_id = fields.Many2one('clientes.cliente', string='Cliente', index=True, ondelete='set null')
     tipo         = fields.Selection([('I','Ingresos'),('E','Egresos'),('P','Pago')], default='I', required=True)

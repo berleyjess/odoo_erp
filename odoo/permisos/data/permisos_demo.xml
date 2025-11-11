@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
+<!-- permisos/data/permisos_demo.xml -->
   <!-- Módulo VENTAS -->
   <record id="permisos_modulo_ventas" model="permisos.modulo">
     <field name="code">ventas</field>

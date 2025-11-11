@@ -10,144 +10,36 @@ class ResUsers(models.Model):
     _inherit = 'res.users'
     
 
-    # 1er. Primer nivel: verificar si tiene el permiso
-    def has_perm(self, modulo_code, permiso_code, empresa_id=None, sucursal_id=None, bodega_id=None):
-        """
-            Evalúa si el usuario tiene el permiso, considerando:
-            1) Admin por accesos (accesos.acceso.is_admin)
-            2) Rangos asignados (global/empresa/sucursal)
-            3) Overrides puntuales (deny gana sobre allow)
-
-            Parámetros:
-                modulo_code (str): Código del módulo funcional. Ej.: 'ventas', 'inventario'.
-                permiso_code (str): Código del permiso atómico dentro del módulo. Ej.: 'editar_venta'.
-                empresa_id (int|None): ID de empresas.empresa; opcional. Ej.: 3
-                sucursal_id (int|None): ID de sucursales.sucursal; opcional. Ej.: 12
-                bodega_id (int|None): ID de bodega (si aplica en accesos.acceso); opcional.
-
-            Ejemplo:
-                self.env.user.has_perm('ventas', 'facturar_venta', empresa_id=1, sucursal_id=5)
-                -> True / False
-        """
-        res = {}
-        Permiso = self.env['permisos.permiso'].sudo()
-        AsigRango = self.env['permisos.asignacion.rango'].sudo()
-        AsigPerm = self.env['permisos.asignacion.permiso'].sudo()
-        Acceso = self.env['accesos.acceso'].sudo()
-        # --- Normalizar posibles recordsets a IDs (o False) ---
+    def action_open_permisos_wizard(self):
+        self.ensure_one()
+        # Abre el wizard correcto (efectivo), que sí tiene usuario_id
+        wiz = self.env['permisos.efectivo.wiz'].create({'usuario_id': self.id})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Permisos del Usuario'),
+            'res_model': 'permisos.efectivo.wiz',
+            'view_mode': 'form',
+            'target': 'new',
+            'res_id': wiz.id,
+        }
+    
+    def _resolve_ctx_from_user_module(self, modulo_code, empresa_id, sucursal_id, bodega_id):
         empresa_id = getattr(empresa_id, 'id', empresa_id) or False
         sucursal_id = getattr(sucursal_id, 'id', sucursal_id) or False
         bodega_id  = getattr(bodega_id,  'id', bodega_id)  or False
+        if empresa_id and (sucursal_id or bodega_id):
+            return empresa_id, sucursal_id, bodega_id
+        # buscar contexto por módulo
+        Ctx = self.env['permisos.user.context'].sudo()
+        mod = self.env['permisos.modulo'].sudo().search([('code','=', modulo_code)], limit=1)
+        if mod:
+            ctx = Ctx.search([('usuario_id','=', self.id), ('modulo_id','=', mod.id)], limit=1)
+            if ctx:
+                empresa_id  = empresa_id  or (ctx.empresa_id.id  or False)
+                sucursal_id = sucursal_id or (ctx.sucursal_id.id or False)
+                bodega_id   = bodega_id   or (ctx.bodega_id.id   or False)
+        return empresa_id, sucursal_id, bodega_id
 
-        _logger.info("PERM[%s] ctx recibido -> emp_id=%s suc_id=%s bod_id=%s | REQ[uid=%s login=%s]",
-                     (self.ids and self.ids[0]) or 'set', empresa_id, sucursal_id, bodega_id,
-                     self.env.uid, self.env.user.login)
-
-        for user in self:
-            # === 0) Resolver permiso objetivo de una vez
-            target_perm = Permiso.search([
-                ('active', '=', True),
-                ('code', '=', permiso_code),
-                ('modulo_id.code', '=', modulo_code),
-            ], limit=1)
-
-            if not target_perm:
-                _logger.info("PERM: no existe permiso %s/%s", modulo_code, permiso_code)
-                res[user.id] = False
-                continue
-            _logger.info("PERM[%s] target_perm=%s scope=%s", user.id, target_perm.id, target_perm.scope)
-
-            if target_perm.scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and not empresa_id:
-                _logger.warning("PERM[%s] SIN EMPRESA EN CONTEXTO -> empresa_actual_id=%s empresas_ids=%s",
-                                user.id,
-                                (user.empresa_actual_id.id if user.empresa_actual_id else False),
-                                user.sudo().empresas_ids.ids)
-            scope = target_perm.scope 
-
-            # 1) Admin por accesos (global/empresa/sucursal/bodega según existan campos)
-            dom_admin_parts = [[('usuario_id', '=', user.id)]]
-            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id:
-                dom_admin_parts.append(['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)])
-            # sucursal si tu modelo accesos.acceso la tiene
-            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and 'sucursal_id' in Acceso._fields and sucursal_id:
-                dom_admin_parts.append(['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)])
-            # bodega si la maneja accesos.acceso
-            if scope == 'empresa_sucursal_bodega' and 'bodega_id' in Acceso._fields and bodega_id:
-                dom_admin_parts.append(['|', ('bodega_id', '=', False), ('bodega_id', '=', bodega_id)])
-
-            dom_admin = expression.AND(dom_admin_parts)
-            _logger.debug("PERM[%s] dom_admin=%s", user.id, dom_admin)
-            admin = Acceso.search(dom_admin, limit=1)
-            if admin and getattr(admin, 'is_admin', False):
-                _logger.info("PERM[%s]: ADMIN ok por accesos -> True", user.id)
-                res[user.id] = True
-                continue
-
-            # 2) Rangos aplicables (solo añadimos filtros de las dimensiones que aplique el scope y que vengan definidas)
-            base = [('usuario_id', '=', user.id), ('active', '=', True)]
-            parts = [base]
-            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id:
-                parts.append(['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)])
-            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and sucursal_id:
-                parts.append(['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)])
-            if scope == 'empresa_sucursal_bodega' and 'bodega_id' in AsigRango._fields and bodega_id:
-                parts.append(['|', ('bodega_id', '=', False), ('bodega_id', '=', bodega_id)])
-
-
-            dom_r = expression.AND(parts)
-            _logger.debug("PERM[%s] dom_rangos=%s", user.id, dom_r)
-            rango_asigs = AsigRango.search(dom_r)
-            rango_perm = rango_asigs.mapped('rango_id.permiso_ids').filtered(lambda p: p.active) if rango_asigs else Permiso.browse()
-            has = target_perm in rango_perm
-
-            # 3) Overrides (mismo criterio de filtros)
-            base_o = [('usuario_id', '=', user.id), ('permiso_id', '=', target_perm.id), ('active', '=', True)]
-            parts_o = [base_o]
-            if scope in ('empresa', 'empresa_sucursal', 'empresa_sucursal_bodega') and empresa_id:
-                parts_o.append(['|', ('empresa_id', '=', False), ('empresa_id', '=', empresa_id)])
-            if scope in ('empresa_sucursal', 'empresa_sucursal_bodega') and sucursal_id:
-                parts_o.append(['|', ('sucursal_id', '=', False), ('sucursal_id', '=', sucursal_id)])
-            if scope == 'empresa_sucursal_bodega' and 'bodega_id' in AsigPerm._fields and bodega_id:
-                parts_o.append(['|', ('bodega_id', '=', False), ('bodega_id', '=', bodega_id)])
-
-
-            dom_o = expression.AND(parts_o)
-            overrides = AsigPerm.search(dom_o)
-            if overrides:
-                if any(not o.allow for o in overrides):
-                    has = False
-                elif any(o.allow for o in overrides):
-                    has = True
-
-            _logger.info("PERM[%s]: rango=%s overrides=%s -> has=%s",
-                         user.id, bool(rango_asigs), [(o.id, o.allow) for o in overrides], has)
-            res[user.id] = bool(has)
-
-        return res[self.id] if len(self) == 1 else res
-
-    def check_perm(self, modulo_code, permiso_code, empresa_id=None, sucursal_id=None, bodega_id=None):
-        """
-            Valida que el usuario tenga el permiso; si no, lanza ValidationError.
-
-            Parámetros:
-                modulo_code (str): Código del módulo. Ej.: 'ventas'
-                permiso_code (str): Código del permiso. Ej.: 'confirmar_venta'
-                empresa_id (int|None): ID de empresa; opcional.
-                sucursal_id (int|None): ID de sucursal; opcional.
-                bodega_id (int|None): ID de bodega (si aplica).
-
-            Ejemplo:
-                self.env.user.check_perm('ventas', 'editar_venta', empresa_id=1)
-                # -> True (si tiene) / lanza ValidationError (si no)
-        """
-        for user in self:
-            ok = user.has_perm(modulo_code, permiso_code, empresa_id=empresa_id, sucursal_id=sucursal_id, bodega_id=bodega_id)
-            if not ok:
-                raise ValidationError(_(
-                    "No cuentas con el permiso requerido: %(mod)s / %(perm)s",
-                    mod=modulo_code, perm=permiso_code
-                ))
-        return True
 
 
 #Se guardan los permisos de modulo funcionales
@@ -162,10 +54,22 @@ class PermModulo(models.Model):
     name = fields.Char('Nombre', required=True ,help=_("Nombre legible del módulo.\n" "Ejemplo: 'Ventas'."))
     description = fields.Text('Descripción', help=_("Describe brevemente el alcance del módulo.\n" "Ejemplo: 'Operaciones y flujo de ventas (cotización, pedido, factura)'."))
     active = fields.Boolean(default=True)
+    group_id = fields.Many2one('res.groups', string='Grupo del módulo')
+    menu_ids = fields.Many2many(
+        'ir.ui.menu', 'permisos_modulo_menu_rel', 'modulo_id', 'menu_id',
+        string='Menús del módulo'
+    )
+    dirty = fields.Boolean(string='Pendiente aplicar', default=False)
 
     _sql_constraints = [
         ('permisos_modulo_code_uniq', 'unique(code)', 'El código de módulo debe ser único.')
     ]
+
+    @api.onchange('name', 'description', 'active')
+    def _onchange_mark_dirty(self):
+        for r in self:
+            r.dirty = True
+
 
 #Se guardan los permisos atómicos
 #Acción puntual que se concede/deniega y es lo que consulta has_perm/check_perm.

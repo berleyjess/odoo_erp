@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#permisos/wizards/permisos_efectivo_wizard.py
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
 
@@ -20,10 +21,8 @@ class PermisosEfectivoWiz(models.TransientModel):
         usuario = self.env['res.users'].browse(self.env.context.get('default_usuario_id'))
         if usuario and usuario.exists():
             res.setdefault('usuario_id', usuario.id)
-            if usuario.empresa_actual_id:
-                res.setdefault('empresa_id', usuario.empresa_actual_id.id)
-            if usuario.sucursal_actual_id:
-                res.setdefault('sucursal_id', usuario.sucursal_actual_id.id)
+        # No seteamos empresa/sucursal por defecto; el usuario las elige en el wizard.
+
         return res
 
     @api.onchange('usuario_id', 'empresa_id', 'sucursal_id')

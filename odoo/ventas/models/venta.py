@@ -68,14 +68,14 @@ class venta(models.Model):
     # Empresa con default por ID
     empresa_id = fields.Many2one(
         'empresas.empresa', string='Empresa', required=True,
-        default=lambda self: self.env.user.empresa_actual_id.id,
+        #default=lambda self: self.env.user.empresa_actual_id.id,###YA NO EXISTE LA EMPRESA ACTUAL CAMBIAR A EMPRESA ACTUAL DEL MODULO DE FACTURACION.
         #check_company=True, # ⬅️ Entra aquí y valida contra empresas.empresa.company_id
     )
 
     # Sucursal con default por ID
     sucursal_id = fields.Many2one(
         'sucursales.sucursal', string='Sucursal', required=True,
-        default=lambda self: self.env.user.sucursal_actual_id.id,
+        #default=lambda self: self.env.user.sucursal_actual_id.id,###YA NO EXISTE LA EMPRESA ACTUAL CAMBIAR A EMPRESA ACTUAL DEL MODULO DE FACTURACION.
     )
 
     @api.onchange('empresa_id')
@@ -381,8 +381,8 @@ class venta(models.Model):
 
     @api.model
     def create(self, vals):
-        vals.setdefault('empresa_id', self.env.user.empresa_actual_id.id)
-        vals.setdefault('sucursal_id', self.env.user.sucursal_actual_id.id)
+        #vals.setdefault('empresa_id', self.env.user.empresa_actual_id.id) ###YA NO EXISTE LA EMPRESA ACTUAL CAMBIAR A EMPRESA ACTUAL DEL MODULO DE FACTURACION.
+        #vals.setdefault('sucursal_id', self.env.user.sucursal_actual_id.id)###YA NO EXISTE LA SUCURSAL ACTUAL CAMBIAR A SUCURSAL ACTUAL DEL MODULO DE FACTURACION.
         # Ya no seteamos company_id
         self._check_user_company_branch(vals=vals)
         return super().create(vals)

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
+<!--permisos/views/permisos_wizard_views.xml-->
   <!-- Acción del Wizard -->
   <record id="action_permisos_efectivo_wiz" model="ir.actions.act_window">
     <field name="name">Permisos del Usuario</field>
@@ -51,17 +52,18 @@
   </record>
 
   <!-- Botón en Usuarios para abrir el Wizard -->
-  <record id="view_users_form_inherit_permisos" model="ir.ui.view">
-    <field name="name">res.users.form.permisos.buttons</field>
-    <field name="model">res.users</field>
-    <field name="inherit_id" ref="base.view_users_form"/>
-    <field name="arch" type="xml">
-      <xpath expr="//header" position="inside">
-        <button name="%(action_permisos_asig_rango)d" string="Rangos" type="action" class="oe_stat_button"/>
-        <button name="%(action_permisos_asig_perm)d" string="Overrides" type="action" class="oe_stat_button"/>
-        <button name="%(action_permisos_efectivo_wiz)d" string="Permisos" type="action" class="oe_stat_button"
-                context="{'default_usuario_id': id, 'default_empresa_id': empresa_actual_id, 'default_sucursal_id': sucursal_actual_id}"/>
-      </xpath>
-    </field>
+  <record id="view_users_form_inherit_permisos_buttons" model="ir.ui.view">
+      <field name="name">res.users.form.permisos.buttons</field>
+      <field name="model">res.users</field>
+      <field name="inherit_id" ref="base.view_users_form"/>
+      <field name="arch" type="xml">
+          <xpath expr="//form/header" position="inside">
+              <button name="action_open_permisos_wizard"
+                      string="Permisos"
+                      type="object"
+                      class="oe_stat_button"
+                      groups="base.group_system"/>
+          </xpath>
+      </field>
   </record>
 </odoo>

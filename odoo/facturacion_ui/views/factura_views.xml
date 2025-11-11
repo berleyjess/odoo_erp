@@ -1,6 +1,5 @@
 <odoo>
 <!-- facturacion_ui/views/factura_views.xml -->
-  <!-- LIST: decoraciones y badge; SIN attrs -->
   <record id="view_factura_list18" model="ir.ui.view">
     <field name="name">facturas.factura.list18</field>
     <field name="model">facturas.factura</field>
