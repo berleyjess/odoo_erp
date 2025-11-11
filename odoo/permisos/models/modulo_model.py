@@ -25,3 +25,19 @@ class PermModuloModel(models.Model):
     empresa_field  = fields.Char(default='empresa')
     sucursal_field = fields.Char(default='sucursal')
     bodega_field   = fields.Char(default='bodega')
+
+    def create(self, vals):
+        rec = super().create(vals)
+        rec.modulo_id.write({'dirty': True})
+        return rec
+
+    def write(self, vals):
+        res = super().write(vals)
+        self.mapped('modulo_id').write({'dirty': True})
+        return res
+
+    def unlink(self):
+        mods = self.mapped('modulo_id')
+        res = super().unlink()
+        mods.write({'dirty': True})
+        return res

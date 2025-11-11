@@ -8,8 +8,10 @@
             <list string="Accesos" editable="bottom">
                 <field name="codigo" readonly="1"/>
                 <field name="usuario_id" required="1"/>
+                <field name="modulo_id" required="1"/>
                 <field name="empresa_id" required="1"/>
-                <field name="bodega_id" required="1"/>
+                <field name="sucursal_id"/>
+                <field name="bodega_id"/>
                 <field name="can_read"/>
                 <field name="can_write"/>
                 <field name="can_create"/>
@@ -30,8 +32,10 @@
                         <group>
                             <field name="codigo" readonly="1"/>
                             <field name="usuario_id" required="1"/>
+                            <field name="modulo_id" required="1"/>
                             <field name="empresa_id" required="1"/>
-                            <field name="bodega_id" required="1"/>
+                            <field name="sucursal_id"/>
+                            <field name="bodega_id"/>
                         </group>
                         <group string="Permisos">
                             <field name="can_read"/>

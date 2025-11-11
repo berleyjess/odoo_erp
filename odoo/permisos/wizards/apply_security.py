@@ -3,6 +3,15 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 
+"""
+Se relaciona con:
+    res_groups (y su M2M con res_users)
+    ir_ui_menu (M2M groups_id)
+    ir_model_access
+    ir_rule
+    El ir.model.access.csv no se toca: esto es runtime sobre la BD.
+"""
+
 class PermApplySecurityWiz(models.TransientModel):
     _name = 'permisos.apply.security.wiz'
     _description = 'Aplicar seguridad (reconstruir grupos, menús, access y rules)'
@@ -11,7 +20,10 @@ class PermApplySecurityWiz(models.TransientModel):
 
     def action_apply(self):
         Mod = self.env['permisos.modulo'].sudo()
-        mods = Mod.search([('dirty','=', True)]) if self.include_all_modules else Mod.browse()
+        if self.include_all_modules:
+            mods = Mod.search([('dirty','=', True)])
+        else:
+            mods = Mod.browse(self.env.context.get('active_ids', []))  # <---
         if not mods:
             return self._notify(_("No hay módulos pendientes"))
 
@@ -20,6 +32,7 @@ class PermApplySecurityWiz(models.TransientModel):
             m.write({'dirty': False})
 
         return self._notify(_("Seguridad aplicada."))
+
 
     def _notify(self, msg):
         return {
@@ -35,6 +48,7 @@ class PermApplySecurityWiz(models.TransientModel):
         self._sync_model_access_and_rules(modulo)
         self._sync_group_members(modulo)
 
+    #Crea (si falta) un res.groups para el área y guarda el grupo en m.group_id.
     def _ensure_group(self, modulo):
         Groups = self.env['res.groups'].sudo()
         xmlid = f"permisos.group_mod_{modulo.code}"
@@ -43,12 +57,19 @@ class PermApplySecurityWiz(models.TransientModel):
             modulo.group_id = grp.id
         # no gestiono xmlid aquí por simplicidad
 
+    #Por cada menú en m.menu_ids, hace menu.write({'groups_id': [(4, m.group_id.id)]}) → añade el grupo del área en esos menús (no borra otros grupos).
     def _sync_menus(self, modulo):
         if not modulo.menu_ids:
             return
         for menu in modulo.menu_ids:
             menu.write({'groups_id': [(4, modulo.group_id.id)]})
 
+    """
+    --*Lee tu matriz permisos.modulo.model del módulo.
+    --*IR Model Access: borra los access de ese grupo+modelo y crea 1 acceso con los flags máximos (perm_read/write/create/unlink).
+    --*Record Rules: borra todas las ir.rule activas ligadas al grupo del módulo y crea reglas nuevas por modelo/operación, 
+    con el domain armado según el scope y los campos mapeados (empresa_field, sucursal_field, bodega_field).
+    """
     def _sync_model_access_and_rules(self, modulo):
         PermModModel = self.env['permisos.modulo.model'].sudo()
         Imodel  = self.env['ir.model'].sudo()
@@ -116,6 +137,8 @@ class PermApplySecurityWiz(models.TransientModel):
                     'active': True,
                 })
 
+    #Toma los usuarios de accesos.acceso (módulo = m, active=True) y reemplaza los miembros del grupo:
+    #m.group_id.users = [(6, 0, users.ids)].
     def _sync_group_members(self, modulo):
         try:
             Acc = self.env['accesos.acceso'].sudo()
@@ -123,5 +146,3 @@ class PermApplySecurityWiz(models.TransientModel):
             return  # si 'accesos' no está instalado, omite este paso
         users = Acc.search([('modulo_id','=', modulo.id), ('active','=', True)]).mapped('usuario_id')
         modulo.group_id.users = [(6, 0, users.ids)]
-
-

@@ -191,7 +191,7 @@
           <group>
             <field name="usuario_id"/>
             <field name="permiso_id"/>
-            <field name="allow"/>
+            <field name="allow"/> <!-- Deny gana siempre sobre allow -->
             <field name="empresa_id"/>
             <field name="sucursal_id" invisible="[('empresa_id','=', False)]"/>
             <field name="active"/>

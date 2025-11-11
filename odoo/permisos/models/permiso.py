@@ -70,6 +70,12 @@ class PermModulo(models.Model):
         for r in self:
             r.dirty = True
 
+    @api.onchange('menu_ids')
+    def _onchange_menus_mark_dirty(self):
+        for r in self:
+            r.dirty = True
+
+
 
 #Se guardan los permisos atómicos
 #Acción puntual que se concede/deniega y es lo que consulta has_perm/check_perm.

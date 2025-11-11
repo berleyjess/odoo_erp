@@ -1,0 +1,47 @@
+<odoo>
+  <!-- Heredar el form de permisos.modulo para añadir Menús, Grupo y Dirty -->
+  <record id="view_permisos_modulo_form_inherit_menus" model="ir.ui.view">
+    <field name="name">permisos.modulo.form.menus</field>
+    <field name="model">permisos.modulo</field>
+    <field name="inherit_id" ref="permisos.view_permisos_modulo_form"/>
+    <field name="arch" type="xml">
+      <!-- Insertar un notebook con pestañas debajo del group existente -->
+      <xpath expr="//form/sheet" position="inside">
+        <group>
+          <field name="group_id" readonly="1" string="Grupo del área"/>
+          <field name="dirty"/>
+        </group>
+        <notebook>
+          <page string="Menús del módulo">
+            <field name="menu_ids" widget="many2many_tags"
+                   options="{'no_create': True, 'no_open': False}"/>
+            <!-- Si prefieres vista lista para seleccionar muchos:
+            <field name="menu_ids" context="{'default_parent_id': False}">
+              <tree editable="bottom">
+                <field name="name"/>
+                <field name="parent_id"/>
+              </tree>
+            </field>
+            -->
+            <div class="o_form_label">
+              Tip: agrega también submenús; la sincronización no hace cascada automática.
+            </div>
+
+          </page>
+        </notebook>
+      </xpath>
+    </field>
+  </record>
+
+  <!-- Opcional: heredar la lista para ver la bandera 'dirty' -->
+  <record id="view_permisos_modulo_list_inherit_dirty" model="ir.ui.view">
+    <field name="name">permisos.modulo.list.dirty</field>
+    <field name="model">permisos.modulo</field>
+    <field name="inherit_id" ref="permisos.view_permisos_modulo_list"/>
+    <field name="arch" type="xml">
+      <xpath expr="//list" position="inside">
+        <field name="dirty"/>
+      </xpath>
+    </field>
+  </record>
+</odoo>

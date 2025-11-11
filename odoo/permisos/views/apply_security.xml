@@ -28,16 +28,17 @@
       <field name="model">permisos.modulo</field>
       <field name="inherit_id" ref="permisos.view_permisos_modulo_form"/>
       <field name="arch" type="xml">
-        <xpath expr="//form" position="inside">
+        <xpath expr="//form/sheet" position="before">
           <header>
             <button name="%(action_perm_apply_security)d"
                     type="action"
                     string="Aplicar seguridad"
                     class="oe_highlight"
-                    invisible="not dirty"/>
+                    invisible="[('dirty','=', False)]"/>
           </header>
         </xpath>
       </field>
     </record>
+
 
 </odoo>

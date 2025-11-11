@@ -11,6 +11,7 @@
         "views/permisos_wizard_views.xml",
         "views/apply_security.xml",
         "views/set_context.xml",
+        "views/permisos_views_menuids.xml",
         "data/permisos_demo.xml",
     ],
     "application": True,
