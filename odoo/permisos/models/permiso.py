@@ -75,6 +75,60 @@ class PermModulo(models.Model):
         for r in self:
             r.dirty = True
 
+    # --- NORMALIZA el code siempre a minúsculas/trim ---
+    @api.model
+    def create(self, vals):
+        if 'code' in vals:
+            vals['code'] = (vals.get('code') or '').strip().lower()
+        rec = super().create(vals)
+        # marca dirty para que el botón "Aplicar seguridad" aparezca
+        rec.dirty = True
+        return rec
+
+    def write(self, vals):
+        if 'code' in vals:
+            vals['code'] = (vals.get('code') or '').strip().lower()
+        res = super().write(vals)
+        # cualquier cambio relevante vuelve a marcar dirty
+        if {'code', 'name', 'description', 'active', 'menu_ids'} & set(vals.keys()):
+            self.write({'dirty': True})
+        return res
+
+    # --- BLOQUEA BORRADO con mensaje agregando conteos de dependencias ---
+    def unlink(self):
+        Perm = self.env['permisos.permiso'].sudo()
+        Acc  = self.env['accesos.acceso'].sudo()
+        Ctx  = self.env['permisos.user.context'].sudo()
+        Conf = self.env['permisos.modulo.model'].sudo()
+
+        for mod in self:
+            blocks = {
+                'permisos':       Perm.search_count([('modulo_id', '=', mod.id)]),
+                'accesos':        Acc.search_count([('modulo_id', '=', mod.id), ('active', '=', True)]),
+                'contextos':      Ctx.search_count([('modulo_id', '=', mod.id)]),
+                'config_modelos': Conf.search_count([('modulo_id', '=', mod.id)]),
+            }
+            if any(blocks.values()):
+                det = []
+                if blocks['permisos']:
+                    det.append(_("- %(n)s permisos del módulo", n=blocks['permisos']))
+                if blocks['accesos']:
+                    det.append(_("- %(n)s accesos de usuarios (accesos.acceso) activos", n=blocks['accesos']))
+                if blocks['contextos']:
+                    det.append(_("- %(n)s contextos de usuario", n=blocks['contextos']))
+                if blocks['config_modelos']:
+                    det.append(_("- %(n)s configuraciones de modelos (permisos.modulo.model)", n=blocks['config_modelos']))
+
+                raise ValidationError(_(
+                    "No se puede eliminar el módulo “%(mod)s” porque tiene registros relacionados:\n"
+                    "%(det)s\n\n"
+                    "Sugerencias:\n"
+                    "• Archiva el módulo (active=False) en lugar de eliminarlo.\n"
+                    "• O elimina primero los registros relacionados (Permisos, Accesos, Contextos, Config. de modelos)."
+                ) % {'mod': mod.display_name, 'det': "\n".join(det)})
+
+        return super().unlink()
+
 
 
 #Se guardan los permisos atómicos
@@ -118,7 +172,6 @@ class PermPermiso(models.Model):
         for r in self:
             if not r.code or not r.code.replace('_', '').isalnum():
                 raise ValidationError(_('El código del permiso debe ser alfanumérico con guiones bajos.'))
-
 #Se guardan los rangos (paquetes de permisos). Estructura.
 class PermRango(models.Model):
     _name = 'permisos.rango'

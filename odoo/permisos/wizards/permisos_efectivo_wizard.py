@@ -40,21 +40,7 @@ class PermisosEfectivoWiz(models.TransientModel):
             Perm = self.env['permisos.permiso'].sudo()
             perms = Perm.search([('active', '=', True)], order='modulo_id, code')
 
-            Acceso = self.env['accesos.acceso'].sudo()
-            # Admin por empresa (si aplica)
-            is_admin = False
-            if wiz.empresa_id:
-                is_admin = bool(Acceso.search([
-                    ('usuario_id', '=', wiz.usuario_id.id),
-                    ('empresa_id', '=', wiz.empresa_id.id),
-                    ('is_admin', '=', True),
-                ], limit=1))
-            else:
-                is_admin = bool(Acceso.search([
-                    ('usuario_id', '=', wiz.usuario_id.id),
-                    ('empresa_id', '=', False),
-                    ('is_admin', '=', True),
-                ], limit=1))
+            #Acceso = self.env['accesos.acceso'].sudo()
 
             for p in perms:
                 allowed = wiz.usuario_id.has_perm(
@@ -62,6 +48,13 @@ class PermisosEfectivoWiz(models.TransientModel):
                     empresa_id=wiz.empresa_id.id if wiz.empresa_id else None,
                     sucursal_id=wiz.sucursal_id.id if wiz.sucursal_id else None,
                 )
+            
+                # Helpers del usuario (gate/admin por MÓDULO, sin empresa)
+                u = wiz.usuario_id
+                # if not u._perm__has_gate(p.modulo_id.code):
+                #     continue   # <- opcional si quieres ocultar módulos sin gate
+                is_admin = u._perm__is_admin_gate(p.modulo_id.code)
+            
                 # override más específico
                 dom_o = [
                     ('usuario_id', '=', wiz.usuario_id.id),
@@ -80,7 +73,7 @@ class PermisosEfectivoWiz(models.TransientModel):
                 override_state = 'none'
                 if override:
                     override_state = 'allow' if override.allow else 'deny'
-
+            
                 commands.append((0, 0, {
                     'wiz_id': wiz.id,
                     'seleccionar': False,
@@ -91,6 +84,7 @@ class PermisosEfectivoWiz(models.TransientModel):
                     'allowed': bool(allowed or is_admin),
                     'override_state': override_state,
                 }))
+
 
             wiz.line_ids = commands
         return True

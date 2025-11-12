@@ -1,16 +1,9 @@
-# permisos/wizard/apply_security.py
+#permisos/wizards/apply_security.py
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
-
-"""
-Se relaciona con:
-    res_groups (y su M2M con res_users)
-    ir_ui_menu (M2M groups_id)
-    ir_model_access
-    ir_rule
-    El ir.model.access.csv no se toca: esto es runtime sobre la BD.
-"""
+import logging, json
+_logger = logging.getLogger(__name__)
 
 class PermApplySecurityWiz(models.TransientModel):
     _name = 'permisos.apply.security.wiz'
@@ -21,19 +14,37 @@ class PermApplySecurityWiz(models.TransientModel):
     def action_apply(self):
         Mod = self.env['permisos.modulo'].sudo()
         if self.include_all_modules:
-            mods = Mod.search([('dirty','=', True)])
+            mods = Mod.search([('dirty', '=', True)])
         else:
-            mods = Mod.browse(self.env.context.get('active_ids', []))  # <---
+            active_ids = self.env.context.get('active_ids') or []
+            mods = active_ids and Mod.browse(active_ids) or Mod.browse()
+
         if not mods:
             return self._notify(_("No hay módulos pendientes"))
 
+        results = []
         for m in mods:
-            self._sync_module(m)
-            m.write({'dirty': False})
+            try:
+                res = self._sync_module(m)   # dict con contadores
+                self._log_apply(m, res)
+                m.write({'dirty': False})
+                line = "[{code}] menus={menus} acl={acl} rules={rules} users={users}".format(
+                    code=m.code,
+                    menus=res.get('menus_updated', 0),
+                    acl=res.get('acl_replaced', 0),
+                    rules=res.get('rules_created', 0),
+                    users=res.get('users_in_group', 0),
+                )
+                results.append(line)
+                _logger.info("Apply security %s -> %s", m.code, res)
+            except Exception as e:
+                _logger.exception("Apply security FAILED for %s", m.code)
+                results.append(f"[{m.code}] ERROR: {e}")
 
-        return self._notify(_("Seguridad aplicada."))
+        msg = _("Seguridad aplicada. Revisa el log técnico para detalle.\n") + "\n".join(results)
+        return self._notify(msg)
 
-
+    # ---------- helpers ----------
     def _notify(self, msg):
         return {
             'type': 'ir.actions.client',
@@ -41,57 +52,118 @@ class PermApplySecurityWiz(models.TransientModel):
             'params': {'title': _('Seguridad'), 'message': msg, 'type': 'success', 'sticky': False}
         }
 
-    # --- Rutina principal por módulo ---
     def _sync_module(self, modulo):
         self._ensure_group(modulo)
-        self._sync_menus(modulo)
-        self._sync_model_access_and_rules(modulo)
-        self._sync_group_members(modulo)
+        menus = self._sync_menus(modulo)
+        acl, rules = self._sync_model_access_and_rules(modulo)
+        users = self._sync_group_members(modulo)
+        return {
+            'module': modulo.code,
+            'menus_updated': menus,
+            'acl_replaced': acl,
+            'rules_created': rules,
+            'users_in_group': users,
+        }
 
-    #Crea (si falta) un res.groups para el área y guarda el grupo en m.group_id.
     def _ensure_group(self, modulo):
         Groups = self.env['res.groups'].sudo()
-        xmlid = f"permisos.group_mod_{modulo.code}"
         if not modulo.group_id:
             grp = Groups.create({'name': f"[{modulo.code}] {modulo.name}"})
             modulo.group_id = grp.id
-        # no gestiono xmlid aquí por simplicidad
+            _logger.info("[%-s] Grupo creado: %s (%s)", modulo.code, grp.name, grp.id)
+        else:
+            _logger.debug("[%-s] Grupo existente: %s (%s)", modulo.code, modulo.group_id.name, modulo.group_id.id)
 
-    #Por cada menú en m.menu_ids, hace menu.write({'groups_id': [(4, m.group_id.id)]}) → añade el grupo del área en esos menús (no borra otros grupos).
+    def _auto_discover_and_attach_menus(self, modulo):
+        """Ligar menús automáticamente:
+           1) por acciones (ir.actions.act_window.res_model) de los modelos configurados;
+           2) si no hay, por nombre/código.
+        """
+        Menu = self.env['ir.ui.menu'].sudo()
+        Act  = self.env['ir.actions.act_window'].sudo()
+        Conf = self.env['permisos.modulo.model'].sudo()
+    
+        name = (modulo.name or '').strip()
+        code = (modulo.code or '').strip()
+    
+        # 1) Por acciones de modelos configurados en permisos.modulo.model
+        models = Conf.search([('modulo_id', '=', modulo.id)]).mapped('model_id.model')
+        menu_ids = set()
+        if models:
+            acts = Act.search([('res_model', 'in', models)])
+            if acts:
+                menus = Menu.search([('action', 'in', acts.ids)])
+                for root in menus:
+                    menu_ids.update(Menu.search([('id', 'child_of', root.id)]).ids)
+        if menu_ids:
+            modulo.write({'menu_ids': [(6, 0, list(menu_ids))]})
+            _logger.info("[%-s] %d menús ligados por acciones/res_model.", modulo.code, len(menu_ids))
+            return len(menu_ids)
+    
+        # 2) Fallback por nombre/código
+        candidates = Menu.search(['|', ('name', 'ilike', name), ('name', 'ilike', code)])
+        if not candidates:
+            _logger.warning("[%-s] No se encontraron menús para ligar (ni por acción ni por nombre/código).", modulo.code)
+            return 0
+    
+        root = Menu.search([('name', 'ilike', name)], limit=1) or Menu.search([('name', 'ilike', code)], limit=1)
+        if root:
+            all_menus = Menu.search([('id', 'child_of', root.id)])
+            modulo.write({'menu_ids': [(6, 0, all_menus.ids)]})
+            _logger.info("[%-s] Menú raíz '%s' -> %d menús ligados (auto).", modulo.code, root.complete_name, len(all_menus))
+            return len(all_menus)
+    
+        modulo.write({'menu_ids': [(6, 0, candidates.ids)]})
+        _logger.info("[%-s] %d menús ligados (auto, coincidencia directa).", modulo.code, len(candidates))
+        return len(candidates)
+
+
+
     def _sync_menus(self, modulo):
         if not modulo.menu_ids:
-            return
-        for menu in modulo.menu_ids:
-            menu.write({'groups_id': [(4, modulo.group_id.id)]})
+            self._auto_discover_and_attach_menus(modulo)
 
-    """
-    --*Lee tu matriz permisos.modulo.model del módulo.
-    --*IR Model Access: borra los access de ese grupo+modelo y crea 1 acceso con los flags máximos (perm_read/write/create/unlink).
-    --*Record Rules: borra todas las ir.rule activas ligadas al grupo del módulo y crea reglas nuevas por modelo/operación, 
-    con el domain armado según el scope y los campos mapeados (empresa_field, sucursal_field, bodega_field).
-    """
+        if not modulo.menu_ids:
+            _logger.warning("[%-s] Sin menús ligados al módulo; no hay nada que actualizar.", modulo.code)
+            return 0
+
+        updated = 0
+        for menu in modulo.menu_ids:
+            if modulo.group_id and modulo.group_id not in menu.groups_id:
+                menu.write({'groups_id': [(4, modulo.group_id.id)]})
+                updated += 1
+                _logger.debug("[%-s] Grupo agregado al menú: %s", modulo.code, menu.complete_name)
+        _logger.info("[%-s] Menús actualizados: %d / total vinculados: %d",
+                     modulo.code, updated, len(modulo.menu_ids))
+        return updated
+
     def _sync_model_access_and_rules(self, modulo):
-        PermModModel = self.env['permisos.modulo.model'].sudo()
+        Conf = self.env['permisos.modulo.model'].sudo()
         Imodel  = self.env['ir.model'].sudo()
         IAccess = self.env['ir.model.access'].sudo()
         IRule   = self.env['ir.rule'].sudo()
 
-        confs = PermModModel.search([('modulo_id','=', modulo.id)])
-        # 1) ACCESS: máximos por grupo del módulo
+        confs = Conf.search([('modulo_id', '=', modulo.id)])
+        if not confs:
+            _logger.info("[%-s] Sin filas en permisos.modulo.model -> no se generan ACL/Rules.", modulo.code)
+            return 0, 0
+
+        # --- ACL por modelo (flags agregados)
         by_model = {}
         for c in confs:
-            by_model.setdefault(c.model_id.id, {'read':False,'write':False,'create':False,'unlink':False})
-            agg = by_model[c.model_id.id]
+            agg = by_model.setdefault(c.model_id.id, {'read': False, 'write': False, 'create': False, 'unlink': False})
             agg['read']   = agg['read']   or c.perm_read
             agg['write']  = agg['write']  or c.perm_write
             agg['create'] = agg['create'] or c.perm_create
             agg['unlink'] = agg['unlink'] or c.perm_unlink
 
+        acl_replaced = 0
         for model_id, flags in by_model.items():
             model = Imodel.browse(model_id)
-            # Borramos access previos de este grupo+modelo creados por este sincronizador (por simplicidad: match por group_id/model_id)
-            old = IAccess.search([('group_id','=', modulo.group_id.id), ('model_id','=', model_id)])
-            old.unlink()
+            old = IAccess.search([('group_id', '=', modulo.group_id.id), ('model_id', '=', model_id)])
+            if old:
+                _logger.debug("[%-s] ACL previas eliminadas para %s: %d", modulo.code, model.model, len(old))
+                old.unlink()
             IAccess.create({
                 'name': f"{modulo.code}:{model.model}",
                 'model_id': model_id,
@@ -101,20 +173,23 @@ class PermApplySecurityWiz(models.TransientModel):
                 'perm_create':1 if flags['create'] else 0,
                 'perm_unlink':1 if flags['unlink'] else 0,
             })
+            acl_replaced += 1
+            _logger.debug("[%-s] ACL creada para %s -> %s", modulo.code, model.model, flags)
 
-        # 2) RULES: por combinación módulo+modelo+operación con campos mapeados
-        # Limpiamos reglas viejas de este módulo
-        old_rules = IRule.search([('groups','in', modulo.group_id.id), ('active','=', True)])
-        old_rules.unlink()
+        # --- Rules
+        old_rules = IRule.search([('groups', 'in', modulo.group_id.id), ('active', '=', True)])
+        cnt_old = len(old_rules)
+        if cnt_old:
+            old_rules.unlink()
+            _logger.debug("[%-s] Record Rules previas eliminadas: %d", modulo.code, cnt_old)
 
+        rules_created = 0
         for c in confs:
-            model = c.model_id
             ef = c.empresa_field or 'empresa'
             sf = c.sucursal_field or 'sucursal'
             bf = c.bodega_field or 'bodega'
 
-            # Record rule domain strings (se evalúan con 'user' disponible)
-            base = "[(1,'=',1)]"  # sin filtro si global o si no hay campos
+            base = "[(1,'=',1)]"
             if c.scope == 'empresa':
                 base = f"[('{ef}','in', user.empresas_ids.ids)]"
             elif c.scope == 'empresa_sucursal':
@@ -123,26 +198,41 @@ class PermApplySecurityWiz(models.TransientModel):
                 base = f"[('{ef}','in', user.empresas_ids.ids), ('{sf}','in', user.sucursales_ids.ids), ('{bf}','in', user.bodegas_ids.ids)]"
 
             ops = []
-            if c.perm_read:   ops.append(('Leer',   base))
-            if c.perm_write:  ops.append(('Escribir', base))
-            if c.perm_create: ops.append(('Crear',  base))
+            if c.perm_read:   ops.append(('Leer',    base))
+            if c.perm_write:  ops.append(('Escribir',base))
+            if c.perm_create: ops.append(('Crear',   base))
             if c.perm_unlink: ops.append(('Eliminar',base))
 
             for label, dom in ops:
-                IRule.create({
-                    'name': f"[{modulo.code}] {model.model} :: {label}",
-                    'model_id': model.id,
+                self.env['ir.rule'].sudo().create({
+                    'name': f"[{modulo.code}] {c.model_id.model} :: {label}",
+                    'model_id': c.model_id.id,
                     'domain_force': dom,
                     'groups': [(4, modulo.group_id.id)],
                     'active': True,
                 })
+                rules_created += 1
+        _logger.info("[%-s] ACL=%d, Rules creadas=%d", modulo.code, acl_replaced, rules_created)
+        return acl_replaced, rules_created
 
-    #Toma los usuarios de accesos.acceso (módulo = m, active=True) y reemplaza los miembros del grupo:
-    #m.group_id.users = [(6, 0, users.ids)].
     def _sync_group_members(self, modulo):
-        try:
-            Acc = self.env['accesos.acceso'].sudo()
-        except KeyError:
-            return  # si 'accesos' no está instalado, omite este paso
-        users = Acc.search([('modulo_id','=', modulo.id), ('active','=', True)]).mapped('usuario_id')
+        Acc = self.env['accesos.acceso'].sudo()
+        users = Acc.search([('modulo_id', '=', modulo.id), ('active', '=', True)]).mapped('usuario_id')
         modulo.group_id.users = [(6, 0, users.ids)]
+        _logger.info("[%-s] Usuarios en grupo: %d -> %s",
+                     modulo.code, len(users), ', '.join(users.mapped('login')))
+        return len(users)
+
+    def _log_apply(self, modulo, payload: dict):
+        try:
+            self.env['permisos.audit.log'].sudo().create({
+                'action': 'apply_security',
+                'model': 'permisos.modulo',
+                'res_id': modulo.id,
+                'vals_before': "{}",
+                'vals_after': json.dumps(payload, ensure_ascii=False),
+                'origin': 'apply_security',
+            })
+        except Exception:
+            _logger.info("Seguridad aplicada a %s :: %s", modulo.code, payload)
+

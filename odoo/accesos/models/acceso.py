@@ -3,6 +3,8 @@
 from odoo import models, api, _, fields
 from odoo.exceptions import ValidationError
 from functools import wraps
+import logging
+_logger = logging.getLogger(__name__)
 
 class Acceso(models.Model):
     _name = 'accesos.acceso'
@@ -13,28 +15,72 @@ class Acceso(models.Model):
     codigo = fields.Char(readonly=True, default=lambda s: s.env['ir.sequence'].next_by_code('accesos.acceso') or '/')
     usuario_id = fields.Many2one('res.users', required=True, ondelete='cascade', index=True)
     modulo_id  = fields.Many2one('permisos.modulo', required=True, ondelete='restrict', index=True)
-    empresa_id = fields.Many2one('empresas.empresa', ondelete='restrict', index=True)
-    sucursal_id= fields.Many2one('sucursales.sucursal', ondelete='restrict', index=True)
-    bodega_id  = fields.Many2one('bodegas.bodega', ondelete='restrict', index=True)
 
     can_read   = fields.Boolean(default=True)
     can_write  = fields.Boolean(default=False)
     can_create = fields.Boolean(default=False)
+    can_unlink = fields.Boolean(default=False)
     is_admin   = fields.Boolean(default=False)
     active     = fields.Boolean(default=True)
 
     _sql_constraints = [
-        ('acceso_uniq', 'unique(usuario_id, modulo_id, empresa_id, sucursal_id, bodega_id)',
-         'Ya existe un acceso con el mismo contexto.')
+        ('acceso_uniq', 'unique(usuario_id, modulo_id)',
+        'Ya existe un acceso para el mismo usuario y módulo.')
     ]
 
-    @api.constrains('sucursal_id', 'empresa_id', 'bodega_id')
-    def _check_context_vs_empresa(self):
+    # --- Sincronía entre is_admin y can_* ---
+    @api.onchange('is_admin')
+    def _onchange_is_admin(self):
         for r in self:
-            if r.sucursal_id and r.empresa_id and r.sucursal_id.empresa.id != r.empresa_id.id:
-                raise ValidationError(_('La sucursal no pertenece a la empresa.'))
-            if r.bodega_id and r.empresa_id and r.bodega_id.empresa_id.id != r.empresa_id.id:
-                raise ValidationError(_('La bodega no pertenece a la empresa.'))
+            if r.is_admin:
+                r.can_read = True
+                r.can_write = True
+                r.can_create = True
+                r.can_unlink = True
+
+    @api.onchange('can_read', 'can_write', 'can_create', 'can_unlink')
+    def _onchange_can_flags(self):
+        for r in self:
+            flags = [r.can_read, r.can_write, r.can_create, r.can_unlink]
+            # Si todos están en True, marcar admin; si falta uno, quitar admin
+            r.is_admin = all(flags)
+
+    # === NUEVO: sincronía automática de grupo al crear/escribir/borrar ===
+    @api.model_create_multi
+    def create(self, vals_list):
+        recs = super().create(vals_list)
+        recs._post_change_sync()
+        return recs
+
+    def write(self, vals):
+        res = super().write(vals)
+        if {'usuario_id', 'modulo_id', 'active'} & set(vals.keys()):
+            self._post_change_sync()
+        return res
+
+    def unlink(self):
+        mods = self.mapped('modulo_id')
+        res = super().unlink()
+        if mods:
+            self._sync_group_for_modules(mods)
+        return res
+    
+    # Helpers
+    def _post_change_sync(self):
+        self._sync_group_for_modules(self.mapped('modulo_id'))
+
+    def _sync_group_for_modules(self, modules):
+        """Asegura grupo y sincroniza sus miembros desde accesos activos."""
+        Acc = self.sudo()
+        Groups = self.env['res.groups'].sudo()
+        for m in modules.sudo():
+            if not m.group_id:
+                grp = Groups.create({'name': f"[{m.code}] {m.name}"})
+                m.group_id = grp.id
+                _logger.info("[accesos] Grupo creado para %s: %s (%s)", m.code, grp.name, grp.id)
+            users = Acc.search([('modulo_id', '=', m.id), ('active', '=', True)]).mapped('usuario_id')
+            m.group_id.users = [(6, 0, users.ids)]
+            _logger.info("[accesos] Grupo %s sincronizado: %d usuarios", m.group_id.display_name, len(users))
 
 
 class ResUsersPerms(models.Model):
@@ -57,29 +103,25 @@ class ResUsersPerms(models.Model):
                 bod_id = bod_id or (ctx.bodega_id.id or False)
         return emp_id, suc_id, bod_id
 
-    # --- GATE por accesos: ¿el usuario tiene algún acceso al módulo en esa empresa?
-    def _perm__has_gate(self, modulo_code, empresa_id):
-        if not empresa_id:
-            return False
+    # --- GATE por accesos: ¿el usuario tiene acceso al módulo? (independiente de empresa)
+    def _perm__has_gate(self, modulo_code, empresa_id=None):
         Acc = self.env['accesos.acceso'].sudo()
         Mod = self.env['permisos.modulo'].sudo()
         modulo = Mod.search([('code','=', modulo_code)], limit=1)
         if not modulo:
             return False
         return bool(Acc.search([('usuario_id','=', self.id),
-                                ('empresa_id','=', empresa_id),
                                 ('modulo_id','=', modulo.id),
                                 ('active','=', True)], limit=1))
 
-    # --- Admin por gate
-    def _perm__is_admin_gate(self, modulo_code, empresa_id):
+    # --- Admin por gate (independiente de empresa)
+    def _perm__is_admin_gate(self, modulo_code, empresa_id=None):
         Acc = self.env['accesos.acceso'].sudo()
         Mod = self.env['permisos.modulo'].sudo()
         modulo = Mod.search([('code','=', modulo_code)], limit=1)
-        if not modulo or not empresa_id:
+        if not modulo:
             return False
         a = Acc.search([('usuario_id','=', self.id),
-                        ('empresa_id','=', empresa_id),
                         ('modulo_id','=', modulo.id),
                         ('active','=', True)], limit=1)
         return bool(a and a.is_admin)
@@ -88,7 +130,7 @@ class ResUsersPerms(models.Model):
     def has_perm(self, modulo_code, permiso_code, empresa_id=None, sucursal_id=None, bodega_id=None):
         self.ensure_one()
         emp_id, suc_id, bod_id = self._perm__resolve_ctx(modulo_code, empresa_id, sucursal_id, bodega_id)
-        # Gate de visibilidad (si no hay gate, no hay permiso)
+        # Gate de visibilidad (si no hay gate al módulo, no hay permiso)
         if not self._perm__has_gate(modulo_code, emp_id):
             return False
         # Admin por gate
@@ -172,7 +214,7 @@ class PermittedModelMixin(models.AbstractModel):
         if not Mod:
             raise ValidationError(_("Módulo no configurado: %s") % modulo_code)
 
-        # Gate: necesita al menos un acceso en alguna empresa
+        # Gate: necesita al menos un acceso (independiente de empresa)
         # (si el modelo tiene empresa_field en config, debería tomar el contexto; si no, con que tenga algún acceso ya ve)
         # Para CRUD fuerte, si no hay gate en ninguna empresa no permitimos.
         any_gate = self.env['accesos.acceso'].sudo().search_count([

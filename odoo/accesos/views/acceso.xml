@@ -9,12 +9,10 @@
                 <field name="codigo" readonly="1"/>
                 <field name="usuario_id" required="1"/>
                 <field name="modulo_id" required="1"/>
-                <field name="empresa_id" required="1"/>
-                <field name="sucursal_id"/>
-                <field name="bodega_id"/>
                 <field name="can_read"/>
                 <field name="can_write"/>
                 <field name="can_create"/>
+                <field name="can_unlink"/>
                 <field name="is_admin"/>
                 <field name="active"/>
             </list>
@@ -33,14 +31,12 @@
                             <field name="codigo" readonly="1"/>
                             <field name="usuario_id" required="1"/>
                             <field name="modulo_id" required="1"/>
-                            <field name="empresa_id" required="1"/>
-                            <field name="sucursal_id"/>
-                            <field name="bodega_id"/>
                         </group>
                         <group string="Permisos">
                             <field name="can_read"/>
                             <field name="can_write"/>
                             <field name="can_create"/>
+                            <field name="can_unlink"/>
                             <field name="is_admin"/>
                         </group>
                     </group>

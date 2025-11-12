@@ -1,5 +1,6 @@
 <odoo>
   <!-- Heredar el form de permisos.modulo para añadir Menús, Grupo y Dirty -->
+  <!-- permisos/views/permisos_views_menuids.xml -->
   <record id="view_permisos_modulo_form_inherit_menus" model="ir.ui.view">
     <field name="name">permisos.modulo.form.menus</field>
     <field name="model">permisos.modulo</field>
