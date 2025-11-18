@@ -1,6 +1,8 @@
 # permisos/wizard/set_context.py
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
+import logging
+_logger = logging.getLogger(__name__)
 
 class PermSetContextWiz(models.TransientModel):
     _name = 'permisos.set.context.wiz'
@@ -38,9 +40,10 @@ class PermSetContextWiz(models.TransientModel):
         self.ensure_one()
         Ctx = self.env['permisos.user.context'].sudo()
         rec = Ctx.search([
-            ('usuario_id','=', self.env.user.id),
-            ('modulo_id','=', self.modulo_id.id)
+            ('usuario_id', '=', self.env.user.id),
+            ('modulo_id',  '=', self.modulo_id.id),
         ], limit=1)
+
         vals = {
             'usuario_id': self.env.user.id,
             'modulo_id':  self.modulo_id.id,
@@ -48,8 +51,34 @@ class PermSetContextWiz(models.TransientModel):
             'sucursal_id': self.sucursal_id.id or False,
             'bodega_id':  self.bodega_id.id or False,
         }
+
         if rec:
             rec.write(vals)
         else:
-            Ctx.create(vals)
+            rec = Ctx.create(vals)
+
+        _logger.info(
+            "PERMISOS.SET.CONTEXT: user=%s modulo=%s -> empresa=%s sucursal=%s bodega=%s (ctx_id=%s)",
+            self.env.user.id,
+            self.modulo_id.code,
+            self.empresa_id.id or False,
+            self.sucursal_id.id or False,
+            self.bodega_id.id or False,
+            rec.id,
+        )
+
+        # Hook al modelo activo (opcional)
+        active_model = self.env.context.get('active_model')
+        active_id    = self.env.context.get('active_id')
+        if active_model and active_id:
+            record = self.env[active_model].browse(active_id)
+            if record and record.exists():
+                hook = getattr(record, '_on_perm_context_applied', None)
+                if hook:
+                    hook(
+                        empresa=self.empresa_id,
+                        sucursal=self.sucursal_id,
+                        bodega=self.bodega_id,
+                    )
+
         return {'type': 'ir.actions.act_window_close'}

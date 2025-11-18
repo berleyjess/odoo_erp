@@ -78,6 +78,13 @@
                     <button name="action_entry_tech" string="Dictamen técnico" type="object"  class="btn btn-primary" icon="fa-comment-o" invisible="not id"/>
 
                     <field name="dictamen" widget="statusbar" statusbar_visible="draft,check,confirmed,discard,bloked" invisible="not id"/>
+                    <button name="action_open_perm_context"
+                        string="Contexto módulo"
+                        type="object"
+                        class="btn btn-secondary"
+                        icon="fa-sliders"/>
+
+
                 </header>
                 <group>
                 <!-- contenedor que Odoo interpreta (group) -->
@@ -115,6 +122,19 @@
                             <field name="superficie" invisible="tipocredito != '0'" />
                             <field name="usersuperficie" invisible="tipocredito != '1'" />
                             <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="Contexto actual">
+                            <field name="ctx_empresa_id"
+                                   readonly="1"/>
+                                   <!--invisible="[('ctx_empresa_id','=',False)]"-->
+                            <field name="ctx_sucursal_id"
+                                   readonly="1"/>
+                                   <!--invisible="[('ctx_sucursal_id','=',False)]"-->
+                            <field name="ctx_bodega_id"
+                                   readonly="1"/>
+                                   <!--invisible="[('ctx_bodega_id','=',False)]"-->
+                            <!-- opcional: un solo texto resumido -->
+                            <!-- <field name="ctx_context_label" readonly="1"/> -->
                         </group>
                     </group>
                     <group name="datos_obligado" string="Obligado Solidario" invisible = "(titularr and cliente_estado_civil != 'casado') or tipocredito == '2'">

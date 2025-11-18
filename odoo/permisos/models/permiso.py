@@ -23,22 +23,83 @@ class ResUsers(models.Model):
             'res_id': wiz.id,
         }
     
-    def _resolve_ctx_from_user_module(self, modulo_code, empresa_id, sucursal_id, bodega_id):
-        empresa_id = getattr(empresa_id, 'id', empresa_id) or False
-        sucursal_id = getattr(sucursal_id, 'id', sucursal_id) or False
-        bodega_id  = getattr(bodega_id,  'id', bodega_id)  or False
-        if empresa_id and (sucursal_id or bodega_id):
+    from logging import getLogger
+_logger = getLogger(__name__)
+
+class ResUsers(models.Model):
+    _inherit = 'res.users'
+
+    def action_open_permisos_wizard(self):
+        self.ensure_one()
+        wiz = self.env['permisos.efectivo.wiz'].create({'usuario_id': self.id})
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Permisos del Usuario'),
+            'res_model': 'permisos.efectivo.wiz',
+            'view_mode': 'form',
+            'target': 'new',
+            'res_id': wiz.id,
+        }
+
+    def _resolve_ctx_from_user_module(
+        self, modulo_code, empresa_id=None, sucursal_id=None, bodega_id=None
+    ):
+        """Devuelve (empresa_id, sucursal_id, bodega_id) para user+modulo."""
+        self.ensure_one()
+
+        empresa_id  = getattr(empresa_id,  'id', empresa_id) or False
+        sucursal_id = getattr(sucursal_id,'id', sucursal_id) or False
+        bodega_id   = getattr(bodega_id,  'id', bodega_id) or False
+
+        # 1) Overrides desde env.context
+        ctx = self.env.context or {}
+        if not empresa_id:
+            empresa_id = ctx.get('empresa_actual_id') or empresa_id
+        if not sucursal_id:
+            sucursal_id = ctx.get('sucursal_actual_id') or sucursal_id
+        if not bodega_id:
+            bodega_id = ctx.get('bodega_actual_id') or bodega_id
+
+        if empresa_id or sucursal_id or bodega_id:
+            _logger.info(
+                "RESOLVE_CTX (explicit/context): user=%s modulo=%s -> empresa=%s sucursal=%s bodega=%s",
+                self.id, modulo_code, empresa_id, sucursal_id, bodega_id,
+            )
             return empresa_id, sucursal_id, bodega_id
-        # buscar contexto por módulo
+
+        # 2) Fallback: tabla permisos.user.context
         Ctx = self.env['permisos.user.context'].sudo()
-        mod = self.env['permisos.modulo'].sudo().search([('code','=', modulo_code)], limit=1)
-        if mod:
-            ctx = Ctx.search([('usuario_id','=', self.id), ('modulo_id','=', mod.id)], limit=1)
-            if ctx:
-                empresa_id  = empresa_id  or (ctx.empresa_id.id  or False)
-                sucursal_id = sucursal_id or (ctx.sucursal_id.id or False)
-                bodega_id   = bodega_id   or (ctx.bodega_id.id   or False)
-        return empresa_id, sucursal_id, bodega_id
+        Mod = self.env['permisos.modulo'].sudo().search([('code', '=', modulo_code)], limit=1)
+
+        if not Mod:
+            _logger.info(
+                "RESOLVE_CTX (no modulo): user=%s modulo=%s -> sin registro de módulo",
+                self.id, modulo_code,
+            )
+            return False, False, False
+
+        ctx_rec = Ctx.search([
+            ('usuario_id', '=', self.id),
+            ('modulo_id',  '=', Mod.id),
+        ], limit=1)
+
+        if not ctx_rec:
+            _logger.info(
+                "RESOLVE_CTX (no ctx_rec): user=%s modulo=%s -> sin contexto guardado",
+                self.id, modulo_code,
+            )
+            return False, False, False
+
+        emp = ctx_rec.empresa_id.id or False
+        suc = ctx_rec.sucursal_id.id or False
+        bod = ctx_rec.bodega_id.id or False
+
+        _logger.info(
+            "RESOLVE_CTX (from_db): user=%s modulo=%s -> empresa=%s sucursal=%s bodega=%s ctx_id=%s",
+            self.id, modulo_code, emp, suc, bod, ctx_rec.id,
+        )
+        return emp, suc, bod
+
 
 
 

@@ -9,6 +9,9 @@ class credito(models.Model):
     _name = 'creditos.credito'
     _description = 'Asignacion de contratos a clientes'
     _rec_name = 'label'
+    _inherit = ['permisos.module.context.mixin']
+
+    _perm_module_code = 'creditos'
     
     currency_id = fields.Many2one(
         'res.currency', 
@@ -22,7 +25,7 @@ class credito(models.Model):
     label = fields.Char(string="Folio", compute='_generate_label', store=True, default="Nuevo")
 
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)  
-    contrato = fields.Many2one('contratos.contrato', string="Linea de crédito", required=True)  
+    contrato = fields.Many2one('contratos.contrato', string="Linea de crédito", required=False)  
 
     # 🔹 NUEVO: la empresa/sucursal del crédito viene del contrato
     empresa = fields.Many2one(

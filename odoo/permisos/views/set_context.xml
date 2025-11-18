@@ -1,19 +1,26 @@
 <!-- permisos/views/set_context.xml -->
 <odoo>
-  <!-- Acción del wizard -->
-  <record id="action_set_context_ciclos" model="ir.actions.act_window">
-    <field name="name">Cambiar contexto (Ciclos)</field>
-    <field name="res_model">permisos.set.context.wiz</field>
-    <field name="view_mode">form</field>
-    <field name="target">new</field>
-    <!-- usamos modulo_code para no depender de un XMLID de permisos.modulo -->
-    <field name="context">{'default_modulo_code': 'ciclos'}</field>
-  </record>
-
-  <!-- Menú dentro del área Ciclos (ajusta el parent a tu menú raíz de Ciclos) -->
-  <menuitem id="menu_ciclos_set_context"
-            name="Cambiar contexto"
-            parent="permisos.menu_permisos_root"
-            action="action_set_context_ciclos"
-            sequence="99"/>
+    <record id="view_set_context_wiz_form" model="ir.ui.view">
+        <field name="name">permisos.set.context.wiz.form</field>
+        <field name="model">permisos.set.context.wiz</field>
+        <field name="arch" type="xml">
+            <form string="Definir contexto del módulo">
+                <group>
+                    <field name="modulo_id" readonly="1"/>
+                    <field name="empresa_id"/>
+                    <field name="sucursal_id"/>
+                    <field name="bodega_id"/>
+                </group>
+                <footer>
+                    <button name="action_apply"
+                            string="Aplicar contexto"
+                            type="object"
+                            class="btn-primary"/>
+                    <button string="Cancelar"
+                            class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
 </odoo>
