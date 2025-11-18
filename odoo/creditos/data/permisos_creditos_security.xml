@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+<!-- creditos/data/permisos_creditos_security.xml -->
+    <!-- Configuración de modelo para el módulo 'creditos' ya existente en permisos -->
+    <record id="permisos_mod_creditos_model_credito" model="permisos.modulo.model">
+        <!-- Apunta al módulo definido en permisos -->
+        <field name="modulo_id" ref="permisos.permisos_mod_creditos"/>
+
+        <!-- Este xmlid YA lo usas en tus actions/server actions -->
+        <field name="model_id" ref="creditos.model_creditos_credito"/>
+
+        <!-- El crédito tiene empresa y sucursal relacionados al contrato -->
+        <field name="scope">empresa_sucursal</field>
+        <field name="empresa_field">empresa</field>
+        <field name="sucursal_field">sucursal</field>
+        <!-- bodega_field no aplica aquí -->
+        
+        <!-- Permisos base por grupos del módulo -->
+        <field name="perm_read">1</field>
+        <field name="perm_write">1</field>
+        <field name="perm_create">1</field>
+        <field name="perm_unlink">0</field>
+    </record>
+
+</odoo>

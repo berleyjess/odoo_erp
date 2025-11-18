@@ -1,0 +1,132 @@
+<odoo>
+<!-- permisos/data/permisos_security.xml -->
+
+
+<!-- Eso NO da permisos a usuarios. Sólo le dice al sistema “qué operaciones existen en este módulo y cómo 
+        deben filtrarse por empresa/sucursal/bodega”. 
+        Define el MÁXIMO que ese módulo/modelo puede hacer.
+        -->
+
+    <!-- el scope sirve para decirle al modulo como filtrar, si es global no filtra por nada,
+        Si filtra por empresa_sucursal, filtra por los campos empresa_field y sucursal_field
+        Si filtra por empresa_sucursal_bodega, filtra por los campos empresa_field, sucursal_field y bodega_field
+        Si filtra por empresa, filtra por el campo empresa_field
+    
+        SOLO DEBE DE HABER UN FILTRO POR MODELO (definir un solo scope por modelo).
+     -->
+
+    <!-- Registrar el módulo funcional (esto sí es de 'permisos') -->
+    <record id="permisos_mod_localidades" model="permisos.modulo">
+        <field name="code">localidades</field>
+        <field name="name">Localidades</field>
+        <field name="active">1</field>
+    </record>
+
+    <!-- OJO: el model_id debe referenciar el xmlid del módulo que DEFINE el modelo -->
+    <record id="permisos_mod_localidades_model_localidad" model="permisos.modulo.model">
+        <field name="modulo_id" ref="permisos_mod_localidades"/>
+        <field name="model_id" ref="localidades.model_localidades_localidad"/>
+        <field name="scope">global</field>
+        <field name="perm_read">1</field>
+        <field name="perm_write">0</field>
+        <field name="perm_create">0</field>
+        <field name="perm_unlink">0</field>
+    </record>
+
+    <record id="permisos_mod_localidades_model_municipio" model="permisos.modulo.model">
+        <field name="modulo_id" ref="permisos_mod_localidades"/>
+        <field name="model_id" ref="localidades.model_localidades_municipio"/>
+        <field name="scope">global</field>
+        <field name="perm_read">1</field>
+        <field name="perm_write">0</field>
+        <field name="perm_create">0</field>
+        <field name="perm_unlink">0</field>
+    </record>
+
+    <!-- ========== MÓDULO: EMPRESAS ========== -->
+    <record id="permisos_mod_empresas" model="permisos.modulo">
+        <field name="code">empresas</field>
+        <field name="name">Empresas</field>
+        <field name="description">Catálogo de empresas</field>
+        <field name="active">1</field>
+        <field name="dirty">1</field>
+    </record>
+
+    <!-- ACL / Record Rules para empresas.empresa -->
+    <record id="permisos_mod_empresas_model_empresa" model="permisos.modulo.model">
+        <field name="modulo_id" ref="permisos_mod_empresas"/>
+        <!-- Odoo genera este xmlid: empresas.model_empresas_empresa -->
+        <field name="model_id" ref="empresas.model_empresas_empresa"/>
+
+        <!-- Empresas es global (no tiene campo empresa que apunte a otra cosa) -->
+        <field name="scope">global</field>
+
+        <field name="perm_read">1</field>
+        <field name="perm_write">1</field>
+        <field name="perm_create">1</field>
+        <field name="perm_unlink">0</field>
+    </record>
+
+    <!-- ========== MÓDULO: SUCURSALES ========== -->
+    <record id="permisos_mod_sucursales" model="permisos.modulo">
+        <field name="code">sucursales</field>
+        <field name="name">Sucursales</field>
+        <field name="description">Catálogo de sucursales de las empresas</field>
+        <field name="active">1</field>
+        <field name="dirty">1</field>
+    </record>
+
+    <!-- ACL / Record Rules para sucursales.sucursal -->
+    <record id="permisos_mod_sucursales_model_sucursal" model="permisos.modulo.model">
+        <field name="modulo_id" ref="permisos_mod_sucursales"/>
+        <!-- Odoo genera: sucursales.model_sucursales_sucursal -->
+        <field name="model_id" ref="sucursales.model_sucursales_sucursal"/>
+
+        <!-- Usa la empresa de la sucursal -->
+        <field name="scope">empresa</field>
+        <field name="empresa_field">empresa</field>
+        <!-- sucursal_field y bodega_field no aplican aquí -->
+
+        <field name="perm_read">1</field>
+        <field name="perm_write">1</field>
+        <field name="perm_create">1</field>
+        <field name="perm_unlink">0</field>
+    </record>
+
+    <!-- ========== MÓDULO: USUARIOS ========== -->
+    <record id="permisos_mod_usuarios" model="permisos.modulo">
+        <field name="code">usuarios</field>
+        <field name="name">Usuarios</field>
+        <field name="description">Gestión de usuarios y sus empresas/sucursales/bodegas</field>
+        <field name="active">1</field>
+        <field name="dirty">1</field>
+    </record>
+
+    <!-- ACL / Record Rules para res.users (desde base) -->
+    <record id="permisos_mod_usuarios_model_res_users" model="permisos.modulo.model">
+        <field name="modulo_id" ref="permisos_mod_usuarios"/>
+        <field name="model_id" ref="base.model_res_users"/>
+
+        <!-- Global: el filtrado fino de qué usuario ve a quién lo puedes hacer después si quieres -->
+        <field name="scope">global</field>
+
+        <field name="perm_read">1</field>
+        <field name="perm_write">1</field>
+        <field name="perm_create">1</field>
+        <field name="perm_unlink">0</field>
+    </record>
+
+    <!-- ========== MÓDULO: CRÉDITOS (SÓLO CABECERA AQUÍ) ========== -->
+    <!-- IMPORTANTE: aquí SOLO definimos el módulo para que accesos.acceso tenga a qué apuntar.
+         NO definimos permisos.modulo.model aquí para evitar la dependencia con creditos.* -->
+    <record id="permisos_mod_creditos" model="permisos.modulo">
+        <field name="code">creditos</field>
+        <field name="name">Créditos</field>
+        <field name="description">Solicitudes de crédito y contratos asignados</field>
+        <field name="active">1</field>
+        <field name="dirty">1</field>
+    </record>
+
+
+
+</odoo>

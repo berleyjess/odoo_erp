@@ -4,9 +4,10 @@
     'description': """Modulo para gestionar la asignación de Lineas de crédito a clientes en el sistema.""",
     'author': "Grupo Safinsa",
     'version': '1.0',
-    'depends': ['base', 'clientes', 'contratos', 'ventas'],
+    'depends': ['base', 'clientes', 'contratos', 'ventas', 'permisos'],
     'data': [
         'views/garantia.xml',
+        "data/permisos_creditos_security.xml",
         'reports/solcredito_report.xml',
         'views/solcredito.xml',
         'views/solcredito_button_print.xml',

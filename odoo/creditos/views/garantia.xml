@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
+<!-- creditos/views/garantia.xml -->
     <!-- Vista Árbol -->
     <record id="view_garantia_list" model="ir.ui.view">
         <field name="name">garantia.tree</field>

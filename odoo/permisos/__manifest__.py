@@ -13,6 +13,7 @@
         "views/set_context.xml",
         "views/permisos_views_menuids.xml",
         "data/permisos_demo.xml",
+        'data/permisos_security_data.xml',
     ],
     "application": True,
     "installable": True,

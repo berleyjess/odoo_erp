@@ -1,4 +1,5 @@
 <odoo>
+<!-- creditos/views/cargos.xml -->
     <record id="view_cargos_list" model="ir.ui.view">
         <field name="name">cargosdetail.list</field>
         <field name="model">cargosdetail.cargodetail</field>

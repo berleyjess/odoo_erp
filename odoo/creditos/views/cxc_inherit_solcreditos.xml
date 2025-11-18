@@ -1,4 +1,5 @@
 <odoo>
+    <!-- creditos/views/cxc_inherit_solcreditos.xml -->
     <!-- Extiende la lista base de CxC para mostrar contrato_id -->
     <record id="view_cxc_list_add_contrato" model="ir.ui.view">
         <field name="name">cxc.list.add.contrato</field>

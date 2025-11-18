@@ -24,6 +24,22 @@ class credito(models.Model):
     cliente = fields.Many2one('clientes.cliente', string="Cliente", required=True)  
     contrato = fields.Many2one('contratos.contrato', string="Linea de crédito", required=True)  
 
+    # 🔹 NUEVO: la empresa/sucursal del crédito viene del contrato
+    empresa = fields.Many2one(
+        'empresas.empresa',
+        string="Empresa",
+        related='contrato.empresa',
+        store=True,
+        readonly=True,
+    )
+    sucursal = fields.Many2one(
+        'sucursales.sucursal',
+        string="Sucursal",
+        related='contrato.sucursal',
+        store=True,
+        readonly=True,
+    )
+
     dictamen = fields.Selection(
         selection = [
             ('draft', 'Borrador'),

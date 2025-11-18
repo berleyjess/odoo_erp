@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+<!-- creditos/views/entrys.xml -->
     <!-- Vista formulario para el wizard -->
     <record id="view_credito_entrys" model="ir.ui.view">
         <field name="name">creditos.entrys.list</field>

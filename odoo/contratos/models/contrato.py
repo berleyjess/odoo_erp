@@ -17,6 +17,19 @@ class contrato(models.Model):
             default=lambda self: self.env.company.currency_id.id,
             required=True
         )
+    #====================================
+    empresa = fields.Many2one(
+        'empresas.empresa',
+        string="Empresa",
+        required=True,
+    )
+    sucursal = fields.Many2one(
+        'sucursales.sucursal',
+        string="Sucursal",
+        required=True,
+        domain="[('empresa', '=', empresa)]",  # opcional pero muy lógico
+    )
+    #====================================
 
     tipocredito = fields.Selection(
         selection = [

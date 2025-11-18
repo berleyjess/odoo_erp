@@ -1,5 +1,5 @@
 <odoo>
-
+<!-- creditos/views/menu_actions.xml -->
     <record id="action_abrir_edocta" model="ir.actions.server">
         <field name="name">Ver Estado de Cuenta</field>
         <field name="model_id" ref="model_creditos_credito"/>

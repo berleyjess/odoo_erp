@@ -55,6 +55,13 @@ class PermModulo(models.Model):
     description = fields.Text('Descripción', help=_("Describe brevemente el alcance del módulo.\n" "Ejemplo: 'Operaciones y flujo de ventas (cotización, pedido, factura)'."))
     active = fields.Boolean(default=True)
     group_id = fields.Many2one('res.groups', string='Grupo del módulo')
+
+    # NUEVO: grupos por nivel
+    group_read_id   = fields.Many2one('res.groups', string='[R] Lectura')
+    group_write_id  = fields.Many2one('res.groups', string='[RW] Edición')
+    group_create_id = fields.Many2one('res.groups', string='[RWC] Creación')
+    group_admin_id  = fields.Many2one('res.groups', string='[ADMIN] Todo')
+
     menu_ids = fields.Many2many(
         'ir.ui.menu', 'permisos_modulo_menu_rel', 'modulo_id', 'menu_id',
         string='Menús del módulo'
@@ -86,12 +93,17 @@ class PermModulo(models.Model):
         return rec
 
     def write(self, vals):
+        vals = vals.copy()
         if 'code' in vals:
             vals['code'] = (vals.get('code') or '').strip().lower()
-        res = super().write(vals)
-        # cualquier cambio relevante vuelve a marcar dirty
+        # si cambian campos relevantes, marcar dirty en el MISMO write
         if {'code', 'name', 'description', 'active', 'menu_ids'} & set(vals.keys()):
-            self.write({'dirty': True})
+            vals['dirty'] = True
+        res = super().write(vals)
+        # si cambian code/name, renombrar el grupo coherente "[code] name"
+        if {'code', 'name'} & set(vals.keys()):
+            for r in self.filtered('group_id'):
+                r.group_id.sudo().write({'name': f"[{r.code}] {r.name}"})
         return res
 
     # --- BLOQUEA BORRADO con mensaje agregando conteos de dependencias ---

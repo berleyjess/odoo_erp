@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+<!-- creditos/views/edocta.xml -->
     <!-- Vista formulario para el wizard -->
     <record id="view_transient_edocta_form" model="ir.ui.view">
         <field name="name">transient.edocta.form</field>

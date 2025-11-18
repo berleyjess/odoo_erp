@@ -6,6 +6,21 @@ class predios(models.Model):
 
     credito_id = fields.Many2one('creditos.credito', string = "Crédito relacionado", store=True, readonly=True)
 
+    empresa = fields.Many2one(
+        'empresas.empresa',
+        string="Empresa",
+        related='credito_id.empresa',
+        store=True,
+        readonly=True,
+    )
+    sucursal = fields.Many2one(
+        'sucursales.sucursal',
+        string="Sucursal",
+        related='credito_id.sucursal',
+        store=True,
+        readonly=True,
+    )
+    
     #DATOS PARA PERSONA
     titular = fields.Char(string = "Titular", required=True)
     RFC = fields.Char(string = "RFC del titular")

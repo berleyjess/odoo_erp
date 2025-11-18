@@ -69,18 +69,30 @@ class Acceso(models.Model):
     def _post_change_sync(self):
         self._sync_group_for_modules(self.mapped('modulo_id'))
 
+        # 2) LOG por cada acceso modificado/creado
+        for r in self:
+            _logger.info(
+                "ACCESOS OK -> user=%s (login=%s) modulo=%s "
+                "read=%s write=%s create=%s unlink=%s admin=%s active=%s",
+                r.usuario_id.id,
+                r.usuario_id.login,
+                r.modulo_id.code or r.modulo_id.name,
+                r.can_read,
+                r.can_write,
+                r.can_create,
+                r.can_unlink,
+                r.is_admin,
+                r.active,
+            )
+
     def _sync_group_for_modules(self, modules):
-        """Asegura grupo y sincroniza sus miembros desde accesos activos."""
-        Acc = self.sudo()
-        Groups = self.env['res.groups'].sudo()
+        Wiz = self.env['permisos.apply.security.wiz'].sudo()
         for m in modules.sudo():
-            if not m.group_id:
-                grp = Groups.create({'name': f"[{m.code}] {m.name}"})
-                m.group_id = grp.id
-                _logger.info("[accesos] Grupo creado para %s: %s (%s)", m.code, grp.name, grp.id)
-            users = Acc.search([('modulo_id', '=', m.id), ('active', '=', True)]).mapped('usuario_id')
-            m.group_id.users = [(6, 0, users.ids)]
-            _logger.info("[accesos] Grupo %s sincronizado: %d usuarios", m.group_id.display_name, len(users))
+            # Asegura que existan los grupos de nivel
+            Wiz._ensure_group(m)
+            # Sincroniza miembros a R / RW / RWC / ADMIN según can_* / is_admin
+            Wiz._sync_group_members(m)
+
 
 
 class ResUsersPerms(models.Model):
