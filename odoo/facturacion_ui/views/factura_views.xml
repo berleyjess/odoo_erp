@@ -98,6 +98,11 @@
           <button name="action_cancel" type="object" string="Cancelar" class="btn-danger" context="{'cfdi_cancel_reason': '02'}" confirm="¿Estás seguro de que quieres cancelar esta factura?" invisible="not (state == 'ready' or state == 'stamped')"/>
           <button name="action_close_form" type="object" string="Cerrar" class="btn-secondary"/>
           <field name="state" widget="statusbar" statusbar_visible="draft,ready,stamped,canceled"/>
+          <button name="action_open_perm_context"
+            string="Contexto módulo"
+            type="object"
+            class="btn btn-secondary"
+            icon="fa-sliders"/>
         </header>
         <h1>
           <field name="id" readonly="1" invisible="not id"/>
@@ -137,6 +142,15 @@
               <field name="fecha"    readonly="state != 'draft'"/>
             </group>
           </group>
+
+                    <!-- NUEVO: contexto actual del módulo facturación -->
+          <group string="Contexto actual">
+            <field name="ctx_context_label" readonly="1"/>
+            <field name="ctx_empresa_id"   readonly="1"/>
+            <field name="ctx_sucursal_id"  readonly="1"/>
+            <field name="ctx_bodega_id"    readonly="1"/>
+          </group>
+
 
           <group>
             <group>

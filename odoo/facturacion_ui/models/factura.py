@@ -10,9 +10,12 @@ from odoo.osv.expression import OR
 class FacturaUI(models.Model):
     _name = 'facturas.factura'
     _description = 'Interfaz de Facturación'
-    _inherit = ['mail.thread']
+    _inherit = ['mail.thread', 'permisos.module.context.mixin']
     _order = 'id desc'
     _logger = _logger
+
+    # código funcional del módulo facturación (debe coincidir con permisos.modulo.code)
+    _perm_module_code = 'facturacion'
     # Encabezado
     empresa_id   = fields.Many2one(
         'empresas.empresa', string='Empresa', required=True, index=True,
@@ -2146,6 +2149,35 @@ class FacturaUI(models.Model):
         """Token único para rastrear transacciones creadas por ESTA FacturaUI y evitar falsos positivos."""
         self.ensure_one()
         return f"[FUI#{self.id}]"
+    
+    # --- Contexto módulo: solo aplicar a facturas en borrador ---
+    def _on_perm_context_applied(self, empresa=None, sucursal=None, bodega=None):
+        """
+        Al cambiar el contexto del módulo 'facturacion' solo
+        actualizamos empresa_id / sucursal_id en facturas en borrador.
+        Si la factura ya está ready / stamped / canceled, no se toca.
+        """
+        # Filtrar solo las facturas en borrador
+        draft_recs = self.filtered(lambda r: r.state == 'draft')
+        if not draft_recs:
+            _logger.info(
+                "CTX.facturas: no se aplicó contexto porque ninguna factura está en draft: %s",
+                self.ids,
+            )
+            return
+
+        _logger.info(
+            "CTX.facturas: aplicando contexto a facturas draft %s", draft_recs.ids
+        )
+
+        # Llamamos la implementación genérica del mixin SOLO sobre esos registros
+        super(FacturaUI, draft_recs)._on_perm_context_applied(
+            empresa=empresa,
+            sucursal=sucursal,
+            bodega=bodega,
+        )
+
+
 
 
 
@@ -2452,7 +2484,6 @@ class FacturaUILine(models.Model):
             for fld, val in (('IVA', l.iva_ratio), ('IEPS', l.ieps_ratio)):
                 if val is not None and (val < 0 or val > 1):
                     raise ValidationError(_('El %s debe estar entre 0.0 y 1.0 (p.ej. 0.16).') % fld)
-
 
 
     # ============================== Fin utils ==============================

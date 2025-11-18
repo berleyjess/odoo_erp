@@ -127,6 +127,14 @@
         <field name="dirty">1</field>
     </record>
 
+    <!-- ========== MÓDULO: Facturación ========== -->
+    <record id="permisos_mod_facturacion" model="permisos.modulo">
+        <field name="code">facturacion</field>
+        <field name="name">Facturación</field>
+        <field name="description">Interfaz grafica de facturación.</field>
+        <field name="active">1</field>
+        <field name="dirty">1</field>
+    </record>
 
 
 </odoo>

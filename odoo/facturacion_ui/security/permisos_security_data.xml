@@ -1,69 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
+  <!-- 1) Registrar el módulo funcional de Facturación -->
   <record id="permisos_mod_facturacion" model="permisos.modulo">
-    <field name="code">facturacion</field>
+    <field name="code">facturacion</field>   <!-- coincide con _perm_module_code -->
     <field name="name">Facturación</field>
     <field name="active">1</field>
+    <!-- Ligamos el menú raíz para que APPLY_SECURITY detecte los menús -->
+    <field name="menu_ids" eval="[(6,0,[ref('menu_facturacion_root')])]"/>
   </record>
 
-  <!-- facturas.factura (mismo módulo) -->
+  <!-- 2) Configurar el modelo principal facturas.factura -->
   <record id="permisos_fact_model_factura" model="permisos.modulo.model">
-    <field name="modulo_id" ref="permisos_mod_facturacion"/>
-    <field name="model_id"  ref="model_facturas_factura"/>
+    <field name="modulo_id"     ref="permisos_mod_facturacion"/>
+    <field name="model_id"      ref="model_facturas_factura"/>
     <field name="scope">empresa_sucursal</field>
     <field name="empresa_field">empresa_id</field>
     <field name="sucursal_field">sucursal_id</field>
+    <!-- permisos agregados por nivel -->
     <field name="perm_read">1</field>
     <field name="perm_write">1</field>
     <field name="perm_create">1</field>
     <field name="perm_unlink">0</field>
   </record>
 
-  <!-- account.move (SOLO si resuelves el punto 4) -->
-  <record id="permisos_fact_model_account_move" model="permisos.modulo.model">
-    <field name="modulo_id" ref="permisos_mod_facturacion"/>
-    <field name="model_id"  ref="account.model_account_move"/>
-    <field name="scope">empresa</field>
-    <field name="empresa_field">company_id</field>
-    <field name="perm_read">1</field>
-    <field name="perm_write">1</field>
-    <field name="perm_create">1</field>
-    <field name="perm_unlink">0</field>
-  </record>
-
-  <!-- transacciones.transaccion (prefiere declararlo en SU módulo; si lo dejas aquí, usa prefijo) -->
-  <record id="permisos_fact_model_transaccion" model="permisos.modulo.model">
-    <field name="modulo_id" ref="permisos_mod_facturacion"/>
-    <field name="model_id"  ref="transacciones.model_transacciones_transaccion"/>
-    <field name="scope">empresa_sucursal</field>
-    <field name="empresa_field">venta_id.empresa_id</field>
-    <field name="sucursal_field">venta_id.sucursal_id</field>
-    <field name="perm_read">1</field>
-    <field name="perm_write">0</field>
-    <field name="perm_create">0</field>
-    <field name="perm_unlink">0</field>
-  </record>
-
-  <!-- Wizards (mismo módulo) -->
-  <record id="permisos_fact_model_wiz_add_sales"   model="permisos.modulo.model">
-    <field name="modulo_id" ref="permisos_mod_facturacion"/>
-    <field name="model_id"  ref="model_facturas_wiz_add_sales"/>
-    <field name="scope">global</field>
-    <field name="perm_read">1</field><field name="perm_write">1</field>
-    <field name="perm_create">1</field><field name="perm_unlink">1</field>
-  </record>
-  <record id="permisos_fact_model_wiz_add_lines"   model="permisos.modulo.model">
-    <field name="modulo_id" ref="permisos_mod_facturacion"/>
-    <field name="model_id"  ref="model_facturas_wiz_add_lines"/>
-    <field name="scope">global</field>
-    <field name="perm_read">1</field><field name="perm_write">1</field>
-    <field name="perm_create">1</field><field name="perm_unlink">1</field>
-  </record>
-  <record id="permisos_fact_model_wiz_add_charges" model="permisos.modulo.model">
-    <field name="modulo_id" ref="permisos_mod_facturacion"/>
-    <field name="model_id"  ref="model_facturas_wiz_add_charges"/>
-    <field name="scope">global</field>
-    <field name="perm_read">1</field><field name="perm_write">1</field>
-    <field name="perm_create">1</field><field name="perm_unlink">1</field>
-  </record>
 </odoo>

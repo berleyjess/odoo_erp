@@ -54,14 +54,20 @@ class PermModuleContextMixin(models.AbstractModel):
         def _apply(field_name, value_id):
             if not value_id:
                 return
-            if field_name in fields_list and field_name in self._fields:
+            if field_name in self._fields:
                 field = self._fields[field_name]
-                if not getattr(field, 'related', False):
+                # no tocar campos related
+                if not getattr(field, 'related', False) and field_name in fields_list:
                     res.setdefault(field_name, value_id)
 
-        # Solo aplica si el modelo tiene esos campos y NO son related
+        # Soporta nombres tipo empresa / empresa_id / sucursal / sucursal_id / bodega / bodega_id
         _apply('empresa', emp_id)
+        _apply('empresa_id', emp_id)
+
         _apply('sucursal', suc_id)
+        _apply('sucursal_id', suc_id)
+
+        _apply('bodega', bod_id)
         _apply('bodega_id', bod_id)
 
         _logger.info(
@@ -69,6 +75,7 @@ class PermModuleContextMixin(models.AbstractModel):
             self._name, code, emp_id, suc_id, bod_id,
         )
         return res
+
 
     # --------- Botón GENÉRICO para abrir el wizard ----------
     def action_open_perm_context(self):
@@ -97,17 +104,25 @@ class PermModuleContextMixin(models.AbstractModel):
     def _on_perm_context_applied(self, empresa=None, sucursal=None, bodega=None):
         """
         Implementación base reutilizable:
-        - Si el modelo tiene campos Many2one normales empresa/sucursal/bodega_id
-          y NO son related, los rellena.
+        - Soporta campos empresa / empresa_id / sucursal / sucursal_id / bodega / bodega_id
+        - Nunca escribe sobre campos related.
+        - NO filtra por estado; eso lo hará cada modelo que lo necesite
+          (por ejemplo facturas).
         """
         for rec in self:
             vals = {}
-            if empresa and 'empresa' in rec._fields and not rec._fields['empresa'].related:
-                vals['empresa'] = empresa.id
-            if sucursal and 'sucursal' in rec._fields and not rec._fields['sucursal'].related:
-                vals['sucursal'] = sucursal.id
-            if bodega and 'bodega_id' in rec._fields and not rec._fields['bodega_id'].related:
-                vals['bodega_id'] = bodega.id
+
+            def _set_if_exists(field_names, value_rec):
+                if not value_rec:
+                    return
+                for fname in field_names:
+                    field = rec._fields.get(fname)
+                    if field and not getattr(field, 'related', False):
+                        vals[fname] = value_rec.id
+
+            _set_if_exists(('empresa', 'empresa_id'), empresa)
+            _set_if_exists(('sucursal', 'sucursal_id'), sucursal)
+            _set_if_exists(('bodega', 'bodega_id'), bodega)
 
             if vals:
                 _logger.info(
@@ -120,7 +135,9 @@ class PermModuleContextMixin(models.AbstractModel):
                     rec._name,
                 )
 
+
     # --------- Compute de los campos informativos ----------
+    @api.depends_context('uid')
     def _compute_perm_ctx(self):
         code = getattr(self, '_perm_module_code', False)
         if not code:
