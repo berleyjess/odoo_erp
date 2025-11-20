@@ -4,8 +4,9 @@
     'description': """Modulo de pruebas.""",
     'author': "Grupo Safinsa",
     'version': '1.0',
-    'depends': ['base'],
+    'depends': ['base','permisos'],
     'data': [
+        'security/permisos_creditos_security.xml',
         'views/pruebapersona.xml',
         'reports/report_templates.xml',
         'reports/report_actions.xml',

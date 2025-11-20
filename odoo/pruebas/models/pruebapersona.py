@@ -3,6 +3,9 @@ from odoo import models, fields, api
 class PruebaPersona(models.Model):
     _name = 'prueba.persona'
     _description = 'Persona de Prueba'
+    _inherit = ['permisos.module.context.mixin']
+
+    _perm_module_code = 'pruebas'
 
     nombre = fields.Char("Nombre")
     ine = fields.Char("Ine")
@@ -40,6 +43,7 @@ class PruebaPersona(models.Model):
         return super().create(vals)
 
     def action_editar(self):
+        self.env.user.check_perm('pruebas', 'editar_prueba')
         """Activa el modo de edición"""
         self.ensure_one()
         self.write({'is_editing': True})
@@ -52,6 +56,7 @@ class PruebaPersona(models.Model):
         }
 
     def action_save(self):
+        self.env.user.check_perm('pruebas', 'guardar_prueba')
         """Guarda y sale del modo de edición"""
         self.ensure_one()
         self.write({'is_editing': False})
@@ -78,5 +83,6 @@ class PruebaPersona(models.Model):
         }
 
     def action_imprimir_pdf(self):
+        self.env.user.check_perm('pruebas', 'imprimir_contrato')
         """Genera el PDF del registro"""
         return self.env.ref('pruebas.action_report_persona_pdf').report_action(self)

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <!-- 1) Registrar el módulo funcional de Facturación -->
+  <record id="permisos_mod_pruebas" model="permisos.modulo">
+    <field name="code">pruebas</field>   <!-- coincide con _perm_module_code -->
+    <field name="name">Pruebas</field>
+    <field name="active">1</field>
+    <!-- Ligamos el menú raíz para que APPLY_SECURITY detecte los menús -->
+    <field name="menu_ids" eval="[(6,0,[ref('menu_prueba_persona_root')])]"/> 
+  </record>
+
+  <!-- 2) Configurar el modelo principal pruebas.prueba -->
+  <record id="permisos_model_prueba_persona" model="permisos.modulo.model">
+    <field name="modulo_id"     ref="permisos_mod_pruebas"/>
+    <field name="model_id"      ref="model_prueba_persona"/>
+    <field name="scope">global</field>
+    
+    <!--field name="scope">empresa_sucursal</field>
+    <field name="empresa_field">empresa_id</field>
+    <field name="sucursal_field">sucursal_id</field-->
+    <!-- permisos agregados por nivel -->
+    <field name="perm_read">1</field>
+    <field name="perm_write">1</field>
+    <field name="perm_create">1</field>
+    <field name="perm_unlink">0</field>
+  </record>
+
+
+</odoo>

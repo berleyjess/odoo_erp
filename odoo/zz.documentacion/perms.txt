@@ -1,0 +1,143 @@
+Permisos / accesos
+
+definir para aplicar contexto (cambiar el _perm_module_code por el codigo del modulo.)
+_inherit = ['permisos.module.context.mixin']
+
+    _perm_module_code = 'pruebas'
+
+
+APLICAR CONTEXTO EN LA VISTA:
+    <button name="action_open_perm_context"
+        string="Contexto módulo"
+        type="object"
+        class="btn btn-secondary"
+        icon="fa-sliders"/>
+
+
+VER CONTEXTO ACTUAL EN VISTA:
+<group string="Contexto actual">
+    <field name="ctx_context_label" readonly="1"/>
+    <field name="ctx_empresa_id"   readonly="1"/>
+    <field name="ctx_sucursal_id"  readonly="1"/>
+    <field name="ctx_bodega_id"    readonly="1"/>
+</group>
+
+
+
+=======================================B=A=C=K=E=N=D=======================================
+Para saber si tiene PERMISO de hacer cierta accion **SIN IMPORTAR EL CONTEXTO**:
+    if not self.env.user.has_perm('ventas', 'descargar_reporte'):
+            raise ValidationError(_("No tiene permiso para descargar este reporte."))
+    O
+    self.env.user.check_perm('ciclos', 'editar_ciclo') 
+
+
+
+Para saber si tiene PERMISO de hacer cierta accion **CON ESE CONTEXTO**:
+    self.env.user.check_perm(
+            'ventas', 'confirmar_venta',
+            empresa_id=self.empresa_id,
+            sucursal_id=self.sucursal_id,
+            bodega_id=self.bodega_id,
+        )
+
+    O SI QUIERO USAR HAS PERM DIRECTO
+
+    if not self.env.user.has_perm(
+                'ventas', 'confirmar_venta',
+                empresa_id=self.empresa_id,
+                sucursal_id=self.sucursal_id,
+                bodega_id=self.bodega_id,
+            ):
+                raise ValidationError(_("No tiene permiso para confirmar esta venta en el contexto actual."))
+==========================================================================================
+
+=======================================F=R=O=N=T=E=D=======================================
+
+Para saber si tiene PERMISO de hacer cierta accion **CON ESE CONTEXTO**:
+    can_confirm = fields.Boolean(
+        string='Puede confirmar',
+        compute='_compute_perm_flags',
+        store=False,
+    )
+
+    def _compute_perm_flags(self):
+        for rec in self:
+            rec.can_confirm = self.env.user.has_perm(
+                'ventas', 'confirmar_venta',
+                empresa_id=rec.empresa_id,
+                sucursal_id=rec.sucursal_id,
+                bodega_id=rec.bodega_id,
+            )
+            
+
+Para saber si tiene PERMISO de hacer cierta accion **SIN IMPORTAR EL CONTEXTO**:
+    # No depende del registro, solo del usuario
+        can_confirm_global = fields.Boolean(
+            string='Puede confirmar (global)',
+            compute='_compute_global_perms',
+            store=False,
+        )
+
+        @api.depends_context('uid')
+        def _compute_global_perms(self):
+            """Ignora empresa/sucursal/bodega, solo ve si el user tiene
+            el permiso en algún contexto o global."""
+            user = self.env.user
+            allowed = user.has_perm('ventas', 'confirmar_venta')  # SIN contexto
+
+            for rec in self:
+                rec.can_confirm_global = allowed
+
+==========================================================================================
+
+
+
+ACCESOS
+crear archivo de permisos_creditos_security.xml:
+
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <!-- 1) Registrar el módulo funcional de Facturación -->
+  <record id="permisos_mod_pruebas" model="permisos.modulo">
+    <field name="code">facturacion</field>   <!-- coincide con _perm_module_code -->
+    <field name="name">Facturación</field>   <!-- Nombre que se va a ver en el permisos.modulo -->
+    <field name="active">1</field>
+    <!-- Ligamos el menú raíz para que APPLY_SECURITY detecte los menús -->
+    <field name="menu_ids" eval="[(6,0,[ref('menu_prueba_persona_root')])]"/>  <!--Menu principal -->
+  </record>
+
+  <!-- 2) Configurar el modelo principal facturas.factura -->
+  <record id="permisos_fact_model_prueba" model="permisos.modulo.model">    <!-- id= id unico del modelo para llamarlo en  -->
+    <field name="modulo_id"     ref="permisos_mod_pruebas"/>
+    <field name="model_id"      ref="model_pruebas_persona"/>
+    <field name="scope">global</field>
+    
+    <!-- CAMBIA DEPENDIENDO EL CONTEXTO DEL MODULO POR "global", "empresa_sucursal" o "empresa_sucursal_bodega" -->
+
+    <!--field name="scope">empresa_sucursal</field>      
+    <field name="empresa_field">empresa_id</field>
+    <field name="sucursal_field">sucursal_id</field-->
+    <!-- permisos agregados por nivel -->
+    <field name="perm_read">1</field>
+    <field name="perm_write">1</field>
+    <field name="perm_create">1</field>
+    <field name="perm_unlink">0</field>
+  </record>
+
+</odoo>
+
+
+    *SI SE QUIERE FILTRAR POR "empresa", "empresa_sucursal" o "empresa_sucursal_bodega" SE TIENE QUE AGREGAR
+        LOS CAMPO AL MODELO Many2one A EMPRESA, SUCURSAL Y BODEGA (SI APLICA)
+    empresa_id = fields.Many2one(
+        'empresas.empresa',
+        string='Empresa',
+        ondelete='restrict',
+    )
+
+    * cambiar el segundo record para filtrar por empresa por ejemplo y dejar lo demas igual
+    
+    <field name="scope">empresa</field>
+    <field name="empresa_field">empresa_id</field>

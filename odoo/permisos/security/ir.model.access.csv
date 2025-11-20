@@ -7,3 +7,6 @@ access_permisos_asig_perm,access_permisos_asig_perm,model_permisos_asignacion_pe
 
 access_permisos_efectivo_wiz,access_permisos_efectivo_wiz,model_permisos_efectivo_wiz,base.group_user,1,1,1,1
 access_permisos_efectivo_wiz_line,access_permisos_efectivo_wiz_line,model_permisos_efectivo_wiz_line,base.group_user,1,1,1,1
+
+access_permisos_set_context_wiz,access_permisos_set_context_wiz,model_permisos_set_context_wiz,base.group_user,1,1,1,1
+access_permisos_modulo_user,access_permisos_modulo_user,model_permisos_modulo,base.group_user,1,0,0,0

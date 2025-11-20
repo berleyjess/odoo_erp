@@ -36,6 +36,12 @@
 
                     <!-- Botón de imprimir -->
                     <button name="action_imprimir_pdf" string="Imprimir" type="object" class="btn-secondary" invisible="not id"/>
+                
+                    <button name="action_open_perm_context"
+                        string="Contexto módulo"
+                        type="object"
+                        class="btn btn-secondary"
+                        icon="fa-sliders"/>
                 </header>
 
                 <sheet>
@@ -48,6 +54,12 @@
                         <field name="salario" readonly="not is_editing and id"/>
                         <field name="fecha_nacimiento" readonly="not is_editing and id"/>
                         <field name="edad" readonly="1"/>
+                    </group>
+                    <group string="Contexto actual">
+                      <field name="ctx_context_label" readonly="1"/>
+                      <field name="ctx_empresa_id"   readonly="1"/>
+                      <field name="ctx_sucursal_id"  readonly="1"/>
+                      <field name="ctx_bodega_id"    readonly="1"/>
                     </group>
                 </sheet>
             </form>

@@ -136,5 +136,14 @@
         <field name="dirty">1</field>
     </record>
 
+    <!-- ========== MÓDULO: Pruebas ========== >
+    <record id="permisos_mod_pruebas" model="permisos.modulo">
+        <field name="code">pruebas</field>
+        <field name="name">Pruebas</field>
+        <field name="description">Interfaz grafica de Pruebas.</field>
+        <field name="active">1</field>
+        <field name="dirty">1</field>
+    </record-->
+
 
 </odoo>
