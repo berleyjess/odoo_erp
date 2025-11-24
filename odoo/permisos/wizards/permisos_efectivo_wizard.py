@@ -12,6 +12,10 @@ class PermisosEfectivoWiz(models.TransientModel):
     empresa_id = fields.Many2one('empresas.empresa', string='Empresa')
     sucursal_id = fields.Many2one('sucursales.sucursal', string='Sucursal',
                                   domain="[('empresa','=',empresa_id)]")
+    bodega_id = fields.Many2one(
+        'bodegas.bodega', string='Bodega',
+        domain="[('empresa_id','=',empresa_id)]"
+    )
     line_ids = fields.One2many('permisos.efectivo.wiz.line', 'wiz_id', string='Permisos')
 
     @api.model
@@ -25,7 +29,7 @@ class PermisosEfectivoWiz(models.TransientModel):
 
         return res
 
-    @api.onchange('usuario_id', 'empresa_id', 'sucursal_id')
+    @api.onchange('usuario_id', 'empresa_id', 'sucursal_id', 'bodega_id')
     def _onchange_rebuild_lines(self):
         for wiz in self:
             wiz._rebuild_lines()
@@ -40,40 +44,95 @@ class PermisosEfectivoWiz(models.TransientModel):
             Perm = self.env['permisos.permiso'].sudo()
             perms = Perm.search([('active', '=', True)], order='modulo_id, code')
 
-            #Acceso = self.env['accesos.acceso'].sudo()
-
             for p in perms:
+                # ---- Permiso efectivo según has_perm (rangos + overrides internos) ----
                 allowed = wiz.usuario_id.has_perm(
-                    p.modulo_id.code, p.code,
+                    p.modulo_id.code,
+                    p.code,
                     empresa_id=wiz.empresa_id.id if wiz.empresa_id else None,
                     sucursal_id=wiz.sucursal_id.id if wiz.sucursal_id else None,
+                    bodega_id=wiz.bodega_id.id if wiz.bodega_id else None,
                 )
-            
+
                 # Helpers del usuario (gate/admin por MÓDULO, sin empresa)
                 u = wiz.usuario_id
                 # if not u._perm__has_gate(p.modulo_id.code):
                 #     continue   # <- opcional si quieres ocultar módulos sin gate
                 is_admin = u._perm__is_admin_gate(p.modulo_id.code)
-            
-                # override más específico
-                dom_o = [
+
+                # -----------------------------------------------------------------
+                # Overrides: buscar el MÁS ESPECÍFICO que aplique al contexto
+                #   global < empresa < empresa+sucursal < empresa+sucursal+bodega
+                # -----------------------------------------------------------------
+                Asig = self.env['permisos.asignacion.permiso'].sudo()
+                cand = Asig.search([
                     ('usuario_id', '=', wiz.usuario_id.id),
                     ('permiso_id', '=', p.id),
                     ('active', '=', True),
-                ]
-                if wiz.empresa_id:
-                    dom_o += ['|', ('empresa_id', '=', False), ('empresa_id', '=', wiz.empresa_id.id)]
-                else:
-                    dom_o += [('empresa_id', '=', False)]
-                if wiz.sucursal_id:
-                    dom_o += ['|', ('sucursal_id', '=', False), ('sucursal_id', '=', wiz.sucursal_id.id)]
-                else:
-                    dom_o += [('sucursal_id', '=', False)]
-                override = self.env['permisos.asignacion.permiso'].sudo().search(dom_o, limit=1)
+                ])
+
+                def _aplica_ctx(o):
+                    # Empresa: si el override tiene empresa, debe coincidir; si no, es global
+                    if o.empresa_id and wiz.empresa_id and o.empresa_id != wiz.empresa_id:
+                        return False
+                    if o.empresa_id and not wiz.empresa_id:
+                        # override ligado a empresa, pero el wizard está "sin empresa" -> no aplica
+                        return False
+
+                    # Sucursal
+                    if o.sucursal_id and wiz.sucursal_id and o.sucursal_id != wiz.sucursal_id:
+                        return False
+                    if o.sucursal_id and not wiz.sucursal_id:
+                        # override ligado a sucursal, pero wizard sin sucursal -> no aplica
+                        return False
+
+                    # Bodega
+                    if o.bodega_id and wiz.bodega_id and o.bodega_id != wiz.bodega_id:
+                        return False
+                    if o.bodega_id and not wiz.bodega_id:
+                        # override ligado a bodega, pero wizard sin bodega -> no aplica
+                        return False
+
+                    return True
+
+                cand = cand.filtered(_aplica_ctx)
+
+                # Elegimos el override más específico
+                override = False
+                if cand:
+                    # score por especificidad: 0=global, 1=empresa, 2=empresa+sucursal, 3=empresa+sucursal+bodega
+                    def _score(o):
+                        s = 0
+                        if o.empresa_id:
+                            s += 1
+                        if o.sucursal_id:
+                            s += 1
+                        if o.bodega_id:
+                            s += 1
+                        return s
+
+                    override = sorted(cand, key=_score, reverse=True)[0]
+
+                # Estado textual del override (columna "Override")
                 override_state = 'none'
                 if override:
                     override_state = 'allow' if override.allow else 'deny'
-            
+
+                # -----------------------------
+                # PERMITIDO EFECTIVO (columna allowed):
+                # prioridad: ADMIN > override > base (rangos/has_perm)
+                # -----------------------------
+                if is_admin:
+                    effective_allowed = True
+                elif override:
+                    # override.allow True  -> permitido
+                    # override.allow False -> denegado
+                    effective_allowed = bool(override.allow)
+                else:
+                    # sin override: lo que diga has_perm (rangos) SIN admin,
+                    # porque admin ya se evaluó arriba
+                    effective_allowed = bool(allowed)
+
                 commands.append((0, 0, {
                     'wiz_id': wiz.id,
                     'seleccionar': False,
@@ -81,7 +140,7 @@ class PermisosEfectivoWiz(models.TransientModel):
                     'modulo_code': p.modulo_id.code,
                     'permiso_code': p.code,
                     'permiso_name': p.name,
-                    'allowed': bool(allowed or is_admin),
+                    'allowed': effective_allowed,
                     'override_state': override_state,
                 }))
 
@@ -105,21 +164,28 @@ class PermisosEfectivoWiz(models.TransientModel):
         self.ensure_one()
         if not self.usuario_id:
             raise ValidationError(_('Selecciona un usuario.'))
+
         selected = self.line_ids.filtered('seleccionar')
         if not selected:
             raise ValidationError(_('Marca al menos un permiso en la columna "✓".'))
-    
+
         # Solo líneas válidas (con permiso_id); evita errores por filas vacías o manuales
         selected_valid = selected.filtered(lambda l: l.permiso_id)
         if not selected_valid:
             raise ValidationError(_('No hay permisos válidos seleccionados. Evita crear filas nuevas en la tabla.'))
-    
+
         Asig = self.env['permisos.asignacion.permiso'].sudo()
         for ln in selected_valid:
-            dom = [('usuario_id', '=', self.usuario_id.id), ('permiso_id', '=', ln.permiso_id.id)]
+            dom = [
+                ('usuario_id', '=', self.usuario_id.id),
+                ('permiso_id', '=', ln.permiso_id.id),
+            ]
             dom += [('empresa_id', '=', self.empresa_id.id)] if self.empresa_id else [('empresa_id', '=', False)]
             dom += [('sucursal_id', '=', self.sucursal_id.id)] if self.sucursal_id else [('sucursal_id', '=', False)]
+            dom += [('bodega_id', '=', self.bodega_id.id)] if self.bodega_id else [('bodega_id', '=', False)]
+
             existing = Asig.search(dom, limit=1)
+
             if clear:
                 if existing:
                     existing.unlink()
@@ -130,6 +196,7 @@ class PermisosEfectivoWiz(models.TransientModel):
                     'allow': bool(allow),
                     'empresa_id': self.empresa_id.id if self.empresa_id else False,
                     'sucursal_id': self.sucursal_id.id if self.sucursal_id else False,
+                    'bodega_id': self.bodega_id.id if self.bodega_id else False,
                 }
                 if existing:
                     existing.write({'allow': bool(allow), 'active': True})

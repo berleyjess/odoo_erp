@@ -1,5 +1,7 @@
 Permisos / accesos
 
+denpender de permisos en el modulo que se quiera implementar.
+
 definir para aplicar contexto (cambiar el _perm_module_code por el codigo del modulo.)
 _inherit = ['permisos.module.context.mixin']
 

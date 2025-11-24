@@ -8,8 +8,16 @@
                 <group>
                     <field name="modulo_id" readonly="1"/>
                     <field name="empresa_id"/>
-                    <field name="sucursal_id"/>
-                    <field name="bodega_id"/>
+
+                    <field name="sucursal_id"
+                            domain="[('empresa', '=', empresa_id)]"
+                            invisible="[('empresa_id','=',False)]"/>
+                    
+                    <field name="bodega_id"
+                            domain="[('empresa_id', '=', empresa_id)]"
+                            invisible="[('empresa_id','=',False)]"/>
+
+
                 </group>
                 <footer>
                     <button name="action_apply"

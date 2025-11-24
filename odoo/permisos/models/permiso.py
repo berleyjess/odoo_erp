@@ -23,23 +23,6 @@ class ResUsers(models.Model):
             'res_id': wiz.id,
         }
     
-    from logging import getLogger
-_logger = getLogger(__name__)
-
-class ResUsers(models.Model):
-    _inherit = 'res.users'
-
-    def action_open_permisos_wizard(self):
-        self.ensure_one()
-        wiz = self.env['permisos.efectivo.wiz'].create({'usuario_id': self.id})
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Permisos del Usuario'),
-            'res_model': 'permisos.efectivo.wiz',
-            'view_mode': 'form',
-            'target': 'new',
-            'res_id': wiz.id,
-        }
 
     def _resolve_ctx_from_user_module(
         self, modulo_code, empresa_id=None, sucursal_id=None, bodega_id=None
@@ -300,14 +283,39 @@ class PermAsignacionRango(models.Model):
          'Ya existe esa asignación de rango para ese usuario y contexto.'),
     ]
 
+    @api.constrains('usuario_id', 'rango_id', 'empresa_id', 'sucursal_id', 'bodega_id')
+    def _check_unique_usuario_rango_contexto(self):
+        for r in self:
+            if not r.usuario_id or not r.rango_id:
+                continue
+
+            domain = [
+                ('id', '!=', r.id),
+                ('usuario_id', '=', r.usuario_id.id),
+                ('rango_id',   '=', r.rango_id.id),
+                ('empresa_id', '=', r.empresa_id.id or False),
+                ('sucursal_id','=', r.sucursal_id.id or False),
+                ('bodega_id',  '=', r.bodega_id.id or False),
+            ]
+            # Si quieres permitir duplicados archivados, añade: ('active', '=', True)
+            if self.search_count(domain):
+                raise ValidationError(
+                    _('Ya existe una asignación con el mismo usuario, rango y contexto '
+                      '(empresa/sucursal/bodega).')
+                )
 
     @api.constrains('sucursal_id', 'empresa_id', 'bodega_id')
     def _check_contexto_vs_empresa(self):
         for r in self:
+            # Si hay sucursal o bodega, debe haber empresa
+            if (r.sucursal_id or r.bodega_id) and not r.empresa_id:
+                raise ValidationError(_('Si defines sucursal o bodega, debes definir también la empresa.'))
+
             if r.sucursal_id and r.empresa_id and r.sucursal_id.empresa.id != r.empresa_id.id:
                 raise ValidationError(_('La sucursal no pertenece a la empresa.'))
             if r.bodega_id and r.empresa_id and r.bodega_id.empresa_id.id != r.empresa_id.id:
                 raise ValidationError(_('La bodega no pertenece a la empresa.'))
+
 
 # Asignaciones de overrides de permisos a usuarios con contexto
 #Ajusta la base solo para ese permiso: permite o deniega explícitamente. hace una excepcion a lo que traen los rangos.
@@ -325,6 +333,20 @@ class PermAsignacionPermiso(models.Model):
                                  help=_("Permiso atómico a forzar en este usuario.\n"
                                  "Ejemplo: 'ventas/facturar_venta'.")
                                  )
+    
+    """
+        Si creas override sin empresa ni sucursal ni bodega
+        → es global: aplica en cualquier empresa/sucursal/bodega.
+
+        Si creas override sólo con empresa (sin sucursal, sin bodega)
+        → aplica en todas las sucursales/bodegas de esa empresa.
+
+        Si creas override con empresa + sucursal (sin bodega)
+        → aplica en todas las bodegas de esa sucursal.
+
+        Si creas override con empresa + sucursal + bodega
+        → aplica sólo en esa bodega.
+    """
     allow = fields.Boolean('Permitir', default=True, help=_("Define el tipo de excepción:\n"
                             "• Marcado (True) = PERMITIR aunque el rango no lo tenga.\n"
                             "• Desmarcado (False) = DENEGAR aunque el rango lo tenga.\n"
@@ -352,7 +374,13 @@ class PermAsignacionPermiso(models.Model):
     @api.constrains('sucursal_id', 'empresa_id', 'bodega_id')
     def _check_contexto_vs_empresa(self):
         for r in self:
+            # Si hay sucursal o bodega, debe haber empresa
+            if (r.sucursal_id or r.bodega_id) and not r.empresa_id:
+                raise ValidationError(_('Si defines sucursal o bodega, debes definir también la empresa.'))
+
             if r.sucursal_id and r.empresa_id and r.sucursal_id.empresa.id != r.empresa_id.id:
                 raise ValidationError(_('La sucursal no pertenece a la empresa.'))
             if r.bodega_id and r.empresa_id and r.bodega_id.empresa_id.id != r.empresa_id.id:
                 raise ValidationError(_('La bodega no pertenece a la empresa.'))
+
+            
