@@ -12,6 +12,7 @@
         "views/apply_security.xml",
         "views/set_context.xml",
         "views/permisos_views_menuids.xml",
+        "views/audit_views.xml",
         "data/permisos_demo.xml",
         'data/permisos_security_data.xml',
     ],

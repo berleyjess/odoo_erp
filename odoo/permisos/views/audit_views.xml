@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+  <!-- 1) Acción y menú del log de auditoría -->
+  <record id="action_permisos_audit_log" model="ir.actions.act_window">
+    <field name="name">Auditoría de seguridad</field>
+    <field name="res_model">permisos.audit.log</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <menuitem id="menu_permisos_audit_log"
+            name="Auditoría"
+            parent="menu_permisos_root"
+            action="action_permisos_audit_log"
+            sequence="60"/>
+
+  <!-- Lista -->
+  <record id="view_permisos_audit_log_list" model="ir.ui.view">
+    <field name="name">permisos.audit.log.list</field>
+    <field name="model">permisos.audit.log</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="when"/>
+        <field name="user_id"/>
+        <field name="action"/>
+        <field name="model"/>
+        <field name="res_id"/>
+        <field name="origin"/>
+      </list>
+    </field>
+  </record>
+
+  <!-- Formulario -->
+  <record id="view_permisos_audit_log_form" model="ir.ui.view">
+    <field name="name">permisos.audit.log.form</field>
+    <field name="model">permisos.audit.log</field>
+    <field name="arch" type="xml">
+      <form string="Detalle de auditoría">
+        <sheet>
+          <group>
+            <field name="when"/>
+            <field name="user_id"/>
+            <field name="action"/>
+            <field name="model"/>
+            <field name="res_id"/>
+            <field name="origin"/>
+          </group>
+          <notebook>
+            <page string="Valores antes">
+              <field name="vals_before" nolabel="1"/>
+            </page>
+            <page string="Valores después">
+              <field name="vals_after" nolabel="1"/>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <!-- 2) Wizard de export a XLSX -->
+  <record id="view_permisos_audit_export_wiz_form" model="ir.ui.view">
+    <field name="name">permisos.audit.export.wiz.form</field>
+    <field name="model">permisos.audit.export.wiz</field>
+    <field name="arch" type="xml">
+      <form string="Exportar auditoría">
+        <group>
+          <field name="file_name" readonly="1"/>
+          <field name="file_data" filename="file_name" readonly="1"/>
+        </group>
+        <footer>
+          <button name="action_export"
+                  string="Generar archivo"
+                  type="object"
+                  class="btn-primary"/>
+          <button string="Cerrar" special="cancel" class="btn-secondary"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_permisos_audit_export_wiz" model="ir.actions.act_window">
+    <field name="name">Exportar auditoría</field>
+    <field name="res_model">permisos.audit.export.wiz</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+  </record>
+
+  <!-- Menú directo para el wizard de export -->
+  <menuitem id="menu_permisos_audit_export"
+            name="Exportar auditoría"
+            parent="menu_permisos_root"
+            action="action_permisos_audit_export_wiz"
+            sequence="70"/>
+
+</odoo>

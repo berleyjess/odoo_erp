@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import io
 import xlsxwriter
+import base64
 from odoo import models, fields
 
 class PermAuditExportWiz(models.TransientModel):
@@ -33,7 +34,13 @@ class PermAuditExportWiz(models.TransientModel):
             row += 1
         wb.close()
         output.seek(0)
-        self.write({'file_data': output.read()})
+        file_content = output.read()
+
+        # Odoo espera base64 en campos Binary
+        self.write({
+            'file_data': base64.b64encode(file_content),
+        })
+
         return {
             'type': 'ir.actions.act_url',
             'url': f"/web/content/{self._name}/{self.id}/file_data/{self.file_name}?download=1",
