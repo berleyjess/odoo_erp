@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_dashboard_module_user,dashboard.module.user,model_dashboard_module,base.group_user,1,0,0,0
+access_dashboard_module_admin,dashboard.module.admin,model_dashboard_module,base.group_system,1,1,1,1
+access_dashboard_favorite_user,dashboard.favorite.user,model_dashboard_favorite,base.group_user,1,1,1,1

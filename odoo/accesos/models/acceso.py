@@ -10,7 +10,7 @@ class Acceso(models.Model):
     _name = 'accesos.acceso'
     _description = 'Acceso de usuario por módulo/contexto'
     _order = 'id desc'
-    _rec_name = 'codigo'
+    _rec_name = 'display_name'
 
     codigo = fields.Char(readonly=True, default=lambda s: s.env['ir.sequence'].next_by_code('accesos.acceso') or '/')
     usuario_id = fields.Many2one('res.users', required=True, ondelete='cascade', index=True)
@@ -93,7 +93,99 @@ class Acceso(models.Model):
             # Sincroniza miembros a R / RW / RWC / ADMIN según can_* / is_admin
             Wiz._sync_group_members(m)
 
+    # === CAMPOS RELACIONADOS PARA VER INFO DEL MÓDULO ===
+    modulo_name = fields.Char(
+        string='Módulo',
+        related='modulo_id.name',
+        store=True,
+        readonly=True
+    )
+    modulo_code = fields.Char(
+        string='Código Módulo',
+        related='modulo_id.code',
+        store=True,
+        readonly=True
+    )
+    modulo_description = fields.Text(
+        string='Descripción',
+        related='modulo_id.description',
+        readonly=True
+    )
+    show_in_dashboard = fields.Boolean(
+        string='En Dashboard',
+        related='modulo_id.show_in_dashboard',
+        store=True,
+        readonly=False
+    )
 
+    display_name = fields.Char(
+        string='Nombre',
+        compute='_compute_display_name',
+        store=True
+    )
+
+    @api.depends('modulo_id', 'modulo_id.name', 'usuario_id', 'usuario_id.name')
+    def _compute_display_name(self):
+        for rec in self:
+            if rec.modulo_id and rec.usuario_id:
+                rec.display_name = f"{rec.modulo_id.name} - {rec.usuario_id.name}"
+            else:
+                rec.display_name = rec.codigo or 'Nuevo'
+    
+    # === CAMPO COMPUTADO: RESUMEN DE PERMISOS ===
+    permisos_resumen = fields.Char(
+        string='Permisos',
+        compute='_compute_permisos_resumen',
+        store=True
+    )
+    
+    @api.depends('can_read', 'can_write', 'can_create', 'can_unlink', 'is_admin')
+    def _compute_permisos_resumen(self):
+        for rec in self:
+            if rec.is_admin:
+                rec.permisos_resumen = '👑 ADMIN'
+            else:
+                perms = []
+                if rec.can_read:
+                    perms.append('R')
+                if rec.can_write:
+                    perms.append('W')
+                if rec.can_create:
+                    perms.append('C')
+                if rec.can_unlink:
+                    perms.append('D')
+                rec.permisos_resumen = ' | '.join(perms) if perms else 'Sin permisos'
+
+    # === MÉTODO PARA OBTENER MÓDULOS DEL USUARIO ACTUAL ===
+    @api.model
+    def get_user_accessible_modules(self, user_id=None):
+        """
+        Retorna los módulos a los que tiene acceso el usuario.
+        Si no se especifica user_id, usa el usuario actual.
+        """
+        if not user_id:
+            user_id = self.env.user.id
+        
+        accesos = self.search([
+            ('usuario_id', '=', user_id),
+            ('active', '=', True),
+        ])
+        
+        return [{
+            'acceso_id': acc.id,
+            'modulo_id': acc.modulo_id.id,
+            'modulo_name': acc.modulo_id.name,
+            'modulo_code': acc.modulo_id.code,
+            'description': acc.modulo_id.description or '',
+            'show_in_dashboard': acc.modulo_id.show_in_dashboard,
+            'can_read': acc.can_read,
+            'can_write': acc.can_write,
+            'can_create': acc.can_create,
+            'can_unlink': acc.can_unlink,
+            'is_admin': acc.is_admin,
+            'permisos_resumen': acc.permisos_resumen,
+            'menu_ids': acc.modulo_id.menu_ids.ids,
+        } for acc in accesos]
 
 class ResUsersPerms(models.Model):
     _inherit = 'res.users'

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Menú Principal de la Aplicación -->
+    <menuitem id="menu_custom_dashboard_root"
+              name="Panel Principal"
+              action="action_custom_dashboard"
+              sequence="1"
+              />
+
+    <!-- Menú de Configuración -->
+    <menuitem id="menu_dashboard_config"
+              name="Configuración"
+              parent="menu_custom_dashboard_root"
+              sequence="100"
+              groups="base.group_system"/>
+
+    <menuitem id="menu_dashboard_module_config"
+              name="Configurar Módulos"
+              parent="menu_dashboard_config"
+              action="action_dashboard_module"
+              sequence="10"/>
+</odoo>

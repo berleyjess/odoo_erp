@@ -248,11 +248,11 @@
         }</field>
     </record>
 
-    <menuitem id="menu_root" name="Solicitudes de Crédito" sequence="10" action="action_creditos_draft"/>
-    <menuitem id="menu_contratos" name="Contratos" parent="menu_root" sequence="20" action="action_creditos"/>
-    <menuitem id="menu_lineas" name="Líneas" parent="menu_root" sequence="30" action="action_load_lineas"/>
-    <menuitem id="menu_garantias" name="Padrón de Garantías" parent="menu_root" sequence="40" action="action_load_garantias"/>
-    <menuitem id="menu_catalogo" name="Catálogo" parent="menu_root" sequence="50"/>
+    <menuitem id="menu_credito_root" name="Solicitudes de Crédito" sequence="10" action="action_creditos_draft"/>
+    <menuitem id="menu_creditos_contratos" name="Contratos" parent="menu_credito_root" sequence="20" action="action_creditos"/>
+    <menuitem id="menu_lineas" name="Líneas" parent="menu_credito_root" sequence="30" action="action_load_lineas"/>
+    <menuitem id="menu_garantias" name="Padrón de Garantías" parent="menu_credito_root" sequence="40" action="action_load_garantias"/>
+    <menuitem id="menu_catalogo" name="Catálogo" parent="menu_credito_root" sequence="50"/>
         <menuitem id="menu_cargos" name="Cargos por Crédito" parent="menu_catalogo" action="action_load_cargos"/>
         <menuitem id="menu_ciclos" name="Ciclos Agrícolas" parent="menu_catalogo" action="action_load_ciclos"/>
         <menuitem id="menu_cultivos" name="Cultivos Agrícolas" parent="menu_catalogo" action="action_load_cultivos"/>

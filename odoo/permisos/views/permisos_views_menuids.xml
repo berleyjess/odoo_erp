@@ -10,24 +10,26 @@
       <xpath expr="//form/sheet" position="inside">
         <group>
           <field name="group_id" readonly="1" string="Grupo del área"/>
-          <field name="dirty"/>
+          <field name="dirty" readonly="1"/>
         </group>
         <notebook>
           <page string="Menús del módulo">
-            <field name="menu_ids" widget="many2many_tags"
-                   options="{'no_create': True, 'no_open': False}"/>
-            <!-- Si prefieres vista lista para seleccionar muchos:
-            <field name="menu_ids" context="{'default_parent_id': False}">
-              <tree editable="bottom">
-                <field name="name"/>
-                <field name="parent_id"/>
-              </tree>
-            </field>
-            -->
-            <div class="o_form_label">
-              Tip: agrega también submenús; la sincronización no hace cascada automática.
-            </div>
+              <field name="menu_ids" string="Menús del módulo" widget="many2many_tags"
+                     options="{'no_create': True, 'no_open': False}"/>
+              <div class="o_form_label">
+                Tip: agrega también submenús; la sincronización no hace cascada automática.
+                
+              </div>
+          </page>
 
+          <page string="Grupos de Seguridad" name="groups">
+              <group>
+                  <field name="group_id" readonly="1"/>
+                  <field name="group_read_id" readonly="1"/>
+                  <field name="group_write_id" readonly="1"/>
+                  <field name="group_create_id" readonly="1"/>
+                  <field name="group_admin_id" readonly="1"/>
+              </group>
           </page>
         </notebook>
       </xpath>
@@ -41,7 +43,8 @@
     <field name="inherit_id" ref="permisos.view_permisos_modulo_list"/>
     <field name="arch" type="xml">
       <xpath expr="//list" position="inside">
-        <field name="dirty"/>
+        <field name="dirty" readonly="1"/>
+        <!--string="Pendiente aplicar" widget="web_ribbon" invisible="not dirty" bg_color="bg-warning"-->
       </xpath>
     </field>
   </record>

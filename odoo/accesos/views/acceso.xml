@@ -5,15 +5,20 @@
         <field name="name">accesos.acceso.list</field>
         <field name="model">accesos.acceso</field>
         <field name="arch" type="xml">
-            <list string="Accesos" editable="bottom">
-                <field name="codigo" readonly="1"/>
-                <field name="usuario_id" required="1"/>
-                <field name="modulo_id" required="1"/>
-                <field name="can_read"/>
-                <field name="can_write"/>
-                <field name="can_create"/>
-                <field name="can_unlink"/>
-                <field name="is_admin"/>
+            <list string="Accesos con Módulos" editable="bottom" decoration-success="is_admin" decoration-muted="not active">
+                <!--field name="codigo" readonly="1"/-->
+                <field name="usuario_id" widget="many2one_avatar_user" required="1"/>
+                <!--field name="modulo_id" required="1"/-->
+                <field name="modulo_name" string="Módulo"/>
+                <field name="modulo_code" string="Código"/>
+                <field name="modulo_description" string="Descripción" optional="hide"/>
+                <field name="permisos_resumen" string="Permisos"/>
+                <field name="can_read" string="R" widget="boolean_toggle"/>
+                <field name="can_write" string="W" widget="boolean_toggle"/>
+                <field name="can_create" string="C" widget="boolean_toggle"/>
+                <field name="can_unlink" string="D" widget="boolean_toggle"/>
+                <field name="is_admin" string="Admin" widget="boolean_toggle"/>
+                <field name="show_in_dashboard" string="Dashboard" widget="boolean_toggle" />
                 <field name="active"/>
             </list>
         </field>
@@ -26,27 +31,132 @@
         <field name="arch" type="xml">
             <form string="Acceso">
                 <sheet>
+                    <div class="oe_title">
+                        <h1><field name="modulo_name" readonly="1"/></h1>
+                        <h3 class="text-muted"><field name="modulo_code" readonly="1"/></h3>
+                    </div>
                     <group>
-                        <group>
-                            <field name="codigo" readonly="1"/>
-                            <field name="usuario_id" required="1"/>
-                            <field name="modulo_id" required="1"/>
+                        <group string="Configuración">
+                            <field name="usuario_id" widget="many2one_avatar_user"/>
+                            <field name="modulo_id" options="{'no_create': True}"/>
+                            <field name="active" widget="boolean_toggle"/>
                         </group>
                         <group string="Permisos">
-                            <field name="can_read"/>
-                            <field name="can_write"/>
-                            <field name="can_create"/>
-                            <field name="can_unlink"/>
-                            <field name="is_admin"/>
+                            <field name="is_admin" widget="boolean_toggle"/>
+                            <field name="can_read" widget="boolean_toggle"/>
+                            <field name="can_write" widget="boolean_toggle"/>
+                            <field name="can_create" widget="boolean_toggle"/>
+                            <field name="can_unlink" widget="boolean_toggle"/>
+                            <field name="permisos_resumen" readonly="1"/>
                         </group>
                     </group>
-                    <group>
-                        <field name="active"/>
+                    <group string="Información del Módulo">
+                        <field name="modulo_description"/>
+                        <field name="show_in_dashboard" widget="boolean_toggle"/>
                     </group>
                 </sheet>
             </form>
         </field>
     </record>
+
+    <!-- Vista Kanban de Accesos -->
+    <record id="view_acceso_kanban" model="ir.ui.view">
+        <field name="name">accesos.acceso.kanban</field>
+        <field name="model">accesos.acceso</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile" default_group_by="usuario_id">
+                <field name="id"/>
+                <field name="modulo_name"/>
+                <field name="modulo_code"/>
+                <field name="permisos_resumen"/>
+                <field name="is_admin"/>
+                <field name="active"/>
+                <field name="show_in_dashboard"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click">
+                            <div class="oe_kanban_content">
+                                <div class="o_kanban_record_top mb-2">
+                                    <div class="o_kanban_record_headings">
+                                        <strong class="o_kanban_record_title">
+                                            <i class="fa fa-cube me-1"/>
+                                            <field name="modulo_name"/>
+                                        </strong>
+                                    </div>
+                                    <t t-if="record.is_admin.raw_value">
+                                        <span class="badge bg-success">
+                                            <i class="fa fa-crown"/> Admin
+                                        </span>
+                                    </t>
+                                </div>
+                                
+                                <div class="o_kanban_record_body">
+                                    <div class="text-muted small">
+                                        <span>Código: </span>
+                                        <field name="modulo_code"/>
+                                    </div>
+                                    <div class="mt-2">
+                                        <span class="badge bg-primary">
+                                            <field name="permisos_resumen"/>
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div class="o_kanban_record_bottom mt-2">
+                                    <div class="oe_kanban_bottom_left">
+                                        <t t-if="record.show_in_dashboard.raw_value">
+                                            <span class="badge bg-info" title="Visible en Dashboard">
+                                                <i class="fa fa-tachometer-alt"/>
+                                            </span>
+                                        </t>
+                                    </div>
+                                    <div class="oe_kanban_bottom_right">
+                                        <t t-if="!record.active.raw_value">
+                                            <span class="badge bg-danger">Inactivo</span>
+                                        </t>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_acceso_search_modulos" model="ir.ui.view">
+        <field name="name">accesos.acceso.search</field>
+        <field name="model">accesos.acceso</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Accesos">
+                <field name="usuario_id"/>
+                <field name="modulo_id"/>
+                <field name="modulo_name"/>
+                <field name="modulo_code"/>
+                <filter string="Activos" name="active" domain="[('active', '=', True)]"/>
+                <filter string="Admins" name="admin" domain="[('is_admin', '=', True)]"/>
+                <filter string="En Dashboard" name="dashboard" domain="[('show_in_dashboard', '=', True)]"/>
+                <separator/>
+                <filter string="Mis Accesos" name="my_access" domain="[('usuario_id', '=', uid)]"/>
+                <separator/>
+                <group expand="0" string="Agrupar por">
+                    <filter string="Usuario" name="group_user" context="{'group_by': 'usuario_id'}"/>
+                    <filter string="Módulo" name="group_module" context="{'group_by': 'modulo_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Acción para ver MIS accesos (filtrado) -->
+    <record id="action_my_accesos" model="ir.actions.act_window">
+        <field name="name">Mis Accesos</field>
+        <field name="res_model">accesos.acceso</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('usuario_id', '=', uid)]</field>
+        <field name="context">{'search_default_active': 1, 'default_usuario_id': uid}</field>
+    </record>
+
 
 
 
@@ -54,8 +164,15 @@
     <record id="action_accesos" model="ir.actions.act_window">
         <field name="name">Accesos</field>
         <field name="res_model">accesos.acceso</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list,form,kanban</field>
+        <field name="search_view_id" ref="view_acceso_search_modulos"/>
         <field name="target">current</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Configura accesos a módulos para los usuarios
+                Cada acceso define qué puede hacer un usuario en un módulo específico.
+            </p>
+        </field>
     </record>
 
     <!-- Menú (puedes moverlo donde prefieras) -->

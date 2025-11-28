@@ -32,15 +32,17 @@
         <xpath expr="//form" position="inside">
           <header>
             <!-- Campo usado en la condición; invisible para el usuario -->
-            <field name="dirty" invisible="1"/>
-            <!-- Botón de aplicar: visible SOLO si dirty = True -->
-            <button name="%(action_perm_apply_security)d"
-                    type="action"
-                    string="Aplicar seguridad"
-                    class="oe_highlight"
-                    invisible="dirty == False"/>
-
-
+            <group>
+              <field name="dirty" invisible="1"/>
+              <separator string=""/>
+              <!-- Botón de aplicar: visible SOLO si dirty = True -->
+              <button name="%(action_perm_apply_security)d"
+                      type="action"
+                      string="Aplicar seguridad"
+                      class="oe_highlight"
+                      icon="fa-shield"
+                      invisible="dirty == False"/>
+            </group>
           </header>
         </xpath>
       </field>

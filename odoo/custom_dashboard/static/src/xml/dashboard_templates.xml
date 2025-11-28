@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="custom_dashboard.Dashboard">
+        <div class="custom-dashboard">
+            <!-- Header -->
+            <div class="dashboard-header">
+                <h1>Panel de Aplicaciones</h1>
+                <p>Bienvenido, <t t-esc="userName"/>. Tienes acceso a <t t-esc="moduleCount"/> módulos.</p>
+                
+                <!-- Search Box -->
+                <div class="dashboard-search" style="position: relative;">
+                    <i class="fa fa-search search-icon"></i>
+                    <input 
+                        type="text" 
+                        placeholder="Buscar módulos..." 
+                        t-on-input="onSearchInput"
+                        t-att-value="state.searchQuery"
+                    />
+                </div>
+            </div>
+
+            <!-- Category Filters -->
+            <div class="category-filters">
+                <t t-foreach="categories" t-as="category" t-key="category.id">
+                    <button 
+                        t-attf-class="category-btn {{ state.activeCategory === category.id ? 'active' : '' }}"
+                        t-on-click="() => this.setCategory(category.id)"
+                    >
+                        <i t-attf-class="fa {{ category.icon }}" style="margin-right: 6px;"></i>
+                        <t t-esc="category.name"/>
+                    </button>
+                </t>
+            </div>
+
+            <!-- Loading State -->
+            <div t-if="state.loading" class="loading-spinner"></div>
+
+            <!-- Modules Grid -->
+            <div t-else="" class="modules-grid">
+                <t t-foreach="state.filteredModules"
+                   t-as="module"
+                   t-foreach-index="module_index"
+                   t-key="module.id">
+                    <div 
+                        class="module-card fade-in" 
+                        t-attf-style="animation-delay: {{ module_index * 0.05 }}s"
+                        t-on-click="() => this.openModule(module)"
+                    >
+
+                        <div class="module-card-header">
+                            <div t-attf-class="module-icon {{ module.color }}">
+                                <i t-attf-class="fa {{ module.icon }}"></i>
+                            </div>
+                            <button 
+                                t-attf-class="favorite-btn {{ this.isFavorite(module.menu_id) ? 'active' : '' }}"
+                                t-on-click="(ev) => this.toggleFavorite(ev, module)"
+                            >
+                                <i t-attf-class="{{ this.isFavorite(module.menu_id) ? 'fa' : 'far' }} fa-star"></i>
+                            </button>
+                        </div>
+                        <h3 t-esc="module.name"/>
+                        <p t-esc="module.description"/>
+                        <span class="module-category-tag" t-esc="module.category"/>
+                    </div>
+                </t>
+            </div>
+
+            <!-- Empty State -->
+            <div t-if="!state.loading and state.filteredModules.length === 0" class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="fa fa-search"></i>
+                </div>
+                <h3>No se encontraron módulos</h3>
+                <p>Intenta con otra búsqueda o categoría</p>
+            </div>
+        </div>
+    </t>
+
+</templates>

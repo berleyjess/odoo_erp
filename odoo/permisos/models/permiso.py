@@ -110,7 +110,88 @@ class PermModulo(models.Model):
         'ir.ui.menu', 'permisos_modulo_menu_rel', 'modulo_id', 'menu_id',
         string='Menús del módulo'
     )
+    # 👇 NUEVO
+    dashboard_menu_id = fields.Many2one(
+        'ir.ui.menu',
+        string='Menú principal (Panel)',
+        help=(
+            "Menú raíz que se mostrará como tarjeta en el Panel de Aplicaciones.\n"
+            "Si se deja vacío, se intenta detectar automáticamente usando los menús ligados."
+        ),
+    )
+    custom_menu_id = fields.Many2one(
+        'ir.ui.menu',
+        string='Menú Propio (Dashboard)',
+        help=(
+            "Menú PROPIO (no de Odoo) que se mostrará en el Panel.\n"
+            "Usa esto para apuntar a un menú de tu módulo personalizado\n"
+            "como empresas.empresa, usuarios.usuario, etc.\n"
+            "Si se deja vacío, se usa dashboard_menu_id o detección automática."
+        ),
+        domain="[('id', 'in', menu_ids)]",  # Solo menús ligados al módulo
+    )
+
+    show_in_dashboard = fields.Boolean(
+        string='Mostrar en Panel',
+        default=False,
+        help='Si está activo, los menús de este módulo se muestran como tarjetas en el Panel de Aplicaciones.'
+    )
     dirty = fields.Boolean(string='Pendiente aplicar', default=False)
+
+    has_custom_menu = fields.Boolean(
+        string='Tiene Menú Propio',
+        compute='_compute_has_custom_menu',
+        store=True,
+        help='Indica si el módulo tiene al menos un menú propio (no de Odoo)'
+    )
+
+    @api.depends('menu_ids', 'custom_menu_id', 'dashboard_menu_id')
+    def _compute_has_custom_menu(self):
+        # Lista de prefijos de Odoo
+        ODOO_PREFIXES = (
+            'base.', 'mail.', 'web.', 'contacts.', 'auth_', 'portal.',
+            'bus.', 'digest.', 'resource.', 'uom.', 'product.', 'stock.',
+            'sale.', 'purchase.', 'account.', 'hr.', 'crm.',
+        )
+        # Modelos de Odoo
+        ODOO_MODELS = {
+            'res.users', 'res.groups', 'res.company', 'res.partner',
+            'res.config.settings', 'ir.ui.menu', 'ir.model',
+        }
+
+        for rec in self:
+            has_custom = False
+
+            # Si tiene custom_menu_id explícito, verificar que no sea de Odoo
+            if rec.custom_menu_id:
+                xmlid = rec.custom_menu_id.get_external_id().get(rec.custom_menu_id.id, '')
+                is_odoo = any(xmlid.startswith(p) for p in ODOO_PREFIXES) if xmlid else False
+                if not is_odoo:
+                    has_custom = True
+
+            # Si no, revisar menu_ids
+            if not has_custom:
+                for menu in rec.menu_ids:
+                    xmlid = menu.get_external_id().get(menu.id, '')
+                    is_odoo = any(xmlid.startswith(p) for p in ODOO_PREFIXES) if xmlid else False
+
+                    # También verificar modelo de la acción
+                    if not is_odoo and menu.action and hasattr(menu.action, 'res_model'):
+                        if menu.action.res_model in ODOO_MODELS:
+                            is_odoo = True
+
+                    if not is_odoo:
+                        has_custom = True
+                        break
+
+            rec.has_custom_menu = has_custom
+
+
+    @api.onchange('dashboard_menu_id')
+    def _onchange_dashboard_menu_id(self):
+        for r in self:
+            r.dirty = True
+
 
     _sql_constraints = [
         ('permisos_modulo_code_uniq', 'unique(code)', 'El código de módulo debe ser único.')
@@ -383,4 +464,4 @@ class PermAsignacionPermiso(models.Model):
             if r.bodega_id and r.empresa_id and r.bodega_id.empresa_id.id != r.empresa_id.id:
                 raise ValidationError(_('La bodega no pertenece a la empresa.'))
 
-            
+

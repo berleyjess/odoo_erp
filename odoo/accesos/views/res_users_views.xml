@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Heredar vista form de res.users para mostrar accesos -->
+    <record id="view_users_form_accesos" model="ir.ui.view">
+        <field name="name">res.users.form.accesos</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <!-- Agregar botón estadístico -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_accesos" type="object"
+                        class="oe_stat_button" icon="fa-key">
+                    <field name="accesos_count" widget="statinfo" string="Módulos"/>
+                </button>
+            </xpath>
+            
+            <!-- Agregar página/tab con los accesos -->
+            <xpath expr="//page[@name='access_rights']" position="after">
+                <page string="Accesos por Módulo" name="accesos_modulo">
+                    <group>
+                        <field name="modulos_accesibles" readonly="1" 
+                               widget="text" nolabel="1"
+                               placeholder="Sin accesos configurados"/>
+                    </group>
+                    
+                    <field name="acceso_ids" nolabel="1">
+                        <list editable="bottom" decoration-success="is_admin" 
+                              decoration-muted="not active">
+                            <field name="modulo_id" options="{'no_create': True}"/>
+                            <field name="modulo_code" readonly="1" optional="show"/>
+                            <field name="permisos_resumen" readonly="1" widget="badge"/>
+                            <field name="can_read" widget="boolean_toggle"/>
+                            <field name="can_write" widget="boolean_toggle"/>
+                            <field name="can_create" widget="boolean_toggle"/>
+                            <field name="can_unlink" widget="boolean_toggle"/>
+                            <field name="is_admin" widget="boolean_toggle"/>
+                            <field name="show_in_dashboard" readonly="1" 
+                                   widget="boolean_toggle" optional="show"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </view_permisos_modulo_list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

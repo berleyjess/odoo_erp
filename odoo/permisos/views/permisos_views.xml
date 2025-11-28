@@ -31,10 +31,25 @@
       <form>
         <sheet>
           <group>
-            <field name="code"/>
-            <field name="name"/>
-            <field name="description"/>
-            <field name="active"/>
+            <group string="Información General">
+              <field name="code"/>
+              <field name="name"/>
+              <field name="description"/>
+              <field name="active" widget="boolean_toggle"/>
+            </group>
+            <group string="Configuración de Dashboard">
+              <field name="show_in_dashboard" widget="boolean_toggle"/>
+              <field name="dashboard_menu_id"
+                     domain="[('id', 'in', menu_ids)]"
+                     invisible="not show_in_dashboard"/>
+              <!-- 👇 NUEVO CAMPO -->
+              <field name="custom_menu_id"
+                     domain="[('id', 'in', menu_ids)]"
+                     invisible="not show_in_dashboard"
+                     help="Menú PROPIO del módulo (no de Odoo). Tiene prioridad sobre dashboard_menu_id."/>
+              <field name="has_custom_menu" readonly="1"
+                     invisible="not show_in_dashboard"/>
+            </group>
           </group>
         </sheet>
       </form>
