@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--facturacion_ui/security/permisos_security_data.xml-->
 <odoo>
 
   <!-- 1) Registrar el módulo funcional de Facturación -->
   <record id="permisos_mod_facturacion" model="permisos.modulo">
-    <field name="code">facturacion</field>   <!-- coincide con _perm_module_code -->
-    <field name="name">Facturación</field>
+    <field name="code">facturacion_ui</field>   <!-- coincide con _perm_module_code -->
+    <field name="name">Facturación UI</field>
     <field name="active">1</field>
     <!-- Ligamos el menú raíz para que APPLY_SECURITY detecte los menús -->
-    <field name="menu_ids" eval="[(6,0,[ref('menu_facturacion_root')])]"/>
+    <field name="menu_ids" eval="[(6,0,[ref('menu_facturacion_ui')])]"/>
   </record>
 
   <!-- 2) Configurar el modelo principal facturas.factura -->

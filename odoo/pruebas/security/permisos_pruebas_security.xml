@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-
+<!--pruebas/security/permisos_pruebas_security-->
   <!-- 1) Registrar el módulo funcional de Facturación -->
   <record id="permisos_mod_pruebas" model="permisos.modulo">
     <field name="code">pruebas</field>   <!-- coincide con _perm_module_code -->

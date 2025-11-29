@@ -15,7 +15,7 @@ class FacturaUI(models.Model):
     _logger = _logger
 
     # código funcional del módulo facturación (debe coincidir con permisos.modulo.code)
-    _perm_module_code = 'facturacion'
+    _perm_module_code = 'facturacion_ui'
     # Encabezado
     empresa_id   = fields.Many2one(
         'empresas.empresa', string='Empresa', required=True, index=True,

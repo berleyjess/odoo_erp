@@ -9,7 +9,7 @@
     "permisos"
   ],
   "data": [
-    #"security/permisos_security_data.xml",
+    "security/permisos_security_data.xml",
     "views/wizards_views.xml",      # define acciones de los wizards que usa el form
     "views/factura_views.xml",      # define la acción principal action_facturas_ui
     "views/transaccion_vista.xml", # vista de transacciones (lista y formulario)

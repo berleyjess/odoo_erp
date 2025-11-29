@@ -119,31 +119,18 @@
     <!-- ========== MÓDULO: CRÉDITOS (SÓLO CABECERA AQUÍ) ========== -->
     <!-- IMPORTANTE: aquí SOLO definimos el módulo para que accesos.acceso tenga a qué apuntar.
          NO definimos permisos.modulo.model aquí para evitar la dependencia con creditos.* -->
+         <!--aqui no se define ningun menu, si se quiere definir el menu principal meter esto en el xml de los permisos en el mismo modulo.-->
     <record id="permisos_mod_creditos" model="permisos.modulo">
         <field name="code">creditos</field>
         <field name="name">Créditos</field>
         <field name="description">Solicitudes de crédito y contratos asignados</field>
         <field name="active">1</field>
         <field name="dirty">1</field>
+        <!-- aquí ligas el menú raíz del módulo creditos -->
+        <field name="menu_ids" eval="[(6,0,[ref('creditos.menu_credito_root')])]"/>
     </record>
 
-    <!-- ========== MÓDULO: Facturación ========== -->
-    <record id="permisos_mod_facturacion" model="permisos.modulo">
-        <field name="code">facturacion</field>
-        <field name="name">Facturación</field>
-        <field name="description">Interfaz grafica de facturación.</field>
-        <field name="active">1</field>
-        <field name="dirty">1</field>
-    </record>
-
-    <!-- ========== MÓDULO: Pruebas ========== >
-    <record id="permisos_mod_pruebas" model="permisos.modulo">
-        <field name="code">pruebas</field>
-        <field name="name">Pruebas</field>
-        <field name="description">Interfaz grafica de Pruebas.</field>
-        <field name="active">1</field>
-        <field name="dirty">1</field>
-    </record-->
+    
 
 
 </odoo>
